@@ -92,9 +92,9 @@ jobs:
       - name: Publish to NPM
         shell: bash
         run: |
-          # We want to name our npm package @smbpndk/cli, but the main command is smb.
+          # We want to name our npm package @smbcloud/cli, but the main command is smb.
           # This is the tricky part. All the optional dependencies should follow the naming convention.
-          # So, we will generate @smbpndk/cli-${matrix.build.TARGET}
+          # So, we will generate @smbcloud/cli-${matrix.build.TARGET}
 
           # Move to the npm directory
           cd npm
@@ -155,7 +155,7 @@ jobs:
       - name: Publish the package
         shell: bash
         run: |
-          cd npm/smbpndk-cli
+          cd npm/smbcloud-cli
 
           # set the version
           export release_version="${{ env.RELEASE_VERSION }}"

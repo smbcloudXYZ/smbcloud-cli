@@ -1,0 +1,19 @@
+[package]
+name = "smbcloud-model"
+version = "0.3.7"
+edition = "2021"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+description = "Command line tool for creating and managing smbcloud resources."
+license = "Apache-2.0"
+repository = "https://github.com/smbcloud/smbcloud-cli"
+documentation = "https://docs.smbcloud.com/cli"
+keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
+categories = ["command-line-utilities", "command-line-interface", "cryptography::cryptocurrencies", "development-tools", "wasm"]
+readme = "README.md"
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.82"
+serde_repr = "0.1"
+spinners = "4.1.0"

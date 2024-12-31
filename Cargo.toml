@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "smbpndk-cli",
-    "smbpndk-model",
-    "smbpndk-networking",
-    "smbpndk-networking-project",
-    "smbpndk-utils"
+    "smbcloud-cli",
+    "smbcloud-model",
+    "smbcloud-networking",
+    "smbcloud-networking-project",
+    "smbcloud-utils"
 ]

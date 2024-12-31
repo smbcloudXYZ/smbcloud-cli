@@ -1,1 +1,0 @@
-# smbpndk-utils
