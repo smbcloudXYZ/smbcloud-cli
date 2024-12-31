@@ -7,7 +7,7 @@ authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Command line tool for creating and managing smbcloud resources."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloud/smbcloud-cli"
-documentation = "https://docs.smbcloud.com/cli"
+documentation = "https://docs.smbcloud.xyz/cli"
 keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
 categories = ["command-line-utilities", "command-line-interface", "cryptography::cryptocurrencies", "development-tools", "wasm"]
 

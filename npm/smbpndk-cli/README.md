@@ -1,6 +1,6 @@
 # smbcloud-cli
 
-This is a CLI program to access [smbcloud](https://smbcloud.com/).
+This is a CLI program to access [smbcloud](https://smbcloud.xyz/).
 
 # Important!
 

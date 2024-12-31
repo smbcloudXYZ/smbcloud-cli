@@ -19,7 +19,7 @@ pub const SMB_API_PROTOCOL: &str = "https";
 #[cfg(debug_assertions)]
 pub const SMB_API_HOST: &str = "localhost:8088";
 #[cfg(not(debug_assertions))]
-pub const SMB_API_HOST: &str = "api.smbcloud.com";
+pub const SMB_API_HOST: &str = "api.smbcloud.xyz";
 
 // Paths
 pub const PATH_USERS: &str = "v1/users";
