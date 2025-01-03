@@ -1,16 +1,9 @@
 [workspace]
+resolver = "2"
 members = [
-    "app-fun",
-    "app-oten",
-    "app-pkt",
-    "app-rdb",
-    "smbpndk-cli",
-    "smbpndk-model",
-    "smbpndk-networking",
-    "smbpndk-networking-project",
-    "smbpndk-utils"
+    "smbcloud-cli",
+    "smbcloud-model",
+    "smbcloud-networking",
+    "smbcloud-networking-project",
+    "smbcloud-utils"
 ]
-
-[workspace.metadata.precommit]
-fmt = "cargo fmt"
-sort = "cargo sort -w"

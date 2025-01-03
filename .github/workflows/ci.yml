@@ -4,6 +4,16 @@ name: CI
 
 on: push
 
+env:
+  SMB_CLIENT_ID: ${{ secrets.SMB_CLIENT_ID }}
+  SMB_CLIENT_SECRET: ${{ secrets.SMB_CLIENT_SECRET }}
+  SMB_API_HOST: ${{ secrets.SMB_API_HOST }}
+  SMB_API_PROTOCOL: ${{ secrets.SMB_API_PROTOCOL }}
+  GH_OAUTH_CLIENT_ID: ${{ secrets.GH_OAUTH_CLIENT_ID }}
+  GH_OAUTH_CLIENT_SECRET: ${{ secrets.GH_OAUTH_CLIENT_SECRET }}
+  GH_OAUTH_REDIRECT_HOST: ${{ secrets.GH_OAUTH_REDIRECT_HOST }}
+  GH_OAUTH_REDIRECT_PORT: ${{ secrets.GH_OAUTH_REDIRECT_PORT }}
+
 jobs:
   test_branch:
     runs-on: ubuntu-latest
