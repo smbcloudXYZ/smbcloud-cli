@@ -15,7 +15,7 @@ cargo install smbcloud-cli
 ### Homebrew (MacOS/Linux)
 
 ```bash
-brew tap smbcloud/tap
+brew tap smbcloudXYZ/tap
 brew install cli
 ```
 
@@ -40,8 +40,8 @@ cargo uninstall smbcloud-cli
 npm uninstall -g @smbcloud/cli
 
 # With Homebrew
-brew untap smbcloud/tap 
-brew uninstall smbcloud/tap/cli
+brew untap smbcloudXYZ/tap 
+brew uninstall smbcloudXYZ/tap/cli
 ```
 
 ## Usage:
