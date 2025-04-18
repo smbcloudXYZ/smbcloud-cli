@@ -32,29 +32,6 @@ pub enum Commands {
         #[clap(subcommand)]
         command: project::cli::Commands,
     },
-    /*
-    #[clap(about = "Manage your Oten authentication app. Add, delete, edit. Need authentication.")]
-    Oten {
-        #[clap(subcommand)]
-        command: app_oten::cli::Commands,
-    },
-     */
-    // Function
-    /*
-    FunApp {
-        #[clap(subcommand)]
-        command: fun_app::cli::Commands,
-    }, */
-    // Package
-    /*
-    PktApp {
-        #[clap(subcommand)]
-        command: pkt_app::cli::Commands,
-    }, */
-    // Relational database
-    /*
-    RdbApp {
-        #[clap(subcommand)]
-        command: rdb_app::cli::Commands,
-    }, */
+    #[clap(about = "Deploy project. It will use deploy.sh script in the .smb folder.")]
+    Deploy { },
 }

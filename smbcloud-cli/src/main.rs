@@ -6,6 +6,7 @@ use smbcloud_cli::{
     account::process_account,
     cli::{Cli, Commands},
     project::process_project,
+    deploy::process_deploy,
 };
 use std::{
     fs::{create_dir_all, OpenOptions},
@@ -99,6 +100,6 @@ async fn run() -> Result<CommandResult> {
     match cli.command {
         Commands::Account { command } => process_account(command).await,
         Commands::Project { command } => process_project(command).await,
-        //Commands::Oten { command } => process_auth_app(command).await,
+        Commands::Deploy {  } => process_deploy().await,
     }
 }
