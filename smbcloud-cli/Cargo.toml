@@ -16,31 +16,31 @@ name = "smb"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1.0.58"
-clap = { version = "4.1.6", features = ["derive"] }
-clap_mangen = "0.2.10"
-console = "0.15.0"
-dialoguer = "0.11.0"
-dirs = "5.0"
-home = "0.5.4"
-log = "0.4.14"
-git2 = "0.20.1"
-ssh2-config = "^0.5"
-open = "4.0"
-regex = "1.11"
-reqwest = { version = "0.12", features = ["json"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_repr = "0.1"
-smbcloud-model = { version = "0.3.0", path = "../smbcloud-model" }
-smbcloud-networking = { version = "0.3.0", path = "../smbcloud-networking" }
-smbcloud-networking-project = { version = "0.3.0", path = "../smbcloud-networking-project" }
-smbcloud-utils = { version = "0.3.0", path = "../smbcloud-utils" }
-spinners = "4.1.0"
-tokio = { version = "1.44", features = ["full"] }
-tracing = { version = "0.1.35", features = ["log"] }
-tracing-bunyan-formatter = "0.3.3"
-tracing-subscriber = { version = "0.3.14", features = ["registry", "env-filter"] }
-url-builder = "0.1.1"
-url = { version = "2", features = ["serde"] }
-git-url-parse = "0.4.5"
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+clap_mangen = { workspace = true }
+console = { workspace = true }
+dialoguer = { workspace = true }
+dirs = { workspace = true }
+home = { workspace = true }
+log = { workspace = true }
+git2 = { workspace = true }
+ssh2-config = { workspace = true }
+open = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_repr = { workspace = true }
+smbcloud-model = { workspace = true }
+smbcloud-networking = { workspace = true }
+smbcloud-networking-project = { workspace = true }
+smbcloud-utils = { workspace = true }
+spinners = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true, features = ["log"] }
+tracing-bunyan-formatter = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
+url-builder = { workspace = true }
+url = { workspace = true, features = ["serde"] }
+git-url-parse = { workspace = true }
