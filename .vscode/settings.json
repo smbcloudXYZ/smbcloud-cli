@@ -1,3 +1,8 @@
 {
-    "rust-analyzer.server.path": null
+    "rust-analyzer.server.path": null,
+    "java.jdt.ls.java.home": "/Users/setoelka/.local/share/mise/installs/java/openjdk-21.0.2",
+    "java.import.gradle.java.home": "/Users/setoelka/.local/share/mise/installs/java/openjdk-21.0.2",
+    "debug.javascript.defaultRuntimeExecutable": {
+        "pwa-node": "/Users/setoelka/.local/share/mise/shims/node"
+    }
 }

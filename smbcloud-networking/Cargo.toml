@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-networking"
-version = "0.3.7"
+version = "0.3.8"
 edition = "2021"
 readme = "README.md"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
@@ -12,15 +12,15 @@ keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
 categories = ["command-line-utilities", "command-line-interface", "cryptography::cryptocurrencies", "development-tools", "wasm"]
 
 [dependencies]
-anyhow = "1.0.58"
-async-trait = { version = "0.1.51", optional = true }
-dirs = "4.0.0"
-home = "0.5.4"
-log = "0.4.14"
-maybe-async = { version = "0.2", features = ["is_sync"] }
-reqwest = { version = "0.11", features = ["json"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.82"
-smbcloud-model = { version = "0.3", path = "../smbcloud-model" }
-thiserror = "1.0.29"
-url-builder = "0.1.1"
+anyhow = { workspace = true }
+async-trait = { workspace = true, optional = true }
+dirs = { workspace = true }
+home = { workspace = true }
+log = { workspace = true }
+maybe-async = { workspace = true, features = ["is_sync"] }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+smbcloud-model = { workspace = true }
+thiserror = { workspace = true }
+url-builder = { workspace = true }
