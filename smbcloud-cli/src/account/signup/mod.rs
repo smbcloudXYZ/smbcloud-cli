@@ -13,7 +13,7 @@ impl Display for SignupMethod {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Email => write!(f, "Email and password"),
-            Self::GitHub => write!(f, "GitHub"),
+            Self::GitHub => write!(f, "GitHub Account (beta)"),
         }
     }
 }
