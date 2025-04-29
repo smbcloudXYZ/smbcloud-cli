@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod init;
 
 use self::cli::Commands;
 use crate::cli::CommandResult;
