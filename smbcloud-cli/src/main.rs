@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use clap::Parser;
 use console::style;
 use smbcloud_cli::cli::CommandResult;
+use smbcloud_cli::project::init::process_project_init;
 use smbcloud_cli::{
     account::process_account,
     cli::{Cli, Commands},
@@ -100,6 +101,7 @@ async fn run() -> Result<CommandResult> {
     match cli.command {
         Commands::Account { command } => process_account(command).await,
         Commands::Project { command } => process_project(command).await,
+        Commands::Init { name, description } => { process_project_init(name, description).await },
         Commands::Deploy {  } => process_deploy().await,
     }
 }
