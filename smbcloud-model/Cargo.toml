@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-model"
-version = "0.3.7"
+version = "0.3.8"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Command line tool for creating and managing smbcloud resources."
