@@ -6,8 +6,8 @@ use smbcloud_cli::project::init::process_project_init;
 use smbcloud_cli::{
     account::process_account,
     cli::{Cli, Commands},
-    project::process_project,
     deploy::process_deploy,
+    project::process_project,
 };
 use std::{
     fs::{create_dir_all, OpenOptions},
@@ -101,7 +101,7 @@ async fn run() -> Result<CommandResult> {
     match cli.command {
         Commands::Account { command } => process_account(command).await,
         Commands::Project { command } => process_project(command).await,
-        Commands::Init { name, description } => { process_project_init(name, description).await },
-        Commands::Deploy {  } => process_deploy().await,
+        Commands::Init { name, description } => process_project_init(name, description).await,
+        Commands::Deploy {} => process_deploy().await,
     }
 }

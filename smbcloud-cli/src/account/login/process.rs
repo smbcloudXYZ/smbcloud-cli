@@ -41,12 +41,18 @@ pub async fn process_login() -> Result<CommandResult> {
     }
 
     let signup_methods = vec![SignupMethod::Email, SignupMethod::GitHub];
-    let selection = Select::with_theme(&ColorfulTheme::default())
+    let selection = match Select::with_theme(&ColorfulTheme::default())
         .items(&signup_methods)
         .default(0)
         .interact_on_opt(&Term::stderr())
         .map(|i| signup_methods[i.unwrap()])
-        .unwrap();
+    {
+        Ok(method) => method,
+        Err(e) => {
+            let error = anyhow!("No selection made.");
+            return Err(error);
+        }
+    };
 
     match selection {
         SignupMethod::Email => login_with_email().await,
@@ -57,10 +63,16 @@ pub async fn process_login() -> Result<CommandResult> {
 pub async fn process_logout() -> Result<CommandResult> {
     // Logout if user confirms
     if let Some(token_path) = smb_token_file_path() {
-        let confirm = Confirm::with_theme(&ColorfulTheme::default())
+        let confirm = match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to logout? y/n")
             .interact()
-            .unwrap();
+        {
+            Ok(confirm) => confirm,
+            Err(_) => {
+                let error = anyhow!("Invalid input.");
+                return Err(error);
+            }
+        };
         if !confirm {
             return Ok(CommandResult {
                 spinner: Spinner::new(
@@ -159,10 +171,16 @@ async fn create_new_account(
     user_email: Option<GithubEmail>,
     user_info: Option<GithubInfo>,
 ) -> Result<CommandResult> {
-    let confirm = Confirm::with_theme(&ColorfulTheme::default())
+    let confirm = match Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Do you want to create a new account?")
         .interact()
-        .unwrap();
+    {
+        Ok(confirm) => confirm,
+        Err(_) => {
+            let error = anyhow!("Invalid input.");
+            return Err(error);
+        }
+    };
 
     // Create account if user confirms
     if !confirm {
@@ -197,10 +215,16 @@ async fn create_new_account(
 async fn send_email_verification(user: Option<User>) -> Result<CommandResult> {
     // Return early if user is null
     if let Some(user) = user {
-        let confirm = Confirm::with_theme(&ColorfulTheme::default())
+        let confirm = match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to send a new verification email?")
             .interact()
-            .unwrap();
+        {
+            Ok(confirm) => confirm,
+            Err(_) => {
+                let error = anyhow!("Invalid input.");
+                return Err(error);
+            }
+        };
 
         // Send verification email if user confirms
         if !confirm {
@@ -252,10 +276,16 @@ async fn resend_email_verification(user: User) -> Result<CommandResult> {
 }
 
 async fn connect_github_account(auth: SmbAuthorization) -> Result<CommandResult> {
-    let confirm = Confirm::with_theme(&ColorfulTheme::default())
+    let confirm = match Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Do you want to link your GitHub account?")
         .interact()
-        .unwrap();
+    {
+        Ok(confirm) => confirm,
+        Err(_) => {
+            let error = anyhow!("Invalid input.");
+            return Err(error);
+        }
+    };
 
     // Link GitHub account if user confirms
     if !confirm {
@@ -301,15 +331,27 @@ async fn connect_github_account(auth: SmbAuthorization) -> Result<CommandResult>
 
 async fn login_with_email() -> Result<CommandResult> {
     println!("Provide your login credentials.");
-    let username = Input::<String>::with_theme(&ColorfulTheme::default())
+    let username = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Email")
         .validate_with(|email: &String| email_validation(email))
         .interact()
-        .unwrap();
-    let password = Password::with_theme(&ColorfulTheme::default())
+    {
+        Ok(email) => email,
+        Err(_) => {
+            let error = anyhow!("Invalid email.");
+            return Err(error);
+        }
+    };
+    let password = match Password::with_theme(&ColorfulTheme::default())
         .with_prompt("Password")
         .interact()
-        .unwrap();
+    {
+        Ok(password) => password,
+        Err(_) => {
+            let error = anyhow!("Invalid password.");
+            return Err(error);
+        }
+    };
     do_process_login(LoginArgs { username, password }).await
 }
 
@@ -378,10 +420,16 @@ async fn verify_or_set_password(result: SmbAuthorization) -> Result<CommandResul
 async fn send_reset_password(user: Option<User>) -> Result<CommandResult> {
     // Return early if user is null
     if let Some(user) = user {
-        let confirm = Confirm::with_theme(&ColorfulTheme::default())
+        let confirm = match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to reset your password?")
             .interact()
-            .unwrap();
+        {
+            Ok(confirm) => confirm,
+            Err(_) => {
+                let error = anyhow!("Invalid input.");
+                return Err(error);
+            }
+        };
 
         // Send verification email if user confirms
         if !confirm {
@@ -434,15 +482,27 @@ async fn resend_reset_password_instruction(user: User) -> Result<CommandResult> 
 }
 
 async fn input_reset_password_token() -> Result<CommandResult> {
-    let token = Input::<String>::with_theme(&ColorfulTheme::default())
+    let token = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Input reset password token")
         .interact()
-        .unwrap();
-    let password = Password::with_theme(&ColorfulTheme::default())
+    {
+        Ok(token) => token,
+        Err(_) => {
+            let error = anyhow!("Invalid token.");
+            return Err(error);
+        }
+    };
+    let password = match Password::with_theme(&ColorfulTheme::default())
         .with_prompt("New password.")
         .with_confirmation("Repeat password.", "Error: the passwords don't match.")
         .interact()
-        .unwrap();
+    {
+        Ok(password) => password,
+        Err(_) => {
+            let error = anyhow!("Invalid password.");
+            return Err(error);
+        }
+    };
 
     let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,

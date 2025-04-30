@@ -33,7 +33,7 @@ pub enum Commands {
         command: project::cli::Commands,
     },
     #[clap(about = "Initialize project. Requires an smbCloud account.")]
-    Init { 
+    Init {
         /// Project name
         #[clap(short, long, required = false)]
         name: Option<String>,
@@ -42,5 +42,5 @@ pub enum Commands {
         description: Option<String>,
     },
     #[clap(about = "Deploy project. It will use deploy.sh script in the .smb folder.")]
-    Deploy { },
+    Deploy {},
 }
