@@ -48,7 +48,7 @@ pub async fn process_login() -> Result<CommandResult> {
         .map(|i| signup_methods[i.unwrap()])
     {
         Ok(method) => method,
-        Err(e) => {
+        Err(_) => {
             let error = anyhow!("No selection made.");
             return Err(error);
         }

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use console::style;
-use smbcloud_cli::cli::CommandResult;
+use smbcloud_cli::cli::{CommandResult, Environment};
 use smbcloud_cli::project::init::process_project_init;
 use smbcloud_cli::{
     account::process_account,
@@ -18,12 +18,12 @@ use tracing::subscriber::set_global_default;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_subscriber::{filter::LevelFilter, prelude::*, EnvFilter};
 
-fn setup_logging(level: Option<EnvFilter>) -> Result<()> {
+fn setup_logging( env: Environment, level: Option<EnvFilter>) -> Result<()> {
     // Log in the current directory
     let log_path = match home::home_dir() {
         Some(path) => {
-            create_dir_all(path.join(".smb"))?;
-            let log_path = [path.to_str().unwrap(), "/.smb/smbcloud-cli.log"].join("");
+            create_dir_all(path.join(env.smb_dir()))?;
+            let log_path = [path.to_str().unwrap(), "/", &env.smb_dir(), "/smbcloud-cli.log"].join("");
             // Create the file if it doesn't exist
             let _file = OpenOptions::new()
                 .create(true)
@@ -83,6 +83,8 @@ async fn main() {
 async fn run() -> Result<CommandResult> {
     let cli = Cli::parse();
 
+    // println!("Environment: {}", cli.environment);
+
     let log_level_error: Result<CommandResult> = Err(anyhow!(
         "Invalid log level: {:?}.\n Valid levels are: trace, debug, info, warn, and error.",
         cli.log_level
@@ -93,9 +95,9 @@ async fn run() -> Result<CommandResult> {
             Ok(filter) => filter,
             Err(_) => return log_level_error,
         };
-        setup_logging(Some(filter))?;
+        setup_logging(cli.environment, Some(filter))?;
     } else {
-        setup_logging(None)?;
+        setup_logging(cli.environment, None)?;
     }
 
     match cli.command {
