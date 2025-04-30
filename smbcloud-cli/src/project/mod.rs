@@ -11,11 +11,12 @@ use smbcloud_model::{
     self,
     project::{Config, Project, ProjectCreate},
 };
+use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::{create_project, delete_project, get_all, get_project};
 use spinners::Spinner;
 use std::{fs::OpenOptions, io::Write};
 
-pub async fn process_project(commands: Commands) -> Result<CommandResult> {
+pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
         Commands::New {} => {
             let project_name = Input::<String>::with_theme(&ColorfulTheme::default())
@@ -32,10 +33,13 @@ pub async fn process_project(commands: Commands) -> Result<CommandResult> {
                 style("Creating a project...").green().bold().to_string(),
             );
 
-            match create_project(ProjectCreate {
-                name: project_name.clone(),
-                description: description.clone(),
-            })
+            match create_project(
+                env,
+                ProjectCreate {
+                    name: project_name.clone(),
+                    description: description.clone(),
+                },
+            )
             .await
             {
                 Ok(_) => {
@@ -66,7 +70,7 @@ pub async fn process_project(commands: Commands) -> Result<CommandResult> {
             );
 
             // Get all
-            match get_all().await {
+            match get_all(env).await {
                 Ok(projects) => {
                     spinner.stop_and_persist("✅", "Loaded.".to_owned());
                     let msg = if projects.is_empty() {
@@ -100,7 +104,7 @@ pub async fn process_project(commands: Commands) -> Result<CommandResult> {
                 style("Loading...").green().bold().to_string(),
             );
             // Get Detail
-            match get_project(id).await {
+            match get_project(env, id).await {
                 Ok(project) => {
                     spinner.stop_and_persist("✅", "Loaded.".to_owned());
                     let message = format!("Showing project {}.", &project.name);
@@ -138,7 +142,7 @@ pub async fn process_project(commands: Commands) -> Result<CommandResult> {
                     msg: "Cancelled.".to_string(),
                 });
             }
-            match delete_project(id).await {
+            match delete_project(env, id).await {
                 Ok(_) => {
                     spinner.stop_and_persist("✅", "Done.".to_string());
                     Ok(CommandResult {
@@ -157,7 +161,7 @@ pub async fn process_project(commands: Commands) -> Result<CommandResult> {
             }
         }
         Commands::Use { id } => {
-            let project = get_project(id).await?;
+            let project = get_project(env, id).await?;
 
             let config = Config {
                 current_project: Some(project),

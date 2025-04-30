@@ -2,10 +2,12 @@ use crate::cli::CommandResult;
 use anyhow::Result;
 use console::style;
 use smbcloud_model::project::ProjectCreate;
+use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::create_project;
 use spinners::Spinner;
 
 pub async fn process_project_init(
+    env: Environment,
     name: Option<String>,
     description: Option<String>,
 ) -> Result<CommandResult> {
@@ -16,7 +18,7 @@ pub async fn process_project_init(
     let name = name.unwrap_or_else(|| "New Project".to_string());
     let description = description.unwrap_or_else(|| "No description".to_string());
     let project = ProjectCreate { name, description };
-    match create_project(project).await {
+    match create_project(env, project).await {
         Ok(p) => {
             spinner.stop_and_persist("✅", "Done.".to_owned());
             Ok(CommandResult {
@@ -30,7 +32,7 @@ pub async fn process_project_init(
             Ok(CommandResult {
                 spinner,
                 symbol: "😩".to_owned(),
-                msg: format!("Failed to initiate a project."),
+                msg: "Failed to initiate a project.".to_string(),
             })
         }
     }

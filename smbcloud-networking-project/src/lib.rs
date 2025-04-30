@@ -5,16 +5,16 @@ use smbcloud_model::{
     self,
     project::{Project, ProjectCreate},
 };
-use smbcloud_networking::{get_smb_token, smb_base_url_builder};
+use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
 
-pub async fn get_all() -> Result<Vec<Project>> {
+pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
     // Get current token
     let token = get_smb_token().await?;
 
     debug!("Current token: {}", token);
 
     let response = Client::new()
-        .get(build_project_url())
+        .get(build_project_url(env))
         .header("Authorization", token)
         .header("User-agent", "smbcloud-cli")
         .send()
@@ -29,12 +29,12 @@ pub async fn get_all() -> Result<Vec<Project>> {
     }
 }
 
-pub async fn create_project(project: ProjectCreate) -> Result<Project> {
+pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<Project> {
     // Get current token
     let token = get_smb_token().await?;
 
     let response = Client::new()
-        .post(build_project_url())
+        .post(build_project_url(env))
         .json(&project)
         .header("Authorization", token)
         .send()
@@ -50,12 +50,12 @@ pub async fn create_project(project: ProjectCreate) -> Result<Project> {
     }
 }
 
-pub async fn get_project(id: String) -> Result<Project> {
+pub async fn get_project(env: Environment, id: String) -> Result<Project> {
     // Get current token
     let token = get_smb_token().await?;
 
     let response = Client::new()
-        .get(build_project_url_with_id(id))
+        .get(build_project_url_with_id(env, id))
         .header("Authorization", token)
         .send()
         .await?;
@@ -70,12 +70,12 @@ pub async fn get_project(id: String) -> Result<Project> {
     }
 }
 
-pub async fn delete_project(id: String) -> Result<()> {
+pub async fn delete_project(env: Environment, id: String) -> Result<()> {
     // Get current token
     let token = get_smb_token().await?;
 
     let response = Client::new()
-        .delete(build_project_url_with_id(id))
+        .delete(build_project_url_with_id(env, id))
         .header("Authorization", token)
         .send()
         .await?;
@@ -91,14 +91,14 @@ pub async fn delete_project(id: String) -> Result<()> {
 
 // Private functions
 
-fn build_project_url() -> String {
-    let mut url_builder = smb_base_url_builder();
+fn build_project_url(env: Environment) -> String {
+    let mut url_builder = smb_base_url_builder(env);
     url_builder.add_route("v1/projects");
     url_builder.build()
 }
 
-fn build_project_url_with_id(id: String) -> String {
-    let mut url_builder = smb_base_url_builder();
+fn build_project_url_with_id(env: Environment, id: String) -> String {
+    let mut url_builder = smb_base_url_builder(env);
     url_builder.add_route("v1/projects");
     url_builder.add_route(id.as_str());
     url_builder.build()

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use console::style;
-use smbcloud_cli::cli::{CommandResult, Environment};
+use smbcloud_cli::cli::CommandResult;
 use smbcloud_cli::project::init::process_project_init;
 use smbcloud_cli::{
     account::process_account,
@@ -9,6 +9,7 @@ use smbcloud_cli::{
     deploy::process_deploy,
     project::process_project,
 };
+use smbcloud_networking::environment::Environment;
 use std::{
     fs::{create_dir_all, OpenOptions},
     path::PathBuf,
@@ -18,15 +19,22 @@ use tracing::subscriber::set_global_default;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_subscriber::{filter::LevelFilter, prelude::*, EnvFilter};
 
-fn setup_logging( env: Environment, level: Option<EnvFilter>) -> Result<()> {
+fn setup_logging(env: Environment, level: Option<EnvFilter>) -> Result<()> {
     // Log in the current directory
     let log_path = match home::home_dir() {
         Some(path) => {
             create_dir_all(path.join(env.smb_dir()))?;
-            let log_path = [path.to_str().unwrap(), "/", &env.smb_dir(), "/smbcloud-cli.log"].join("");
+            let log_path = [
+                path.to_str().unwrap(),
+                "/",
+                &env.smb_dir(),
+                "/smbcloud-cli.log",
+            ]
+            .join("");
             // Create the file if it doesn't exist
             let _file = OpenOptions::new()
                 .create(true)
+                .truncate(true)
                 .write(true)
                 .open(&log_path)?;
 
@@ -39,6 +47,7 @@ fn setup_logging( env: Environment, level: Option<EnvFilter>) -> Result<()> {
 
     let file = OpenOptions::new()
         .create(true)
+        .truncate(true)
         .write(true)
         .open(log_path)
         .unwrap();
@@ -101,9 +110,11 @@ async fn run() -> Result<CommandResult> {
     }
 
     match cli.command {
-        Commands::Account { command } => process_account(command).await,
-        Commands::Project { command } => process_project(command).await,
-        Commands::Init { name, description } => process_project_init(name, description).await,
+        Commands::Account { command } => process_account(cli.environment, command).await,
+        Commands::Project { command } => process_project(cli.environment, command).await,
+        Commands::Init { name, description } => {
+            process_project_init(cli.environment, name, description).await
+        }
         Commands::Deploy {} => process_deploy().await,
     }
 }

@@ -12,12 +12,13 @@ use self::{
 };
 use crate::cli::CommandResult;
 use anyhow::Result;
+use smbcloud_networking::environment::Environment;
 
-pub async fn process_account(commands: Commands) -> Result<CommandResult> {
+pub async fn process_account(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
-        Commands::Signup {} => process_signup().await,
-        Commands::Login {} => process_login().await,
-        Commands::Logout {} => process_logout().await,
-        Commands::Forgot {} => process_forgot().await,
+        Commands::Signup {} => process_signup(env).await,
+        Commands::Login {} => process_login(env).await,
+        Commands::Logout {} => process_logout(env).await,
+        Commands::Forgot {} => process_forgot(env).await,
     }
 }

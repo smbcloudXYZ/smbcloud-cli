@@ -11,16 +11,6 @@ pub const GH_OAUTH_REDIRECT_PORT: &str = "8808";
 pub const SMB_CLIENT_ID: &str = "cli";
 pub const SMB_CLIENT_SECRET: &str = "secretttttttt";
 
-#[cfg(debug_assertions)]
-pub const SMB_API_PROTOCOL: &str = "http";
-#[cfg(not(debug_assertions))]
-pub const SMB_API_PROTOCOL: &str = "https";
-
-#[cfg(debug_assertions)]
-pub const SMB_API_HOST: &str = "localhost:8088";
-#[cfg(not(debug_assertions))]
-pub const SMB_API_HOST: &str = "api.smbcloud.xyz";
-
 // Paths
 pub const PATH_USERS: &str = "v1/users";
 pub const PATH_USERS_PASSWORD: &str = "v1/users/password";
