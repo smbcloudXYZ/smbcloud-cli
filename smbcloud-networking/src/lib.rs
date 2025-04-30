@@ -1,7 +1,6 @@
 pub mod constants;
 pub mod environment;
 
-use crate::constants::TOKEN_PATH_STR;
 use anyhow::{anyhow, Result};
 use constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET};
 use environment::Environment;
@@ -9,8 +8,8 @@ use log::debug;
 use std::path::PathBuf;
 use url_builder::URLBuilder;
 
-pub async fn get_smb_token() -> Result<String> {
-    if let Some(path) = smb_token_file_path() {
+pub async fn get_smb_token(env: Environment) -> Result<String> {
+    if let Some(path) = smb_token_file_path(env) {
         std::fs::read_to_string(path).map_err(|e| {
             debug!("Error while reading token: {}", &e);
             anyhow!("Error while reading token. Are you logged in?")
@@ -20,11 +19,11 @@ pub async fn get_smb_token() -> Result<String> {
     }
 }
 
-pub fn smb_token_file_path() -> Option<PathBuf> {
+pub fn smb_token_file_path(env: Environment) -> Option<PathBuf> {
     match home::home_dir() {
         Some(path) => {
             debug!("Home directory: {}.", path.to_str().unwrap());
-            let token_path = path.join(TOKEN_PATH_STR);
+            let token_path = path.join(env.smb_dir()).join("/token");
             if token_path.exists() && token_path.is_file() {
                 return Some(token_path);
             }

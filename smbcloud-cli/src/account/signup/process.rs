@@ -15,7 +15,7 @@ use spinners::Spinner;
 
 pub async fn process_signup(env: Environment) -> Result<CommandResult> {
     // Check if token file exists
-    if smb_token_file_path().is_some() {
+    if smb_token_file_path(env).is_some() {
         return Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,

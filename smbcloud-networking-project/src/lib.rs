@@ -9,7 +9,7 @@ use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_
 
 pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
     // Get current token
-    let token = get_smb_token().await?;
+    let token = get_smb_token(env).await?;
 
     debug!("Current token: {}", token);
 
@@ -31,7 +31,7 @@ pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
 
 pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<Project> {
     // Get current token
-    let token = get_smb_token().await?;
+    let token = get_smb_token(env).await?;
 
     let response = Client::new()
         .post(build_project_url(env))
@@ -52,7 +52,7 @@ pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<
 
 pub async fn get_project(env: Environment, id: String) -> Result<Project> {
     // Get current token
-    let token = get_smb_token().await?;
+    let token = get_smb_token(env).await?;
 
     let response = Client::new()
         .get(build_project_url_with_id(env, id))
@@ -72,7 +72,7 @@ pub async fn get_project(env: Environment, id: String) -> Result<Project> {
 
 pub async fn delete_project(env: Environment, id: String) -> Result<()> {
     // Get current token
-    let token = get_smb_token().await?;
+    let token = get_smb_token(env).await?;
 
     let response = Client::new()
         .delete(build_project_url_with_id(env, id))

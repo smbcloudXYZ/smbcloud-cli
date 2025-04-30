@@ -1,5 +1,3 @@
-pub const TOKEN_PATH_STR: &str = ".smb/token";
-
 #[cfg(debug_assertions)]
 pub const GH_OAUTH_CLIENT_ID: &str = "053e152f1b78ecee552b";
 #[cfg(not(debug_assertions))]

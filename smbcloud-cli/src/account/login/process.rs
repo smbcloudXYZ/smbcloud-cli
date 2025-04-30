@@ -30,7 +30,7 @@ use std::fs::{self};
 
 pub async fn process_login(env: Environment) -> Result<CommandResult> {
     // Check if token file exists
-    if smb_token_file_path().is_some() {
+    if smb_token_file_path(env).is_some() {
         return Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
@@ -63,7 +63,7 @@ pub async fn process_login(env: Environment) -> Result<CommandResult> {
 
 pub async fn process_logout(env: Environment) -> Result<CommandResult> {
     // Logout if user confirms
-    if let Some(token_path) = smb_token_file_path() {
+    if let Some(token_path) = smb_token_file_path(env) {
         let confirm = match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to logout? y/n")
             .interact()
@@ -374,7 +374,7 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
     match response.status() {
         StatusCode::OK => {
             // Login successful
-            save_token(&response).await?;
+            save_token(env, &response).await?;
             Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
@@ -546,7 +546,7 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
 }
 
 async fn do_process_logout(env: Environment) -> Result<()> {
-    let token = get_smb_token().await?;
+    let token = get_smb_token(env).await?;
 
     let response = Client::new()
         .delete(build_smb_logout_url(env))

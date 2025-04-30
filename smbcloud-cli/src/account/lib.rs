@@ -161,7 +161,7 @@ pub async fn process_connect_github(env: Environment, code: String) -> Result<Sm
         StatusCode::OK => {
             // Account authorized and token received
             spinner.stop_and_persist("✅", "You are logged in with your GitHub account!".into());
-            save_token(&response).await?;
+            save_token(env, &response).await?;
             let result = response.json().await?;
             // println!("Result: {:#?}", &result);
             Ok(result)
@@ -215,7 +215,7 @@ fn github_base_url_builder() -> URLBuilder {
     url_builder
 }
 
-pub async fn save_token(response: &Response) -> Result<()> {
+pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
     let headers = response.headers();
     // println!("Headers: {:#?}", &headers);
     match headers.get("Authorization") {
@@ -224,11 +224,11 @@ pub async fn save_token(response: &Response) -> Result<()> {
             match home::home_dir() {
                 Some(path) => {
                     debug!("{}", path.to_str().unwrap());
-                    create_dir_all(path.join(".smb"))?;
+                    create_dir_all(path.join(env.smb_dir()))?;
                     let mut file = OpenOptions::new()
                         .create(true)
                         .write(true)
-                        .open([path.to_str().unwrap(), "/.smb/token"].join(""))?;
+                        .open([path.to_str().unwrap(), "/", &env.smb_dir(), "/token"].join(""))?;
                     file.write_all(token.to_str()?.as_bytes())?;
                     Ok(())
                 }
