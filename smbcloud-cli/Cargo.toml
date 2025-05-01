@@ -16,8 +16,8 @@ name = "smb"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = { workspace = true }
-clap = { workspace = true, features = ["derive"] }
+anyhow = { workspace = true } 
+clap = { workspace = true, features = ["derive", "env"] }
 clap_mangen = { workspace = true }
 console = { workspace = true }
 dialoguer = { workspace = true }

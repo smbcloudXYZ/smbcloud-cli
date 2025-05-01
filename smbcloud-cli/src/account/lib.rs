@@ -8,6 +8,7 @@ use smbcloud_networking::{
     constants::{
         GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
     },
+    environment::Environment,
     smb_base_url_builder,
 };
 use spinners::Spinner;
@@ -19,7 +20,7 @@ use std::{
 };
 use url_builder::URLBuilder;
 
-pub async fn authorize_github() -> Result<SmbAuthorization> {
+pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
     // Spin up a simple localhost server to listen for the GitHub OAuth callback
     // setup_oauth_callback_server();
     // Open the GitHub OAuth URL in the user's browser
@@ -57,7 +58,7 @@ pub async fn authorize_github() -> Result<SmbAuthorization> {
         Ok(code) => {
             debug!("Got code from channel: {:#?}", &code);
             //Err(anyhow!("Failed to get code from channel."))
-            process_connect_github(code).await
+            process_connect_github(*env, code).await
         }
         Err(e) => {
             let error = anyhow!("Failed to get code from channel: {e}");
@@ -140,9 +141,9 @@ fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
 }
 
 // Get access token
-pub async fn process_connect_github(code: String) -> Result<SmbAuthorization> {
+pub async fn process_connect_github(env: Environment, code: String) -> Result<SmbAuthorization> {
     let response = Client::new()
-        .post(build_authorize_smb_url())
+        .post(build_authorize_smb_url(env))
         .body(format!("gh_code={}", code))
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -160,7 +161,7 @@ pub async fn process_connect_github(code: String) -> Result<SmbAuthorization> {
         StatusCode::OK => {
             // Account authorized and token received
             spinner.stop_and_persist("✅", "You are logged in with your GitHub account!".into());
-            save_token(&response).await?;
+            save_token(env, &response).await?;
             let result = response.json().await?;
             // println!("Result: {:#?}", &result);
             Ok(result)
@@ -187,8 +188,8 @@ pub async fn process_connect_github(code: String) -> Result<SmbAuthorization> {
     }
 }
 
-fn build_authorize_smb_url() -> String {
-    let mut url_builder = smb_base_url_builder();
+fn build_authorize_smb_url(env: Environment) -> String {
+    let mut url_builder = smb_base_url_builder(env);
     url_builder.add_route(PATH_AUTHORIZE);
     url_builder.build()
 }
@@ -214,7 +215,7 @@ fn github_base_url_builder() -> URLBuilder {
     url_builder
 }
 
-pub async fn save_token(response: &Response) -> Result<()> {
+pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
     let headers = response.headers();
     // println!("Headers: {:#?}", &headers);
     match headers.get("Authorization") {
@@ -223,11 +224,12 @@ pub async fn save_token(response: &Response) -> Result<()> {
             match home::home_dir() {
                 Some(path) => {
                     debug!("{}", path.to_str().unwrap());
-                    create_dir_all(path.join(".smb"))?;
+                    create_dir_all(path.join(env.smb_dir()))?;
                     let mut file = OpenOptions::new()
                         .create(true)
+                        .truncate(true)
                         .write(true)
-                        .open([path.to_str().unwrap(), "/.smb/token"].join(""))?;
+                        .open([path.to_str().unwrap(), "/", &env.smb_dir(), "/token"].join(""))?;
                     file.write_all(token.to_str()?.as_bytes())?;
                     Ok(())
                 }

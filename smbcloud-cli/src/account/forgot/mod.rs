@@ -5,11 +5,13 @@ use dialoguer::{theme::ColorfulTheme, Input, Password};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use smbcloud_model::forgot::{Args, Email, Param, UserUpdatePassword};
-use smbcloud_networking::{constants::PATH_USERS_PASSWORD, smb_base_url_builder};
+use smbcloud_networking::{
+    constants::PATH_USERS_PASSWORD, environment::Environment, smb_base_url_builder,
+};
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
-pub async fn process_forgot() -> Result<CommandResult> {
+pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
     println!("Provide your login credentials.");
     let email = Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Email")
@@ -26,7 +28,7 @@ pub async fn process_forgot() -> Result<CommandResult> {
     };
 
     let response = Client::new()
-        .post(build_smb_forgot_url())
+        .post(build_smb_forgot_url(env))
         .json(&params)
         .send()
         .await?;
@@ -37,7 +39,7 @@ pub async fn process_forgot() -> Result<CommandResult> {
                 "✅",
                 "Check your email and input your code here.".to_owned(),
             );
-            input_code().await
+            input_code(env).await
         }
         _ => Ok(CommandResult {
             spinner,
@@ -47,7 +49,7 @@ pub async fn process_forgot() -> Result<CommandResult> {
     }
 }
 
-async fn input_code() -> Result<CommandResult> {
+async fn input_code(env: Environment) -> Result<CommandResult> {
     let security_code = Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Code")
         .interact()
@@ -91,7 +93,7 @@ async fn input_code() -> Result<CommandResult> {
     );
 
     let response = Client::new()
-        .put(build_smb_forgot_url())
+        .put(build_smb_forgot_url(env))
         .json(&params)
         .send()
         .await?;
@@ -121,8 +123,8 @@ async fn input_code() -> Result<CommandResult> {
     }
 }
 
-fn build_smb_forgot_url() -> String {
-    let mut url_builder = smb_base_url_builder();
+fn build_smb_forgot_url(env: Environment) -> String {
+    let mut url_builder = smb_base_url_builder(env);
     url_builder.add_route(PATH_USERS_PASSWORD);
     url_builder.build()
 }

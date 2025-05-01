@@ -112,9 +112,7 @@ pub async fn process_deploy() -> Result<CommandResult> {
             if ssh_config_path.exists() {
                 // println!("SSH config path: {:#?}", ssh_config_path);
                 // Open the file and read it
-                let file =
-                    File::open(ssh_config_path.clone()).expect("Unable to open ssh config file");
-                file
+                File::open(ssh_config_path.clone()).expect("Unable to open ssh config file")
             } else {
                 spinner.stop_and_persist("😩", "No ssh config found.".to_owned());
                 return Ok(CommandResult {
@@ -182,7 +180,7 @@ pub async fn process_deploy() -> Result<CommandResult> {
     });
     push_opts.remote_callbacks(callbacks);
 
-    let _push = match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
+    match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
         Ok(_) => {}
         Err(e) => {
             println!("Failed to push to remote: {:#?}", e);

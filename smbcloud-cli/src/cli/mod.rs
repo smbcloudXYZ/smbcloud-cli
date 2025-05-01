@@ -1,5 +1,6 @@
 use crate::{account, project};
 use clap::{Parser, Subcommand};
+use smbcloud_networking::environment::Environment;
 use spinners::Spinner;
 
 pub struct CommandResult {
@@ -11,6 +12,10 @@ pub struct CommandResult {
 #[derive(Parser)]
 #[clap(author, version, about)]
 pub struct Cli {
+    /// Environment: dev, production
+    #[arg(short, long, env = "ENVIRONMENT", default_value = "production")]
+    pub environment: Environment,
+
     /// Log level: trace, debug, info, warn, error, off
     #[clap(short, long, global = true)]
     pub log_level: Option<String>,

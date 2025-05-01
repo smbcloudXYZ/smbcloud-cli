@@ -7,13 +7,15 @@ use log::debug;
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use smbcloud_model::signup::{SignupEmailParams, SignupResult, SignupUserEmail};
-use smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder, smb_token_file_path};
+use smbcloud_networking::{
+    constants::PATH_USERS, environment::Environment, smb_base_url_builder, smb_token_file_path,
+};
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
-pub async fn process_signup() -> Result<CommandResult> {
+pub async fn process_signup(env: Environment) -> Result<CommandResult> {
     // Check if token file exists
-    if smb_token_file_path().is_some() {
+    if smb_token_file_path(env).is_some() {
         return Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
@@ -33,12 +35,12 @@ pub async fn process_signup() -> Result<CommandResult> {
         .unwrap();
 
     match selection {
-        SignupMethod::Email => signup_with_email(None).await,
-        SignupMethod::GitHub => signup_with_github().await,
+        SignupMethod::Email => signup_with_email(env, None).await,
+        SignupMethod::GitHub => signup_with_github(env).await,
     }
 }
 
-pub async fn signup_with_email(email: Option<String>) -> Result<CommandResult> {
+pub async fn signup_with_email(env: Environment, email: Option<String>) -> Result<CommandResult> {
     let email = if let Some(email) = email {
         email
     } else {
@@ -71,7 +73,7 @@ pub async fn signup_with_email(email: Option<String>) -> Result<CommandResult> {
         user: SignupUserEmail { email, password },
     };
 
-    match do_signup(&params).await {
+    match do_signup(env, &params).await {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: style("✅".to_string()).for_stderr().green().to_string(),
@@ -85,8 +87,8 @@ pub async fn signup_with_email(email: Option<String>) -> Result<CommandResult> {
     }
 }
 
-async fn signup_with_github() -> Result<CommandResult> {
-    match authorize_github().await {
+async fn signup_with_github(env: Environment) -> Result<CommandResult> {
+    match authorize_github(&env).await {
         Ok(code) => {
             debug!("Code: {:#?}", code);
             Ok(CommandResult {
@@ -108,14 +110,14 @@ async fn signup_with_github() -> Result<CommandResult> {
     }
 }
 
-pub async fn do_signup<T: Serialize + ?Sized>(args: &T) -> Result<CommandResult> {
+pub async fn do_signup<T: Serialize + ?Sized>(env: Environment, args: &T) -> Result<CommandResult> {
     let spinner = Spinner::new(
         spinners::Spinners::BouncingBall,
         style("Signing you up...").green().bold().to_string(),
     );
 
     let response = Client::new()
-        .post(build_smb_signup_url())
+        .post(build_smb_signup_url(env))
         .json(&args)
         .send()
         .await?;
@@ -138,8 +140,8 @@ pub async fn do_signup<T: Serialize + ?Sized>(args: &T) -> Result<CommandResult>
     }
 }
 
-fn build_smb_signup_url() -> String {
-    let mut url_builder = smb_base_url_builder();
+fn build_smb_signup_url(env: Environment) -> String {
+    let mut url_builder = smb_base_url_builder(env);
     url_builder.add_route(PATH_USERS);
     url_builder.build()
 }
