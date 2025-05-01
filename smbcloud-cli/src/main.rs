@@ -115,6 +115,6 @@ async fn run() -> Result<CommandResult> {
         Commands::Init { name, description } => {
             process_project_init(cli.environment, name, description).await
         }
-        Commands::Deploy {} => process_deploy().await,
+        Commands::Deploy {} => process_deploy(cli.environment).await,
     }
 }
