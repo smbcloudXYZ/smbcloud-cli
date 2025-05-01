@@ -13,3 +13,8 @@ Default environment is production. To run against dev environemt:
 ```bash
 $ cargo run -- -e dev account login
 ```
+
+Example debug the dev environment:
+```bash
+$ cargo debugger --manifest-path smbcloud-cli/Cargo.toml -- --environment dev account login
+```

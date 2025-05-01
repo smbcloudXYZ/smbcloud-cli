@@ -39,7 +39,7 @@ pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
                 "✅",
                 "Check your email and input your code here.".to_owned(),
             );
-            input_code(env.clone()).await
+            input_code(env).await
         }
         _ => Ok(CommandResult {
             spinner,

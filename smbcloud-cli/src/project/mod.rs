@@ -177,6 +177,7 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
                     debug!("{}", path.to_str().unwrap());
                     let mut file = OpenOptions::new()
                         .create(true)
+                        .truncate(true)
                         .write(true)
                         .open([path.to_str().unwrap(), "/.smb/config.json"].join(""))?;
                     let json = serde_json::to_string(&config)?;

@@ -6,7 +6,7 @@ pub mod project;
 pub mod signup;
 
 pub mod ar_date_format {
-    use chrono::{DateTime, TimeZone, Utc};
+    use chrono::{DateTime, Utc};
     use serde::{self, Deserialize, Deserializer, Serializer};
 
     const FORMAT: &str = "%Y-%m-%dT%H:%M:%S%.f%#z";
@@ -38,7 +38,8 @@ pub mod ar_date_format {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        Utc.datetime_from_str(&s, FORMAT)
+        DateTime::parse_from_str(&s, FORMAT)
+            .map(|dt| dt.with_timezone(&Utc))
             .map_err(serde::de::Error::custom)
     }
 

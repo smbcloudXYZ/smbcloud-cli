@@ -58,7 +58,7 @@ pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
         Ok(code) => {
             debug!("Got code from channel: {:#?}", &code);
             //Err(anyhow!("Failed to get code from channel."))
-            process_connect_github(env.clone(), code).await
+            process_connect_github(*env, code).await
         }
         Err(e) => {
             let error = anyhow!("Failed to get code from channel: {e}");
@@ -227,6 +227,7 @@ pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
                     create_dir_all(path.join(env.smb_dir()))?;
                     let mut file = OpenOptions::new()
                         .create(true)
+                        .truncate(true)
                         .write(true)
                         .open([path.to_str().unwrap(), "/", &env.smb_dir(), "/token"].join(""))?;
                     file.write_all(token.to_str()?.as_bytes())?;

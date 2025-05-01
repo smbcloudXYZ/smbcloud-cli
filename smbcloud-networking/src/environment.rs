@@ -10,22 +10,25 @@ impl std::fmt::Display for Environment {
     }
 }
 
-impl Environment {
-    pub fn from_str(env: &str) -> Self {
-        match env.to_lowercase().as_str() {
-            "dev" => Environment::Dev,
-            "production" => Environment::Production,
-            _ => panic!("Invalid environment: {}", env),
+impl std::str::FromStr for Environment {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "dev" => Ok(Environment::Dev),
+            "production" => Ok(Environment::Production),
+            _ => Err(()),
         }
     }
+}
 
+impl Environment {
     pub fn to_str(&self) -> &str {
         match self {
             Environment::Dev => "dev",
             Environment::Production => "production",
         }
     }
-
     pub fn smb_dir(&self) -> String {
         match self {
             Environment::Dev => ".smb-dev".to_string(),

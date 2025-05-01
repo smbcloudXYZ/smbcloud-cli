@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET};
 use environment::Environment;
 use log::debug;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use url_builder::URLBuilder;
 
 pub async fn get_smb_token(env: Environment) -> Result<String> {
@@ -21,11 +21,11 @@ pub async fn get_smb_token(env: Environment) -> Result<String> {
 
 pub fn smb_token_file_path(env: Environment) -> Option<PathBuf> {
     match home::home_dir() {
-        Some(path) => {
-            debug!("Home directory: {}.", path.to_str().unwrap());
-            let token_path = path.join(env.smb_dir()).join("/token");
-            if token_path.exists() && token_path.is_file() {
-                return Some(token_path);
+        Some(home_path) => {
+            let token_path = [&env.smb_dir(), "/token"].join("");
+            let token_file = home_path.join(Path::new(&token_path));
+            if token_file.exists() && token_file.is_file() {
+                return Some(token_file);
             }
             None
         }
