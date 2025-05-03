@@ -9,7 +9,7 @@ use smbcloud_networking::{
         GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
     },
     environment::Environment,
-    smb_base_url_builder,
+    smb_base_url_builder, smb_token_file_path,
 };
 use spinners::Spinner;
 use std::{
@@ -238,4 +238,14 @@ pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
         }
         None => Err(anyhow!("Failed to get token. Probably a backend issue.")),
     }
+}
+
+pub async fn protected_request(env: Environment) -> Result<()> {
+    // Check if token file exists
+    if smb_token_file_path(env).is_none() {
+        return Err(anyhow!(
+            "Please authorize your account first with `smb account login` command."
+        ));
+    }
+    Ok(())
 }

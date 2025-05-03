@@ -2,7 +2,7 @@ mod git;
 mod smb_config;
 
 use std::{fs::File, io::BufReader};
-use crate::cli::CommandResult;
+use crate::{account::lib::protected_request, cli::CommandResult};
 use anyhow::Result;
 use console::style;
 use git::remote_deployment_setup;
@@ -14,7 +14,8 @@ use spinners::Spinner;
 use ssh2_config::{ParseRule, SshConfig};
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
-    check_config(env).await?;
+    protected_request(env).await?;
+    let repo_name = check_config().await?;
     println!("Deploying your app...");
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
@@ -45,7 +46,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             });
         }
     };
-    let mut origin = remote_deployment_setup(&repo).await?;
+    let origin = remote_deployment_setup(&repo, repo_name).await?;
     let remote_url = match origin.url() {
         Some(url) => url,
         None => {
@@ -173,6 +174,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     });
     push_opts.remote_callbacks(callbacks);
 
+    /*
     match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
         Ok(_) => {}
         Err(e) => {
@@ -185,7 +187,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             });
         }
     };
-
+    */
+    
     Ok(CommandResult {
         spinner,
         symbol: "🚀".to_owned(),

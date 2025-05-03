@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use console::style;
+use smbcloud_cli::account::login::process_login;
 use smbcloud_cli::cli::CommandResult;
 use smbcloud_cli::project::init::process_project_init;
 use smbcloud_cli::{
@@ -74,8 +75,7 @@ fn setup_logging(env: Environment, level: Option<EnvFilter>) -> Result<()> {
 async fn main() {
     match run().await {
         Ok(result) => {
-            let mut spinner = result.spinner;
-            spinner.stop_and_persist(&result.symbol, result.msg);
+            result.stop_and_persist();
             std::process::exit(1);
         }
         Err(e) => {
@@ -111,10 +111,9 @@ async fn run() -> Result<CommandResult> {
 
     match cli.command {
         Commands::Account { command } => process_account(cli.environment, command).await,
+        Commands::Login {} => process_login(cli.environment).await,
         Commands::Project { command } => process_project(cli.environment, command).await,
-        Commands::Init { name, description } => {
-            process_project_init(cli.environment, name, description).await
-        }
+        Commands::Init { } => { process_project_init(cli.environment).await }
         Commands::Deploy {} => process_deploy(cli.environment).await,
     }
 }

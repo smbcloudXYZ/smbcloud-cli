@@ -9,6 +9,12 @@ pub struct CommandResult {
     pub msg: String,
 }
 
+impl CommandResult  {
+    pub fn stop_and_persist(mut self) {
+        self.spinner.stop_and_persist(&self.symbol, self.msg);
+    }
+}
+
 #[derive(Parser)]
 #[clap(author, version, about)]
 pub struct Cli {
@@ -32,20 +38,18 @@ pub enum Commands {
         command: account::cli::Commands,
     },
 
+    #[clap(about = "Login to your account.")]
+    Login {},
+
     #[clap(about = "Manage your projects. Add, delete, edit. Need authentication.")]
     Project {
         #[clap(subcommand)]
         command: project::cli::Commands,
     },
+
     #[clap(about = "Initialize project. Requires an smbCloud account.")]
-    Init {
-        /// Project name
-        #[clap(short, long, required = false)]
-        name: Option<String>,
-        /// Project description
-        #[clap(short, long, required = false)]
-        description: Option<String>,
-    },
+    Init { },
+
     #[clap(about = "Deploy project. It will use deploy.sh script in the .smb folder.")]
     Deploy {},
 }

@@ -3,7 +3,7 @@ use crate::{
         lib::{authorize_github, save_token},
         signup::{do_signup, SignupMethod},
     },
-    cli::CommandResult,
+    cli::CommandResult, ui::{fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use console::{style, Term};
@@ -36,7 +36,7 @@ pub async fn process_login(env: Environment) -> Result<CommandResult> {
                 spinners::Spinners::SimpleDotsScrolling,
                 style("Loading...").green().bold().to_string(),
             ),
-            symbol: "✅".to_owned(),
+            symbol: succeed_symbol(),
             msg: "You are already logged in. Please logout first.".to_owned(),
         });
     }
@@ -80,12 +80,12 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
                     spinners::Spinners::SimpleDotsScrolling,
                     style("Cancel operation.").green().bold().to_string(),
                 ),
-                symbol: "✅".to_owned(),
+                symbol: succeed_symbol(),
                 msg: "Doing nothing.".to_owned(),
             });
         }
 
-        let mut spinner = Spinner::new(
+        let spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
             style("Logging you out...").green().bold().to_string(),
         );
@@ -93,15 +93,11 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
         // Call backend
         match do_process_logout(env).await {
             Ok(_) => {
-                spinner.stop_and_persist("✅", "Done.".to_owned());
                 fs::remove_file(token_path)?;
                 Ok(CommandResult {
-                    spinner: Spinner::new(
-                        spinners::Spinners::SimpleDotsScrolling,
-                        style("Loading...").green().bold().to_string(),
-                    ),
-                    symbol: "✅".to_owned(),
-                    msg: "You are now logged out!".to_owned(),
+                    spinner,
+                    symbol: succeed_symbol(),
+                    msg: succeed_message("You are logged out!"),
                 })
             }
             Err(e) => Err(anyhow!("{e}")),
@@ -112,7 +108,7 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
                 spinners::Spinners::SimpleDotsScrolling,
                 style("Loading...").green().bold().to_string(),
             ),
-            symbol: "😏".to_owned(),
+            symbol: fail_symbol(),
             msg: "You are not logged in.".to_owned(),
         })
     }
@@ -380,8 +376,8 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
                     spinners::Spinners::SimpleDotsScrolling,
                     style("Loading...").green().bold().to_string(),
                 ),
-                symbol: "✅".to_owned(),
-                msg: "You are now logged in!".to_owned(),
+                symbol: succeed_symbol(),
+                msg: succeed_message("You are logged in!"),
             })
         }
         StatusCode::NOT_FOUND => {
@@ -391,7 +387,7 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
                     spinners::Spinners::SimpleDotsScrolling,
                     style("Account not found.").green().bold().to_string(),
                 ),
-                symbol: "✅".to_owned(),
+                symbol: style("✔").green().to_string(),
                 msg: "Please signup!".to_owned(),
             })
         }
@@ -444,7 +440,7 @@ async fn send_reset_password(env: Environment, user: Option<User>) -> Result<Com
             );
             return Ok(CommandResult {
                 spinner,
-                symbol: "✅".to_owned(),
+                symbol: style("✔").green().to_string(),
                 msg: "Doing nothing.".to_owned(),
             });
         }
