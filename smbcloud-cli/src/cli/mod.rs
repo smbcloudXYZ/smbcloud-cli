@@ -41,6 +41,9 @@ pub enum Commands {
     #[clap(about = "Login to your account.")]
     Login {},
 
+    #[clap(about = "Logout from your account.")]
+    Logout {},
+
     #[clap(about = "Manage your projects. Add, delete, edit. Need authentication.")]
     Project {
         #[clap(subcommand)]
