@@ -3,7 +3,7 @@ use crate::{
         lib::{authorize_github, save_token},
         signup::{do_signup, SignupMethod},
     },
-    cli::CommandResult, ui::{fail_symbol, succeed_message, succeed_symbol},
+    cli::CommandResult, ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use console::{style, Term};
@@ -36,8 +36,8 @@ pub async fn process_login(env: Environment) -> Result<CommandResult> {
                 spinners::Spinners::SimpleDotsScrolling,
                 style("Loading...").green().bold().to_string(),
             ),
-            symbol: succeed_symbol(),
-            msg: "You are already logged in. Please logout first.".to_owned(),
+            symbol: fail_symbol(),
+            msg: fail_message("You are already logged in. Please logout first."),
         });
     }
 

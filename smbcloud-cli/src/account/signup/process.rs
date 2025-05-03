@@ -1,5 +1,5 @@
 use super::SignupMethod;
-use crate::{account::lib::authorize_github, cli::CommandResult};
+use crate::{account::lib::authorize_github, cli::CommandResult, ui::fail_symbol};
 use anyhow::{anyhow, Result};
 use console::{style, Term};
 use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
@@ -21,7 +21,7 @@ pub async fn process_signup(env: Environment) -> Result<CommandResult> {
                 spinners::Spinners::SimpleDotsScrolling,
                 style("Loading...").green().bold().to_string(),
             ),
-            symbol: "✅".to_owned(),
+            symbol: fail_symbol(),
             msg: "You are already logged in. Please logout first.".to_owned(),
         });
     }

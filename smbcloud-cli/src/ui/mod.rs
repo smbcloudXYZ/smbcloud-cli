@@ -11,3 +11,7 @@ pub fn fail_symbol() -> String {
 pub fn succeed_message(message: &str) -> String {
   style(message).bold().white().to_string()
 }
+
+pub fn fail_message(message: &str) -> String {
+  style(message).italic().red().to_string()
+}
