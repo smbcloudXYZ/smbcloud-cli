@@ -1,4 +1,8 @@
-use crate::{account::lib::protected_request, cli::CommandResult, ui::{succeed_message, succeed_symbol}};
+use crate::{
+    account::lib::protected_request,
+    cli::CommandResult,
+    ui::{fail_message, succeed_message, succeed_symbol},
+};
 use anyhow::{anyhow, Result};
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
@@ -16,8 +20,7 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
     {
         Ok(project_name) => project_name,
         Err(_) => {
-            let error = anyhow!("Invalid project name.");
-            return Err(error);
+            return Err(anyhow!(fail_message("Invalid project name.")));
         }
     };
     let description = match Input::<String>::with_theme(&ColorfulTheme::default())
@@ -26,10 +29,11 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
     {
         Ok(description) => description,
         Err(_) => {
-            let error = anyhow!("Invalid description.");
-            return Err(error);
+            return Err(anyhow!(fail_message("Invalid description")));
         }
     };
+
+    setup_smb_folder(&project_name, &description).await?;
 
     let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
@@ -52,11 +56,26 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
         }),
         Err(e) => {
             println!("Error: {e:#?}");
-            Ok(CommandResult {
-                spinner,
-                symbol: succeed_symbol(),
-                msg: format!("Failed to create a project {project_name}."),
-            })
+            Err(anyhow!(fail_message("Failed to create project.")))
         }
     }
+}
+
+async fn setup_smb_folder(name: &str, description: &str) -> Result<()> {
+    // Create .smb folder in the current directory
+    std::fs::create_dir(".smb")?;
+    // Create config.toml file in the .smb folder
+    let repository_name = name.to_lowercase().replace(" ", "");
+    std::fs::write(
+        ".smb/config.toml",
+        format!(
+            r#"
+name = "{name}"
+description = "{description}"
+[repository]
+name = "{repository_name}"
+"#,
+        ),
+    )?;
+    Ok(())
 }

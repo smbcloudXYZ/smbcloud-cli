@@ -20,6 +20,8 @@ use std::{
 };
 use url_builder::URLBuilder;
 
+use crate::ui::fail_message;
+
 pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
     // Spin up a simple localhost server to listen for the GitHub OAuth callback
     // setup_oauth_callback_server();
@@ -244,7 +246,7 @@ pub async fn protected_request(env: Environment) -> Result<()> {
     // Check if token file exists
     if smb_token_file_path(env).is_none() {
         return Err(anyhow!(
-            "Please authorize your account first with `smb account login` command."
+            fail_message("Please authorize your account first with `smb account login` command.")
         ));
     }
     Ok(())
