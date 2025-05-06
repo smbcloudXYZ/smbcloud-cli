@@ -1,7 +1,11 @@
 mod git;
 mod smb_config;
 
-use crate::{account::lib::protected_request, cli::CommandResult};
+use crate::{
+    account::lib::protected_request,
+    cli::CommandResult,
+    ui::{fail_message, fail_symbol},
+};
 use anyhow::Result;
 use console::style;
 use git::remote_deployment_setup;
@@ -16,7 +20,7 @@ use std::{fs::File, io::BufReader};
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     protected_request(env).await?;
     let repo_name = check_config().await?;
-    println!("Deploying your app...");
+
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         style("Deploying...").green().bold().to_string(),
@@ -28,8 +32,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             spinner.stop_and_persist("😩", "No git repository found.".to_owned());
             return Ok(CommandResult {
                 spinner,
-                symbol: "😩".to_owned(),
-                msg: "No git repository found. Init with `git init` command.".to_owned(),
+                symbol: fail_symbol(),
+                msg: fail_message("No git repository found. Init with `git init` command."),
             });
         }
     };
@@ -40,22 +44,24 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             spinner.stop_and_persist("😩", "No main branch found.".to_owned());
             return Ok(CommandResult {
                 spinner,
-                symbol: "😩".to_owned(),
-                msg: "No main branch found. Create with `git checkout -b <branch>` command."
-                    .to_owned(),
+                symbol: fail_symbol(),
+                msg: fail_message(
+                    "No main branch found. Create with `git checkout -b <branch>` command.",
+                ),
             });
         }
     };
-    let origin = remote_deployment_setup(&repo, repo_name).await?;
+    let mut origin = remote_deployment_setup(&repo, repo_name).await?;
     let remote_url = match origin.url() {
         Some(url) => url,
         None => {
             spinner.stop_and_persist("😩", "No remote URL found.".to_owned());
             return Ok(CommandResult {
                 spinner,
-                symbol: "😩".to_owned(),
-                msg: "No remote URL found. Add with `git remote add origin <url>` command."
-                    .to_owned(),
+                symbol: fail_symbol(),
+                msg: fail_message(
+                    "No remote URL found. Add with `git remote add origin <url>` command.",
+                ),
             });
         }
     };
@@ -66,7 +72,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             spinner.stop_and_persist("😩", e.to_string());
             return Ok(CommandResult {
                 spinner,
-                symbol: "😩".to_owned(),
+                symbol: fail_symbol(),
                 msg: "Invalid remote URL.".to_owned(),
             });
         }
@@ -80,8 +86,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             // Only support ssh for now
             return Ok(CommandResult {
                 spinner,
-                symbol: "😩".to_owned(),
-                msg: "Only ssh is supported.".to_owned(),
+                symbol: fail_symbol(),
+                msg: fail_message("Only ssh is supported."),
             });
         }
     };
@@ -93,8 +99,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             spinner.stop_and_persist("😩", "No host found.".to_owned());
             return Ok(CommandResult {
                 spinner,
-                symbol: "😩".to_owned(),
-                msg: "No host found.".to_owned(),
+                symbol: fail_symbol(),
+                msg: fail_message("No host found."),
             });
         }
     };
@@ -111,8 +117,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                 spinner.stop_and_persist("😩", "No ssh config found.".to_owned());
                 return Ok(CommandResult {
                     spinner,
-                    symbol: "😩".to_owned(),
-                    msg: "No ssh config found.".to_owned(),
+                    symbol: fail_symbol(),
+                    msg: fail_message("No ssh config found."),
                 });
             }
         }
@@ -150,7 +156,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             });
         }
     };
-    //println!("Identity files: {:#?}", identity_files);
+    println!("Identity files: {:#?}", identity_files);
     // get identity_file
     let identity_file = match identity_files.first() {
         Some(identity_file) => {
@@ -170,11 +176,13 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let mut callbacks = RemoteCallbacks::new();
     // Set the credentials
     callbacks.credentials(|_url, _username_from_url, _allowed_types| {
-        Cred::ssh_key("git", None, identity_file, None)
+        Cred::ssh_key("deploy", None, identity_file, None)
+    });
+    callbacks.push_transfer_progress(|current, total, bytes| {
+        println!("Progress: current -> {}, total -> {}, bytes -> {}", current, total, bytes);
     });
     push_opts.remote_callbacks(callbacks);
 
-    /*
     match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
         Ok(_) => {}
         Err(e) => {
@@ -187,7 +195,6 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             });
         }
     };
-    */
 
     Ok(CommandResult {
         spinner,
