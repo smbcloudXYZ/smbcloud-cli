@@ -8,9 +8,7 @@ use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
 use init::process_project_init;
 use log::debug;
-use smbcloud_model::
-    project::{Config, Project}
-;
+use smbcloud_model::project::{Config, Project};
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::{delete_project, get_all, get_project};
 use spinners::Spinner;
@@ -18,9 +16,7 @@ use std::{fs::OpenOptions, io::Write};
 
 pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
-        Commands::New {} => {
-            process_project_init(env).await
-        }
+        Commands::New {} => process_project_init(env).await,
         Commands::List {} => {
             let mut spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,

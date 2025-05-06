@@ -22,7 +22,8 @@ use smbcloud_networking::{
         PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
         PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
     },
-    environment::Environment, smb_base_url_builder, smb_token_file_path,
+    environment::Environment,
+    smb_base_url_builder, smb_token_file_path,
 };
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
@@ -307,11 +308,15 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
         },
     };
 
-    let response = Client::new()
+    let response = match Client::new()
         .post(build_smb_login_url(env))
         .json(&login_params)
         .send()
-        .await?;
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => return Err(anyhow!(fail_message("Check your internet connection."))),
+    };
 
     match response.status() {
         StatusCode::OK => {
@@ -333,8 +338,8 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
                     spinners::Spinners::SimpleDotsScrolling,
                     style("Account not found.").green().bold().to_string(),
                 ),
-                symbol: style("✔").green().to_string(),
-                msg: "Please signup!".to_owned(),
+                symbol: fail_symbol(),
+                msg: fail_message("Please signup!"),
             })
         }
         StatusCode::UNPROCESSABLE_ENTITY => {
@@ -343,7 +348,9 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
             // println!("Result: {:#?}", &result);
             verify_or_set_password(&env, result).await
         }
-        _ => Err(anyhow!("Login failed. Check your username and password.")),
+        _ => Err(anyhow!(fail_message(
+            "Login failed. Check your username and password."
+        ))),
     }
 }
 
@@ -477,13 +484,10 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
     match response.status() {
         StatusCode::OK => Ok(CommandResult {
             spinner,
-            symbol: "✅".to_owned(),
-            msg: "Password reset!".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message("Password reset!"),
         }),
-        _ => {
-            let error = anyhow!("Failed to reset password.");
-            Err(error)
-        }
+        _ => Err(anyhow!(fail_message("Failed to reset password."))),
     }
 }
 

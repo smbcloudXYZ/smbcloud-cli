@@ -9,7 +9,7 @@ pub struct CommandResult {
     pub msg: String,
 }
 
-impl CommandResult  {
+impl CommandResult {
     pub fn stop_and_persist(mut self) {
         self.spinner.stop_and_persist(&self.symbol, self.msg);
     }
@@ -51,7 +51,7 @@ pub enum Commands {
     },
 
     #[clap(about = "Initialize project. Requires an smbCloud account.")]
-    Init { },
+    Init {},
 
     #[clap(about = "Deploy project. It will use deploy.sh script in the .smb folder.")]
     Deploy {},

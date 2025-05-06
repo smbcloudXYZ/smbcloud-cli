@@ -245,9 +245,9 @@ pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
 pub async fn protected_request(env: Environment) -> Result<()> {
     // Check if token file exists
     if smb_token_file_path(env).is_none() {
-        return Err(anyhow!(
-            fail_message("Please authorize your account first with `smb account login` command.")
-        ));
+        return Err(anyhow!(fail_message(
+            "Please authorize your account first with `smb account login` command."
+        )));
     }
     Ok(())
 }

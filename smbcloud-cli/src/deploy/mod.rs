@@ -1,7 +1,6 @@
 mod git;
 mod smb_config;
 
-use std::{fs::File, io::BufReader};
 use crate::{account::lib::protected_request, cli::CommandResult};
 use anyhow::Result;
 use console::style;
@@ -12,6 +11,7 @@ use smb_config::check_config;
 use smbcloud_networking::environment::Environment;
 use spinners::Spinner;
 use ssh2_config::{ParseRule, SshConfig};
+use std::{fs::File, io::BufReader};
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     protected_request(env).await?;
@@ -20,7 +20,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         style("Deploying...").green().bold().to_string(),
-    );  
+    );
 
     let repo = match Repository::open(".") {
         Ok(repo) => repo,
@@ -188,7 +188,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
     */
-    
+
     Ok(CommandResult {
         spinner,
         symbol: "🚀".to_owned(),
