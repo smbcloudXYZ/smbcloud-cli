@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
-    "smbcloud-cli",
-    "smbcloud-model",
-    "smbcloud-networking",
-    "smbcloud-networking-project",
-    "smbcloud-utils"
+    "crates/smbcloud-cli",
+    "crates/smbcloud-model",
+    "crates/smbcloud-networking",
+    "crates/smbcloud-networking-project",
+    "crates/smbcloud-utils"
 ]
 
 [workspace.dependencies]
@@ -26,8 +26,10 @@ regex = "1.11"
 serde = "1"
 serde_json = "1.0.82"
 serde_repr = "0.1"
-smbcloud-networking-project = { version = "0.3.0", path = "smbcloud-networking-project" }
-smbcloud-utils = { version = "0.3.0", path = "smbcloud-utils" }
+smbcloud-networking-project = { version = "0.3.0", path = "crates/smbcloud-networking-project" }
+smbcloud-utils = { version = "0.3.0", path = "crates/smbcloud-utils" }
+smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
+smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
 spinners = "4.1.0"
 ssh2-config = "0.5"
 thiserror = "1.0.29"
@@ -40,5 +42,3 @@ url = "2"
 url-builder = "0.1.1"
 dirs = "5.0"
 reqwest = "0.12"
-smbcloud-model = { version = "0.3", path = "smbcloud-model" }
-smbcloud-networking = { version = "0.3", path = "smbcloud-networking" }
