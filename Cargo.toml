@@ -31,6 +31,7 @@ smbcloud-utils = { version = "0.3.0", path = "smbcloud-utils" }
 spinners = "4.1.0"
 ssh2-config = "0.5"
 thiserror = "1.0.29"
+toml = "0.8"
 tokio = "1.44"
 tracing = "0.1.35"
 tracing-bunyan-formatter = "0.3.3"

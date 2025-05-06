@@ -1,16 +1,21 @@
 mod git;
+mod smb_config;
 
-use std::{fs::File, io::BufReader};
-
-use crate::cli::CommandResult;
+use crate::{account::lib::protected_request, cli::CommandResult};
 use anyhow::Result;
 use console::style;
+use git::remote_deployment_setup;
 use git2::{Cred, PushOptions, RemoteCallbacks, Repository};
 use git_url_parse::{GitUrl, Scheme};
+use smb_config::check_config;
+use smbcloud_networking::environment::Environment;
 use spinners::Spinner;
 use ssh2_config::{ParseRule, SshConfig};
+use std::{fs::File, io::BufReader};
 
-pub async fn process_deploy() -> Result<CommandResult> {
+pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
+    protected_request(env).await?;
+    let repo_name = check_config().await?;
     println!("Deploying your app...");
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
@@ -41,18 +46,7 @@ pub async fn process_deploy() -> Result<CommandResult> {
             });
         }
     };
-    let mut origin = match repo.find_remote("origin") {
-        Ok(remote) => remote,
-        Err(_) => {
-            spinner.stop_and_persist("😩", "No remote repository found.".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: "😩".to_owned(),
-                msg: "No remote repository found. Add with `git remote add origin <url>` command."
-                    .to_owned(),
-            });
-        }
-    };
+    let origin = remote_deployment_setup(&repo, repo_name).await?;
     let remote_url = match origin.url() {
         Some(url) => url,
         None => {
@@ -80,7 +74,7 @@ pub async fn process_deploy() -> Result<CommandResult> {
     //println!("Parsed URL: {:#?}", parsed_url);
     match parsed_url.scheme {
         Scheme::Ssh => {
-            println!("SSH URL: {:#?}", parsed_url);
+            // println!("SSH URL: {:#?}", parsed_url);
         }
         _ => {
             // Only support ssh for now
@@ -144,7 +138,7 @@ pub async fn process_deploy() -> Result<CommandResult> {
     // get identity_file
     let identity_files = match host_config.identity_file {
         Some(identity_files) => {
-            println!("Identity file: {:#?}", identity_files);
+            //println!("Identity file: {:#?}", identity_files);
             identity_files
         }
         None => {
@@ -180,10 +174,11 @@ pub async fn process_deploy() -> Result<CommandResult> {
     });
     push_opts.remote_callbacks(callbacks);
 
+    /*
     match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
         Ok(_) => {}
         Err(e) => {
-            println!("Failed to push to remote: {:#?}", e);
+            //println!("Failed to push to remote: {:#?}", e);
             spinner.stop_and_persist("😩", e.to_string());
             return Ok(CommandResult {
                 spinner,
@@ -192,8 +187,7 @@ pub async fn process_deploy() -> Result<CommandResult> {
             });
         }
     };
-
-    spinner.stop_and_persist("✅", "Your app has been deployed successfully.".to_owned());
+    */
 
     Ok(CommandResult {
         spinner,

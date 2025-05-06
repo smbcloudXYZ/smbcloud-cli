@@ -38,6 +38,7 @@ smbcloud-networking-project = { workspace = true }
 smbcloud-utils = { workspace = true }
 spinners = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
+toml = { workspace = true }
 tracing = { workspace = true, features = ["log"] }
 tracing-bunyan-formatter = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }

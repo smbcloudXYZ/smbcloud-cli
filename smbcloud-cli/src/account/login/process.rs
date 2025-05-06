@@ -4,6 +4,7 @@ use crate::{
         signup::{do_signup, SignupMethod},
     },
     cli::CommandResult,
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use console::{style, Term};
@@ -19,14 +20,13 @@ use smbcloud_model::{
 use smbcloud_networking::{
     constants::{
         PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
-        PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN, PATH_USERS_SIGN_OUT,
+        PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
     },
     environment::Environment,
-    get_smb_token, smb_base_url_builder, smb_token_file_path,
+    smb_base_url_builder, smb_token_file_path,
 };
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
-use std::fs::{self};
 
 pub async fn process_login(env: Environment) -> Result<CommandResult> {
     // Check if token file exists
@@ -36,8 +36,8 @@ pub async fn process_login(env: Environment) -> Result<CommandResult> {
                 spinners::Spinners::SimpleDotsScrolling,
                 style("Loading...").green().bold().to_string(),
             ),
-            symbol: "✅".to_owned(),
-            msg: "You are already logged in. Please logout first.".to_owned(),
+            symbol: fail_symbol(),
+            msg: fail_message("You are already logged in. Please logout first."),
         });
     }
 
@@ -58,63 +58,6 @@ pub async fn process_login(env: Environment) -> Result<CommandResult> {
     match selection {
         SignupMethod::Email => login_with_email(env).await,
         SignupMethod::GitHub => login_with_github(env).await,
-    }
-}
-
-pub async fn process_logout(env: Environment) -> Result<CommandResult> {
-    // Logout if user confirms
-    if let Some(token_path) = smb_token_file_path(env) {
-        let confirm = match Confirm::with_theme(&ColorfulTheme::default())
-            .with_prompt("Do you want to logout? y/n")
-            .interact()
-        {
-            Ok(confirm) => confirm,
-            Err(_) => {
-                let error = anyhow!("Invalid input.");
-                return Err(error);
-            }
-        };
-        if !confirm {
-            return Ok(CommandResult {
-                spinner: Spinner::new(
-                    spinners::Spinners::SimpleDotsScrolling,
-                    style("Cancel operation.").green().bold().to_string(),
-                ),
-                symbol: "✅".to_owned(),
-                msg: "Doing nothing.".to_owned(),
-            });
-        }
-
-        let mut spinner = Spinner::new(
-            spinners::Spinners::SimpleDotsScrolling,
-            style("Logging you out...").green().bold().to_string(),
-        );
-
-        // Call backend
-        match do_process_logout(env).await {
-            Ok(_) => {
-                spinner.stop_and_persist("✅", "Done.".to_owned());
-                fs::remove_file(token_path)?;
-                Ok(CommandResult {
-                    spinner: Spinner::new(
-                        spinners::Spinners::SimpleDotsScrolling,
-                        style("Loading...").green().bold().to_string(),
-                    ),
-                    symbol: "✅".to_owned(),
-                    msg: "You are now logged out!".to_owned(),
-                })
-            }
-            Err(e) => Err(anyhow!("{e}")),
-        }
-    } else {
-        Ok(CommandResult {
-            spinner: Spinner::new(
-                spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
-            ),
-            symbol: "😏".to_owned(),
-            msg: "You are not logged in.".to_owned(),
-        })
     }
 }
 
@@ -365,11 +308,15 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
         },
     };
 
-    let response = Client::new()
+    let response = match Client::new()
         .post(build_smb_login_url(env))
         .json(&login_params)
         .send()
-        .await?;
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => return Err(anyhow!(fail_message("Check your internet connection."))),
+    };
 
     match response.status() {
         StatusCode::OK => {
@@ -380,8 +327,8 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
                     spinners::Spinners::SimpleDotsScrolling,
                     style("Loading...").green().bold().to_string(),
                 ),
-                symbol: "✅".to_owned(),
-                msg: "You are now logged in!".to_owned(),
+                symbol: succeed_symbol(),
+                msg: succeed_message("You are logged in!"),
             })
         }
         StatusCode::NOT_FOUND => {
@@ -391,8 +338,8 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
                     spinners::Spinners::SimpleDotsScrolling,
                     style("Account not found.").green().bold().to_string(),
                 ),
-                symbol: "✅".to_owned(),
-                msg: "Please signup!".to_owned(),
+                symbol: fail_symbol(),
+                msg: fail_message("Please signup!"),
             })
         }
         StatusCode::UNPROCESSABLE_ENTITY => {
@@ -401,7 +348,9 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
             // println!("Result: {:#?}", &result);
             verify_or_set_password(&env, result).await
         }
-        _ => Err(anyhow!("Login failed. Check your username and password.")),
+        _ => Err(anyhow!(fail_message(
+            "Login failed. Check your username and password."
+        ))),
     }
 }
 
@@ -444,7 +393,7 @@ async fn send_reset_password(env: Environment, user: Option<User>) -> Result<Com
             );
             return Ok(CommandResult {
                 spinner,
-                symbol: "✅".to_owned(),
+                symbol: style("✔").green().to_string(),
                 msg: "Doing nothing.".to_owned(),
             });
         }
@@ -535,42 +484,16 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
     match response.status() {
         StatusCode::OK => Ok(CommandResult {
             spinner,
-            symbol: "✅".to_owned(),
-            msg: "Password reset!".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message("Password reset!"),
         }),
-        _ => {
-            let error = anyhow!("Failed to reset password.");
-            Err(error)
-        }
-    }
-}
-
-async fn do_process_logout(env: Environment) -> Result<()> {
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
-        .delete(build_smb_logout_url(env))
-        .header("Authorization", token)
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .send()
-        .await?;
-
-    match response.status() {
-        StatusCode::OK => Ok(()),
-        _ => Err(anyhow!("Failed to logout.")),
+        _ => Err(anyhow!(fail_message("Failed to reset password."))),
     }
 }
 
 fn build_smb_login_url(env: Environment) -> String {
     let mut url_builder = smb_base_url_builder(env);
     url_builder.add_route(PATH_USERS_SIGN_IN);
-    url_builder.build()
-}
-
-fn build_smb_logout_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
-    url_builder.add_route(PATH_USERS_SIGN_OUT);
     url_builder.build()
 }
 

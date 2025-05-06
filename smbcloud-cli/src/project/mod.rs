@@ -6,63 +6,17 @@ use crate::cli::CommandResult;
 use anyhow::{anyhow, Result};
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
+use init::process_project_init;
 use log::debug;
-use smbcloud_model::{
-    self,
-    project::{Config, Project, ProjectCreate},
-};
+use smbcloud_model::project::{Config, Project};
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::{create_project, delete_project, get_all, get_project};
+use smbcloud_networking_project::{delete_project, get_all, get_project};
 use spinners::Spinner;
 use std::{fs::OpenOptions, io::Write};
 
 pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
-        Commands::New {} => {
-            let project_name = Input::<String>::with_theme(&ColorfulTheme::default())
-                .with_prompt("Project name")
-                .interact()
-                .unwrap();
-            let description = Input::<String>::with_theme(&ColorfulTheme::default())
-                .with_prompt("Description")
-                .interact()
-                .unwrap();
-
-            let mut spinner = Spinner::new(
-                spinners::Spinners::SimpleDotsScrolling,
-                style("Creating a project...").green().bold().to_string(),
-            );
-
-            match create_project(
-                env,
-                ProjectCreate {
-                    name: project_name.clone(),
-                    description: description.clone(),
-                },
-            )
-            .await
-            {
-                Ok(_) => {
-                    spinner.stop_and_persist("✅", "Done.".to_owned());
-                    Ok(CommandResult {
-                        spinner: Spinner::new(
-                            spinners::Spinners::SimpleDotsScrolling,
-                            style("Loading...").green().bold().to_string(),
-                        ),
-                        symbol: "✅".to_owned(),
-                        msg: format!("{project_name} has been created."),
-                    })
-                }
-                Err(e) => {
-                    println!("Error: {e:#?}");
-                    Ok(CommandResult {
-                        spinner,
-                        symbol: "😩".to_owned(),
-                        msg: format!("Failed to create a project {project_name}."),
-                    })
-                }
-            }
-        }
+        Commands::New {} => process_project_init(env).await,
         Commands::List {} => {
             let mut spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,

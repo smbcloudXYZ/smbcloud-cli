@@ -9,7 +9,7 @@ use smbcloud_networking::{
         GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
     },
     environment::Environment,
-    smb_base_url_builder,
+    smb_base_url_builder, smb_token_file_path,
 };
 use spinners::Spinner;
 use std::{
@@ -19,6 +19,8 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 use url_builder::URLBuilder;
+
+use crate::ui::fail_message;
 
 pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
     // Spin up a simple localhost server to listen for the GitHub OAuth callback
@@ -238,4 +240,14 @@ pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
         }
         None => Err(anyhow!("Failed to get token. Probably a backend issue.")),
     }
+}
+
+pub async fn protected_request(env: Environment) -> Result<()> {
+    // Check if token file exists
+    if smb_token_file_path(env).is_none() {
+        return Err(anyhow!(fail_message(
+            "Please authorize your account first with `smb account login` command."
+        )));
+    }
+    Ok(())
 }
