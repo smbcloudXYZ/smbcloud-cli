@@ -11,7 +11,7 @@ To update the crate in the [crate.io](https://crate.io), use [cargo workspaces](
 Steps to publish new package:
 
 ```bash
-$ cargo workspackes publish --publish-as-is
+$ cargo workspaces publish --publish-as-is
 ```
 
 It will ask whether should bump the vesions of the packages or not. To update version separately:
