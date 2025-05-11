@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/smbcloud-cli",
+    "crates/cli",
     "crates/smbcloud-model",
     "crates/smbcloud-networking",
     "crates/smbcloud-networking-project",
@@ -42,3 +42,4 @@ url = "2"
 url-builder = "0.1.1"
 dirs = "5.0"
 reqwest = "0.12"
+indicatif = "0.17.11"

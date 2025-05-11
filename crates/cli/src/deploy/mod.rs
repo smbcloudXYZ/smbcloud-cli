@@ -4,18 +4,19 @@ mod smb_config;
 use crate::{
     account::lib::protected_request,
     cli::CommandResult,
-    ui::{fail_message, fail_symbol},
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::Result;
 use console::style;
 use git::remote_deployment_setup;
 use git2::{Cred, PushOptions, RemoteCallbacks, Repository};
 use git_url_parse::{GitUrl, Scheme};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use smb_config::check_config;
 use smbcloud_networking::environment::Environment;
 use spinners::Spinner;
 use ssh2_config::{ParseRule, SshConfig};
-use std::{fs::File, io::BufReader};
+use std::{cmp::min, fmt::Write, fs::File, io::BufReader};
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     protected_request(env).await?;
@@ -156,7 +157,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             });
         }
     };
-    println!("Identity files: {:#?}", identity_files);
+    // println!("Identity files: {:#?}", identity_files);
     // get identity_file
     let identity_file = match identity_files.first() {
         Some(identity_file) => {
@@ -179,26 +180,57 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         Cred::ssh_key("deploy", None, identity_file, None)
     });
     callbacks.push_transfer_progress(|current, total, bytes| {
-        println!("Progress: current -> {}, total -> {}, bytes -> {}", current, total, bytes);
+        // println!("push_transfer_progress: current -> {}, total -> {}, bytes -> {}", current, total, bytes);
+        let pb = ProgressBar::new(total.try_into().unwrap());
+        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .unwrap()
+            .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+            .progress_chars("#>-"));
+        let mut current = current;
+        while current < total {
+            let new = min(current + 223211, total);
+            current = new;
+            pb.set_position(new.try_into().unwrap());
+        }
+    
+        pb.finish_with_message("downloaded");
+    });
+    callbacks.pack_progress(|stage, current, total| {
+        println!("pack_progress: current -> {}, total -> {}", current, total);
+    });
+    callbacks.sideband_progress(|x| {
+        //println!("{x}");
+        return true;
+    });
+    callbacks.push_update_reference(|x, y| match y {
+        Some(e) => {
+            println!("{}", e);
+            Ok(())
+        }
+        None => {
+            println!("Done");
+            Ok(())
+        }
     });
     push_opts.remote_callbacks(callbacks);
 
-    match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
-        Ok(_) => {}
-        Err(e) => {
-            //println!("Failed to push to remote: {:#?}", e);
-            spinner.stop_and_persist("😩", e.to_string());
-            return Ok(CommandResult {
+    return match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
+        Ok(_) => {
+            println!("Succeed!!!");
+            Ok(CommandResult {
                 spinner,
-                symbol: "😩".to_owned(),
-                msg: e.to_string(),
-            });
+                symbol: succeed_symbol(),
+                msg: succeed_message("Your app has been deployed successfully."),
+            })
+        }
+        Err(e) => {
+            println!("Failed to push to remote: {:#?}", e);
+            spinner.stop_and_persist("😩", e.to_string());
+            Ok(CommandResult {
+                spinner,
+                symbol: fail_symbol(),
+                msg: fail_message(&e.to_string()),
+            })
         }
     };
-
-    Ok(CommandResult {
-        spinner,
-        symbol: "🚀".to_owned(),
-        msg: "Your app has been deployed successfully.".to_owned(),
-    })
 }

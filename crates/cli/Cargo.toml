@@ -23,6 +23,7 @@ console = { workspace = true }
 dialoguer = { workspace = true }
 dirs = { workspace = true }
 home = { workspace = true }
+indicatif = { workspace = true }
 log = { workspace = true }
 git2 = { workspace = true }
 ssh2-config = { workspace = true }

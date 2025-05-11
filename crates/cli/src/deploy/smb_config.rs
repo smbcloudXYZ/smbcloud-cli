@@ -11,6 +11,8 @@ pub(crate) async fn check_config() -> Result<String> {
         style("Checking config...").green().bold().to_string(),
     );
 
+    // Check .smb directory
+
     // Get .smb/config.toml file path in the current directory
     let config_path = Path::new(".smb/config.toml");
     if !config_path.exists() {
