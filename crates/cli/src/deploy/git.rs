@@ -41,7 +41,7 @@ pub async fn remote_deployment_setup<'a>(
 
     spinner.stop_and_persist(
         &succeed_symbol(),
-        succeed_message("Deployment setup complete."),
+        succeed_message("Valid deployment setup."),
     );
 
     Ok(smbcloud)

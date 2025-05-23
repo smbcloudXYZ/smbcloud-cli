@@ -15,9 +15,13 @@ use smbcloud_networking::environment::Environment;
 use spinners::Spinner;
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
+    // Check credentials.
     protected_request(env).await?;
+
+    // Check config.
     let config = check_config().await?;
 
+    // Check remote repository setup.
     let repo = match Repository::open(".") {
         Ok(repo) => repo,
         Err(_) => {
@@ -47,10 +51,10 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         if let Ok(text) = std::str::from_utf8(data) {
             for line in text.lines() {
                 if line.contains("> next build") {
-                    println!("{} {}", "Building the app", succeed_symbol(),);
+                    println!("Building the app {}", succeed_symbol());
                 }
                 if line.contains("Start hagerstenstreetcut") {
-                    println!("{} {}", "Restarting the server", succeed_symbol(),);
+                    println!("Restarting the server {}", succeed_symbol());
                 }
             }
         }
@@ -73,7 +77,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
-            msg: succeed_message("Your app has been successfully deployed."),
+            msg: succeed_message("Deployment complete."),
         }),
         Err(e) => Err(anyhow!(fail_message(&e.to_string()))),
     }
