@@ -66,7 +66,7 @@ impl Config {
             .join(".ssh")
             .join(format!("id_{}@smbcloud.xyz", self.name));
         let key_path_str = key_path.to_string_lossy().to_string();
-        println!("Key path: {}", key_path_str);
+        println!("Use key path: {}", key_path_str);
         key_path_str
     }
 }

@@ -47,18 +47,10 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         if let Ok(text) = std::str::from_utf8(data) {
             for line in text.lines() {
                 if line.contains("> next build") {
-                    println!(
-                        "{} {}",
-                        succeed_message("Building the app. "),
-                        succeed_symbol(),
-                    );
+                    println!("{} {}", "Building the app", succeed_symbol(),);
                 }
                 if line.contains("Start hagerstenstreetcut") {
-                    println!(
-                        "{} {}",
-                        succeed_message("Restarting the server."),
-                        succeed_symbol(),
-                    );
+                    println!("{} {}", "Restarting the server", succeed_symbol(),);
                 }
             }
         }
