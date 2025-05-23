@@ -1,12 +1,16 @@
+use std::{fs, path::Path};
+
 use crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol};
 use anyhow::Result;
 use console::style;
+use git2::{Cred, CredentialType, Error};
 use spinners::Spinner;
-use std::{fs, path::Path};
 use toml::Value;
 
-pub(crate) async fn check_config() -> Result<String> {
-    let mut spinner = Spinner::new(
+use super::remote_url::RemoteUrl;
+
+pub(crate) async fn check_config() -> Result<Config> {
+    let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         style("Checking config...").green().bold().to_string(),
     );
@@ -33,6 +37,36 @@ pub(crate) async fn check_config() -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!(fail_message("Repo name not found in config file.")))?;
 
     spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid config."));
+    let remote_url = RemoteUrl::from(repo_name);
 
-    Ok(repo_name.to_string())
+    Ok(Config {
+        remote_url,
+        name: repo_name.to_owned(),
+    })
+}
+
+pub struct Config {
+    pub remote_url: RemoteUrl,
+    pub name: String,
+}
+
+impl Config {
+    pub fn credentials(
+        &self,
+    ) -> impl FnMut(&str, Option<&str>, CredentialType) -> Result<Cred, Error> + '_ {
+        move |_url, _username_from_url, _allowed_types| {
+            Cred::ssh_key("git", None, Path::new(&self.ssh_key_path()), None)
+        }
+    }
+
+    fn ssh_key_path(&self) -> String {
+        // Use the dirs crate to get the home directory
+        let home = dirs::home_dir().expect("Could not determine home directory");
+        let key_path = home
+            .join(".ssh")
+            .join(format!("id_{}@smbcloud.xyz", self.name));
+        let key_path_str = key_path.to_string_lossy().to_string();
+        println!("Key path: {}", key_path_str);
+        key_path_str
+    }
 }

@@ -1,0 +1,4 @@
+name = 'smbCloud CLI'
+
+[repository]
+name = 'smbcloudcli'
