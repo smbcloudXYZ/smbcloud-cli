@@ -4,7 +4,10 @@ use console::style;
 use git2::{Remote, Repository};
 use spinners::Spinner;
 
-pub async fn remote_deployment_setup(repo: &Repository, repo_name: String) -> Result<Remote> {
+pub async fn remote_deployment_setup<'a>(
+    repo: &'a Repository,
+    repo_name: &'a str,
+) -> Result<Remote<'a>> {
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         style("Setting up remote deployment...")
@@ -21,9 +24,10 @@ pub async fn remote_deployment_setup(repo: &Repository, repo_name: String) -> Re
                 fail_message("Remote deployment is not setup. Will setup remote deployment."),
             );
             // Present the user with a message to setup remote deployment
+            let remote_format = format!("{}.git", repo_name);
             repo.remote(
                 "smbcloud",
-                &format!("deploy@api.smbcloud.xyz:git/{}", repo_name),
+                &format!("git@{}:{}", remote_format, remote_format),
             )
             .map_err(|e: git2::Error| {
                 spinner.stop_and_persist(&fail_symbol(), e.to_string());
@@ -37,7 +41,7 @@ pub async fn remote_deployment_setup(repo: &Repository, repo_name: String) -> Re
 
     spinner.stop_and_persist(
         &succeed_symbol(),
-        succeed_message("Deployment setup complete."),
+        succeed_message("Valid deployment setup."),
     );
 
     Ok(smbcloud)

@@ -317,16 +317,7 @@ version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
 dependencies = [
- "dirs-sys 0.4.1",
-]
-
-[[package]]
-name = "dirs"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e"
-dependencies = [
- "dirs-sys 0.5.0",
+ "dirs-sys",
 ]
 
 [[package]]
@@ -337,20 +328,8 @@ checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
 dependencies = [
  "libc",
  "option-ext",
- "redox_users 0.4.6",
+ "redox_users",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
-dependencies = [
- "libc",
- "option-ext",
- "redox_users 0.5.0",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -510,17 +489,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
-name = "git-url-parse"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68d7ff03a34ea818a59cf30c0d7aa55354925484fa30bcc4cb96d784ff07578f"
-dependencies = [
- "strum 0.26.3",
- "thiserror 1.0.69",
- "url",
-]
-
-[[package]]
 name = "git2"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -534,12 +502,6 @@ dependencies = [
  "openssl-sys",
  "url",
 ]
-
-[[package]]
-name = "glob"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
 
 [[package]]
 name = "h2"
@@ -1331,17 +1293,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "redox_users"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd6f9d3d47bdd2ad6945c5015a226ec6155d0bcdfd8f7cd29f86b71f8de99d2b"
-dependencies = [
- "getrandom 0.2.16",
- "libredox",
- "thiserror 2.0.12",
-]
-
-[[package]]
 name = "regex"
 version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1675,8 +1626,7 @@ dependencies = [
  "clap_mangen",
  "console",
  "dialoguer",
- "dirs 5.0.1",
- "git-url-parse",
+ "dirs",
  "git2",
  "home",
  "indicatif",
@@ -1692,7 +1642,7 @@ dependencies = [
  "smbcloud-networking-project",
  "smbcloud-utils",
  "spinners",
- "ssh2-config",
+ "thiserror 2.0.12",
  "tokio",
  "toml",
  "tracing",
@@ -1720,7 +1670,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clap",
- "dirs 5.0.1",
+ "dirs",
  "home",
  "log",
  "maybe-async",
@@ -1728,7 +1678,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smbcloud-model",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
  "url-builder",
 ]
 
@@ -1738,7 +1688,7 @@ version = "0.3.9"
 dependencies = [
  "anyhow",
  "async-trait",
- "dirs 5.0.1",
+ "dirs",
  "home",
  "log",
  "maybe-async",
@@ -1747,7 +1697,7 @@ dependencies = [
  "serde_json",
  "smbcloud-model",
  "smbcloud-networking",
- "thiserror 1.0.69",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -1755,7 +1705,7 @@ name = "smbcloud-utils"
 version = "0.3.9"
 dependencies = [
  "anyhow",
- "dirs 5.0.1",
+ "dirs",
  "home",
  "log",
  "regex",
@@ -1782,23 +1732,7 @@ checksum = "a0ef947f358b9c238923f764c72a4a9d42f2d637c46e059dbd319d6e7cfb4f82"
 dependencies = [
  "lazy_static",
  "maplit",
- "strum 0.24.1",
-]
-
-[[package]]
-name = "ssh2-config"
-version = "0.5.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "27c8904276fd411f602a6d7e447cccb6f669068badf71359bc4564a5144a866b"
-dependencies = [
- "anyhow",
- "bitflags",
- "dirs 6.0.0",
- "git2",
- "glob",
- "log",
- "thiserror 2.0.12",
- "wildmatch",
+ "strum",
 ]
 
 [[package]]
@@ -1819,16 +1753,7 @@ version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
 dependencies = [
- "strum_macros 0.24.3",
-]
-
-[[package]]
-name = "strum"
-version = "0.26.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
-dependencies = [
- "strum_macros 0.26.4",
+ "strum_macros",
 ]
 
 [[package]]
@@ -1842,19 +1767,6 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.26.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c6bee85a5a24955dc440386795aa378cd9cf82acd5f764469152d2270e581be"
-dependencies = [
- "heck 0.5.0",
- "proc-macro2",
- "quote",
- "rustversion",
- "syn 2.0.101",
 ]
 
 [[package]]
@@ -2443,12 +2355,6 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
 ]
-
-[[package]]
-name = "wildmatch"
-version = "2.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68ce1ab1f8c62655ebe1350f589c61e505cf94d385bc6a12899442d9081e71fd"
 
 [[package]]
 name = "winapi"

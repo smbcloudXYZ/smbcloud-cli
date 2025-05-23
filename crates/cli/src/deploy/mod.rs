@@ -1,236 +1,84 @@
+mod config;
 mod git;
-mod smb_config;
+mod remote_url;
 
 use crate::{
     account::lib::protected_request,
     cli::CommandResult,
-    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    ui::{fail_message, succeed_message, succeed_symbol},
 };
-use anyhow::Result;
-use console::style;
+use anyhow::{anyhow, Result};
+use config::check_config;
 use git::remote_deployment_setup;
-use git2::{Cred, PushOptions, RemoteCallbacks, Repository};
-use git_url_parse::{GitUrl, Scheme};
-use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use smb_config::check_config;
+use git2::{PushOptions, RemoteCallbacks, Repository};
 use smbcloud_networking::environment::Environment;
 use spinners::Spinner;
-use ssh2_config::{ParseRule, SshConfig};
-use std::{cmp::min, fmt::Write, fs::File, io::BufReader};
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
+    // Check credentials.
     protected_request(env).await?;
-    let repo_name = check_config().await?;
 
-    let mut spinner = Spinner::new(
-        spinners::Spinners::SimpleDotsScrolling,
-        style("Deploying...").green().bold().to_string(),
-    );
+    // Check config.
+    let config = check_config().await?;
 
+    // Check remote repository setup.
     let repo = match Repository::open(".") {
         Ok(repo) => repo,
         Err(_) => {
-            spinner.stop_and_persist("😩", "No git repository found.".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message("No git repository found. Init with `git init` command."),
-            });
+            return Err(anyhow!(fail_message(
+                "No git repository found. Init with `git init` command."
+            )))
         }
     };
 
     let _main_branch = match repo.head() {
         Ok(branch) => branch,
         Err(_) => {
-            spinner.stop_and_persist("😩", "No main branch found.".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message(
-                    "No main branch found. Create with `git checkout -b <branch>` command.",
-                ),
-            });
-        }
-    };
-    let mut origin = remote_deployment_setup(&repo, repo_name).await?;
-    let remote_url = match origin.url() {
-        Some(url) => url,
-        None => {
-            spinner.stop_and_persist("😩", "No remote URL found.".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message(
-                    "No remote URL found. Add with `git remote add origin <url>` command.",
-                ),
-            });
-        }
-    };
-    //println!("Remote URL: {:#?}", remote_url);
-    let parsed_url = match GitUrl::parse(remote_url) {
-        Ok(url) => url,
-        Err(e) => {
-            spinner.stop_and_persist("😩", e.to_string());
-            return Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: "Invalid remote URL.".to_owned(),
-            });
-        }
-    };
-    //println!("Parsed URL: {:#?}", parsed_url);
-    match parsed_url.scheme {
-        Scheme::Ssh => {
-            // println!("SSH URL: {:#?}", parsed_url);
-        }
-        _ => {
-            // Only support ssh for now
-            return Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message("Only ssh is supported."),
-            });
+            return Err(anyhow!(fail_message(
+                "No main branch found. Create with `git checkout -b <branch>` command."
+            )))
         }
     };
 
-    // Get ssh config from host
-    let host = match parsed_url.host {
-        Some(host) => host,
-        None => {
-            spinner.stop_and_persist("😩", "No host found.".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message("No host found."),
-            });
-        }
-    };
+    let mut origin = remote_deployment_setup(&repo, &config.name).await?;
 
-    // get ssh_config
-    let ssh_config_file = match home::home_dir() {
-        Some(home) => {
-            let ssh_config_path = home.join(".ssh/config");
-            if ssh_config_path.exists() {
-                // println!("SSH config path: {:#?}", ssh_config_path);
-                // Open the file and read it
-                File::open(ssh_config_path.clone()).expect("Unable to open ssh config file")
-            } else {
-                spinner.stop_and_persist("😩", "No ssh config found.".to_owned());
-                return Ok(CommandResult {
-                    spinner,
-                    symbol: fail_symbol(),
-                    msg: fail_message("No ssh config found."),
-                });
-            }
-        }
-        None => {
-            spinner.stop_and_persist("😩", "No home".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: "😩".to_owned(),
-                msg: "No home directory found.".to_owned(),
-            });
-        }
-    };
-    //println!("SSH config path: {:#?}", ssh_config_file);
-    let mut reader = BufReader::new(ssh_config_file);
-    let config = SshConfig::default()
-        .parse(&mut reader, ParseRule::STRICT)
-        .expect("Failed to parse ssh config file");
-    //println!("SSH config: {:#?}", config);
-
-    // Get the host config
-    let host_config = config.query(host);
-    //println!("Host config: {:#?}", host_config);
-    // get identity_file
-    let identity_files = match host_config.identity_file {
-        Some(identity_files) => {
-            //println!("Identity file: {:#?}", identity_files);
-            identity_files
-        }
-        None => {
-            spinner.stop_and_persist("😩", "No identity file found.".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: "😩".to_owned(),
-                msg: "No identity files found.".to_owned(),
-            });
-        }
-    };
-    // println!("Identity files: {:#?}", identity_files);
-    // get identity_file
-    let identity_file = match identity_files.first() {
-        Some(identity_file) => {
-            //println!("Identity file: {:#?}", identity_file);
-            identity_file
-        }
-        None => {
-            spinner.stop_and_persist("😩", "No identity file found.".to_owned());
-            return Ok(CommandResult {
-                spinner,
-                symbol: "😩".to_owned(),
-                msg: "No identity file found.".to_owned(),
-            });
-        }
-    };
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
     // Set the credentials
-    callbacks.credentials(|_url, _username_from_url, _allowed_types| {
-        Cred::ssh_key("deploy", None, identity_file, None)
-    });
-    callbacks.push_transfer_progress(|current, total, bytes| {
-        // println!("push_transfer_progress: current -> {}, total -> {}, bytes -> {}", current, total, bytes);
-        let pb = ProgressBar::new(total.try_into().unwrap());
-        pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
-            .unwrap()
-            .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
-            .progress_chars("#>-"));
-        let mut current = current;
-        while current < total {
-            let new = min(current + 223211, total);
-            current = new;
-            pb.set_position(new.try_into().unwrap());
+    callbacks.credentials(config.credentials());
+    callbacks.sideband_progress(|data| {
+        // Convert bytes to string, print line by line
+        if let Ok(text) = std::str::from_utf8(data) {
+            for line in text.lines() {
+                if line.contains("> next build") {
+                    println!("Building the app {}", succeed_symbol());
+                }
+                if line.contains("Start hagerstenstreetcut") {
+                    println!("Restarting the server {}", succeed_symbol());
+                }
+            }
         }
-    
-        pb.finish_with_message("downloaded");
-    });
-    callbacks.pack_progress(|stage, current, total| {
-        println!("pack_progress: current -> {}, total -> {}", current, total);
-    });
-    callbacks.sideband_progress(|x| {
-        //println!("{x}");
-        return true;
+        true // continue receiving.
     });
     callbacks.push_update_reference(|x, y| match y {
         Some(e) => {
             println!("{}", e);
             Ok(())
         }
-        None => {
-            println!("Done");
-            Ok(())
-        }
+        None => Ok(()),
     });
     push_opts.remote_callbacks(callbacks);
 
-    return match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
-        Ok(_) => {
-            println!("Succeed!!!");
-            Ok(CommandResult {
-                spinner,
-                symbol: succeed_symbol(),
-                msg: succeed_message("Your app has been deployed successfully."),
-            })
-        }
-        Err(e) => {
-            println!("Failed to push to remote: {:#?}", e);
-            spinner.stop_and_persist("😩", e.to_string());
-            Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message(&e.to_string()),
-            })
-        }
-    };
+    let spinner = Spinner::new(
+        spinners::Spinners::Hamburger,
+        succeed_message("Deploying: "),
+    );
+    match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
+        Ok(_) => Ok(CommandResult {
+            spinner,
+            symbol: succeed_symbol(),
+            msg: succeed_message("Deployment complete."),
+        }),
+        Err(e) => Err(anyhow!(fail_message(&e.to_string()))),
+    }
 }
