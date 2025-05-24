@@ -1,6 +1,5 @@
 mod config;
 mod git;
-mod remote_url;
 mod remote_messages;
 
 use crate::{
@@ -62,9 +61,9 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
         true // continue receiving.
     });
-    callbacks.push_update_reference(|x, y| match y {
+    callbacks.push_update_reference(|_x, status_message| match status_message {
         Some(e) => {
-            println!("{}", e);
+            println!("Deployment fail: {}", e);
             Ok(())
         }
         None => Ok(()),

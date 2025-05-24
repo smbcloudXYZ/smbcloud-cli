@@ -10,39 +10,47 @@ pub async fn remote_deployment_setup<'a>(
 ) -> Result<Remote<'a>> {
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        style("Setting up remote deployment...")
+        style("Checking remote deployment...")
             .green()
             .bold()
             .to_string(),
     );
 
-    let smbcloud = match repo.find_remote("smbcloud") {
-        Ok(remote) => remote,
+    match repo.find_remote("smbcloud") {
+        Ok(remote) => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Valid deployment setup."),
+            );
+            Ok(remote)
+        }
         Err(_) => {
             spinner.stop_and_persist(
                 &fail_symbol(),
-                fail_message("Remote deployment is not setup. Will setup remote deployment."),
+                succeed_message("Remote deployment is not setup. Will setup remote deployment."),
             );
-            // Present the user with a message to setup remote deployment
+            let mut spinner = Spinner::new(
+                spinners::Spinners::Hamburger,
+                style("Creating remote deployment...")
+                    .green()
+                    .bold()
+                    .to_string(),
+            );
             let remote_format = format!("{}.git", repo_name);
-            repo.remote(
-                "smbcloud",
-                &format!("git@{}:{}", remote_format, remote_format),
-            )
-            .map_err(|e: git2::Error| {
-                spinner.stop_and_persist(&fail_symbol(), e.to_string());
-                anyhow!(fail_message("Failed to setup remote deployment: {e}"))
-            })?;
-            return Err(anyhow!(fail_message(
-                "Remote deployment is not setup. Please run `git remote add smbcloud <url>`."
-            )));
+            let remote = repo
+                .remote(
+                    "smbcloud",
+                    &format!("git@api.smbcloud.xyz:{}", remote_format),
+                )
+                .map_err(|e: git2::Error| {
+                    spinner.stop_and_persist(&fail_symbol(), e.to_string());
+                    anyhow!(fail_message("Failed to setup remote deployment: {e}"))
+                })?;
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Valid deployment setup."),
+            );
+            Ok(remote)
         }
-    };
-
-    spinner.stop_and_persist(
-        &succeed_symbol(),
-        succeed_message("Valid deployment setup."),
-    );
-
-    Ok(smbcloud)
+    }
 }

@@ -7,8 +7,6 @@ use git2::{Cred, CredentialType, Error};
 use spinners::Spinner;
 use toml::Value;
 
-use super::remote_url::RemoteUrl;
-
 pub(crate) async fn check_config() -> Result<Config> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
@@ -37,16 +35,13 @@ pub(crate) async fn check_config() -> Result<Config> {
         .ok_or_else(|| anyhow::anyhow!(fail_message("Repo name not found in config file.")))?;
 
     spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid config."));
-    let remote_url = RemoteUrl::from(repo_name);
 
     Ok(Config {
-        remote_url,
         name: repo_name.to_owned(),
     })
 }
 
 pub struct Config {
-    pub remote_url: RemoteUrl,
     pub name: String,
 }
 
