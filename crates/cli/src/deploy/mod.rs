@@ -1,6 +1,6 @@
 mod config;
 mod git;
-mod remote_url;
+mod remote_messages;
 
 use crate::{
     account::lib::protected_request,
@@ -11,6 +11,7 @@ use anyhow::{anyhow, Result};
 use config::check_config;
 use git::remote_deployment_setup;
 use git2::{PushOptions, RemoteCallbacks, Repository};
+use remote_messages::{build_next_app, start_server};
 use smbcloud_networking::environment::Environment;
 use spinners::Spinner;
 
@@ -50,19 +51,19 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         // Convert bytes to string, print line by line
         if let Ok(text) = std::str::from_utf8(data) {
             for line in text.lines() {
-                if line.contains("> next build") {
+                if line.contains(&build_next_app()) {
                     println!("Building the app {}", succeed_symbol());
                 }
-                if line.contains("Start hagerstenstreetcut") {
+                if line.contains(&start_server(&config.name)) {
                     println!("Restarting the server {}", succeed_symbol());
                 }
             }
         }
         true // continue receiving.
     });
-    callbacks.push_update_reference(|x, y| match y {
+    callbacks.push_update_reference(|_x, status_message| match status_message {
         Some(e) => {
-            println!("{}", e);
+            println!("Deployment fail: {}", e);
             Ok(())
         }
         None => Ok(()),
