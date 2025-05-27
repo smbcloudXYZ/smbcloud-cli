@@ -3,7 +3,6 @@ use crate::{
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::Result;
-use console::style;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -23,7 +22,7 @@ pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
         .unwrap();
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        style("Checking email").green().bold().to_string(),
+        succeed_message("Checking email"),
     );
 
     let params = Args {

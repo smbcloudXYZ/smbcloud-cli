@@ -1,7 +1,11 @@
 use super::SignupMethod;
-use crate::{account::lib::authorize_github, cli::CommandResult, ui::fail_symbol};
+use crate::{
+    account::lib::authorize_github,
+    cli::CommandResult,
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+};
 use anyhow::{anyhow, Result};
-use console::{style, Term};
+use console::Term;
 use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
 use log::debug;
 use reqwest::{Client, StatusCode};
@@ -19,10 +23,10 @@ pub async fn process_signup(env: Environment) -> Result<CommandResult> {
         return Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
+                succeed_message("Loading"),
             ),
             symbol: fail_symbol(),
-            msg: "You are already logged in. Please logout first.".to_owned(),
+            msg: fail_message("You are already logged in. Please logout first."),
         });
     }
 
@@ -66,7 +70,7 @@ pub async fn signup_with_email(env: Environment, email: Option<String>) -> Resul
 
     let spinner = Spinner::new(
         spinners::Spinners::BouncingBall,
-        style("Signing up...").green().bold().to_string(),
+        succeed_message("Signing up"),
     );
 
     let params = SignupEmailParams {
@@ -76,13 +80,13 @@ pub async fn signup_with_email(env: Environment, email: Option<String>) -> Resul
     match do_signup(env, &params).await {
         Ok(_) => Ok(CommandResult {
             spinner,
-            symbol: style("✅".to_string()).for_stderr().green().to_string(),
-            msg: "You are signed up! Check your email to confirm your account.".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message("You are signed up! Check your email to confirm your account."),
         }),
         Err(e) => Ok(CommandResult {
             spinner,
-            symbol: style("✘".to_string()).for_stderr().red().to_string(),
-            msg: format!("{e}"),
+            symbol: fail_symbol(),
+            msg: fail_message(&format!("{e}")),
         }),
     }
 }
@@ -94,13 +98,10 @@ async fn signup_with_github(env: Environment) -> Result<CommandResult> {
             Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::BouncingBall,
-                    style("Requesting GitHub token...")
-                        .green()
-                        .bold()
-                        .to_string(),
+                    succeed_message("Requesting GitHub token"),
                 ),
-                symbol: style("✅".to_string()).for_stderr().green().to_string(),
-                msg: "Finished requesting GitHub token!".to_owned(),
+                symbol: succeed_symbol(),
+                msg: succeed_message("Finished requesting GitHub token!"),
             })
         }
         Err(e) => {
@@ -113,7 +114,7 @@ async fn signup_with_github(env: Environment) -> Result<CommandResult> {
 pub async fn do_signup<T: Serialize + ?Sized>(env: Environment, args: &T) -> Result<CommandResult> {
     let spinner = Spinner::new(
         spinners::Spinners::BouncingBall,
-        style("Signing you up...").green().bold().to_string(),
+        succeed_message("Signing you up"),
     );
 
     let response = Client::new()
@@ -125,8 +126,10 @@ pub async fn do_signup<T: Serialize + ?Sized>(env: Environment, args: &T) -> Res
     match response.status() {
         StatusCode::OK => Ok(CommandResult {
             spinner,
-            symbol: "✅".to_owned(),
-            msg: "Your account has been created. Check email for verification link.".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message(
+                "Your account has been created. Check email for verification link.",
+            ),
         }),
         StatusCode::UNPROCESSABLE_ENTITY => {
             let result: SignupResult = response.json().await?;

@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use console::style;
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use reqwest::{Client, StatusCode};
 use smbcloud_networking::{
@@ -31,16 +30,16 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
             return Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
-                    style("Cancel operation.").green().bold().to_string(),
+                    succeed_message("Cancel operation"),
                 ),
                 symbol: succeed_symbol(),
-                msg: "Doing nothing.".to_owned(),
+                msg: succeed_message("Doing nothing."),
             });
         }
 
         let spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
-            style("Logging you out...").green().bold().to_string(),
+            succeed_message("Logging you out"),
         );
 
         // Call backend
@@ -59,7 +58,7 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
         Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
+                succeed_message("Loading"),
             ),
             symbol: fail_symbol(),
             msg: fail_message("You are not logged in. Please login first."),

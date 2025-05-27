@@ -236,7 +236,7 @@ async fn connect_github_account(env: Environment, auth: SmbAuthorization) -> Res
     if !confirm {
         let spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
-            style("Cancel operation.").green().bold().to_string(),
+            succeed_message("Cancel operation."),
         );
         return Ok(CommandResult {
             spinner,
@@ -247,10 +247,7 @@ async fn connect_github_account(env: Environment, auth: SmbAuthorization) -> Res
 
     let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        style("Linking your GitHub account...")
-            .green()
-            .bold()
-            .to_string(),
+        succeed_message("Linking your GitHub account..."),
     );
 
     let response = Client::new()
