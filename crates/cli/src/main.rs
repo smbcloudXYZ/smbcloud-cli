@@ -111,11 +111,11 @@ async fn run() -> Result<CommandResult> {
     }
 
     match cli.command {
+        Commands::Init {} => process_project_init(cli.environment).await,
+        Commands::Deploy {} => process_deploy(cli.environment).await,
         Commands::Account { command } => process_account(cli.environment, command).await,
         Commands::Login {} => process_login(cli.environment).await,
         Commands::Logout {} => process_logout(cli.environment).await,
         Commands::Project { command } => process_project(cli.environment, command).await,
-        Commands::Init {} => process_project_init(cli.environment).await,
-        Commands::Deploy {} => process_deploy(cli.environment).await,
     }
 }
