@@ -1,6 +1,8 @@
-use crate::cli::CommandResult;
+use crate::{
+    cli::CommandResult,
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+};
 use anyhow::Result;
-use console::style;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -20,7 +22,7 @@ pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
         .unwrap();
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        style("Checking email...").green().bold().to_string(),
+        succeed_message("Checking email"),
     );
 
     let params = Args {
@@ -36,15 +38,15 @@ pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
     match response.status() {
         StatusCode::OK => {
             spinner.stop_and_persist(
-                "✅",
-                "Check your email and input your code here.".to_owned(),
+                &succeed_symbol(),
+                succeed_message("Check your email and input your code here."),
             );
             input_code(env).await
         }
         _ => Ok(CommandResult {
             spinner,
-            symbol: "😩".to_owned(),
-            msg: "Something wrong when trying to reset email.".to_owned(),
+            symbol: fail_symbol(),
+            msg: fail_message("Something wrong when trying to reset email."),
         }),
     }
 }
@@ -56,8 +58,8 @@ async fn input_code(env: Environment) -> Result<CommandResult> {
         .unwrap();
 
     Spinner::new(
-        spinners::Spinners::SimpleDotsScrolling,
-        style("Checking your code...").green().bold().to_string(),
+        spinners::Spinners::Hamburger,
+        succeed_message("Checking your code."),
     )
     .stop_and_persist("✅", "Great. Now input your new password.".to_owned());
 
@@ -85,11 +87,8 @@ async fn input_code(env: Environment) -> Result<CommandResult> {
     };
 
     let spinner = Spinner::new(
-        spinners::Spinners::SimpleDotsScrolling,
-        style("Updating your password...")
-            .green()
-            .bold()
-            .to_string(),
+        spinners::Spinners::Hamburger,
+        succeed_message("Updating your password."),
     );
 
     let response = Client::new()
@@ -107,18 +106,18 @@ async fn input_code(env: Environment) -> Result<CommandResult> {
     match response.status() {
         StatusCode::OK => Ok(CommandResult {
             spinner,
-            symbol: "✅".to_owned(),
-            msg: "Your password has been updated. Login with your new password.".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message("Your password has been updated. Login with your new password."),
         }),
         StatusCode::NOT_FOUND => Ok(CommandResult {
             spinner,
-            symbol: "😩".to_owned(),
-            msg: "URL not found.".to_owned(),
+            symbol: fail_symbol(),
+            msg: fail_message("URL not found."),
         }),
         _ => Ok(CommandResult {
             spinner,
-            symbol: "😩".to_owned(),
-            msg: "Something wrong when trying to reset email.".to_owned(),
+            symbol: fail_symbol(),
+            msg: fail_message("Something wrong when trying to reset email."),
         }),
     }
 }

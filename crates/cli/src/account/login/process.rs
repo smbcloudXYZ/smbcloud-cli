@@ -179,8 +179,8 @@ async fn send_email_verification(env: Environment, user: Option<User>) -> Result
             );
             return Ok(CommandResult {
                 spinner,
-                symbol: "✅".to_owned(),
-                msg: "Doing nothing.".to_owned(),
+                symbol: succeed_symbol(),
+                msg: succeed_message("Doing nothing."),
             });
         }
         resend_email_verification(env, user).await
@@ -210,8 +210,8 @@ async fn resend_email_verification(env: Environment, user: User) -> Result<Comma
     match response.status() {
         reqwest::StatusCode::OK => Ok(CommandResult {
             spinner,
-            symbol: "✅".to_owned(),
-            msg: "Verification email sent!".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message("Verification email sent!"),
         }),
         _ => {
             let error = anyhow!("Failed to send verification email.");
@@ -236,21 +236,18 @@ async fn connect_github_account(env: Environment, auth: SmbAuthorization) -> Res
     if !confirm {
         let spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
-            style("Cancel operation.").green().bold().to_string(),
+            succeed_message("Cancel operation."),
         );
         return Ok(CommandResult {
             spinner,
-            symbol: "✅".to_owned(),
-            msg: "Doing nothing.".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message("Doing nothing."),
         });
     }
 
     let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        style("Linking your GitHub account...")
-            .green()
-            .bold()
-            .to_string(),
+        succeed_message("Linking your GitHub account..."),
     );
 
     let response = Client::new()
@@ -264,8 +261,8 @@ async fn connect_github_account(env: Environment, auth: SmbAuthorization) -> Res
     match response.status() {
         reqwest::StatusCode::OK => Ok(CommandResult {
             spinner,
-            symbol: "✅".to_owned(),
-            msg: "GitHub account linked!".to_owned(),
+            symbol: succeed_symbol(),
+            msg: succeed_message("GitHub account linked!"),
         }),
         _ => {
             let error = anyhow!("Failed to link GitHub account.");
@@ -393,8 +390,8 @@ async fn send_reset_password(env: Environment, user: Option<User>) -> Result<Com
             );
             return Ok(CommandResult {
                 spinner,
-                symbol: style("✔").green().to_string(),
-                msg: "Doing nothing.".to_owned(),
+                symbol: succeed_symbol(),
+                msg: succeed_message("Doing nothing."),
             });
         }
         resend_reset_password_instruction(env, user).await
@@ -407,10 +404,7 @@ async fn send_reset_password(env: Environment, user: Option<User>) -> Result<Com
 async fn resend_reset_password_instruction(env: Environment, user: User) -> Result<CommandResult> {
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        style("Sending reset password instruction...")
-            .green()
-            .bold()
-            .to_string(),
+        succeed_message("Sending reset password instruction..."),
     );
     let response = Client::new()
         .post(build_smb_resend_reset_password_instructions_url(env))

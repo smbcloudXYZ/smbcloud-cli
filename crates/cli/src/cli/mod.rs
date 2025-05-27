@@ -32,27 +32,28 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    #[clap(
+        about = "Deploy project. This is smb main command. Requires an smbCloud account.",
+        display_order = 0
+    )]
+    Deploy {},
+    #[clap(
+        about = "Initialize project. Requires an smbCloud account.",
+        display_order = 1
+    )]
+    Init {},
+    #[clap(about = "Login to your account.", display_order = 2)]
+    Login {},
+    #[clap(about = "Logout from your account.", display_order = 3)]
+    Logout {},
     #[clap(about = "Manage your account.")]
     Account {
         #[clap(subcommand)]
         command: account::cli::Commands,
     },
-
-    #[clap(about = "Login to your account.")]
-    Login {},
-
-    #[clap(about = "Logout from your account.")]
-    Logout {},
-
-    #[clap(about = "Manage your projects. Add, delete, edit. Need authentication.")]
+    #[clap(about = "Manage your projects.")]
     Project {
         #[clap(subcommand)]
         command: project::cli::Commands,
     },
-
-    #[clap(about = "Initialize project. Requires an smbCloud account.")]
-    Init {},
-
-    #[clap(about = "Deploy project. It will use deploy.sh script in the .smb folder.")]
-    Deploy {},
 }
