@@ -1,4 +1,4 @@
-use crate::cli::CommandResult;
+use crate::{cli::CommandResult, ui::{fail_message, fail_symbol}};
 use anyhow::Result;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
@@ -20,7 +20,7 @@ pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
         .unwrap();
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        style("Checking email...").green().bold().to_string(),
+        style("Checking email").green().bold().to_string(),
     );
 
     let params = Args {
@@ -43,8 +43,8 @@ pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
         }
         _ => Ok(CommandResult {
             spinner,
-            symbol: "😩".to_owned(),
-            msg: "Something wrong when trying to reset email.".to_owned(),
+            symbol: fail_symbol(),
+            msg: fail_message("Something wrong when trying to reset email."),
         }),
     }
 }
