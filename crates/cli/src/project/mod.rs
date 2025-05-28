@@ -15,6 +15,21 @@ use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::{delete_project, get_all, get_project};
 use spinners::Spinner;
 use std::{fs::OpenOptions, io::Write};
+use tabled::{Table, Tabled};
+
+#[derive(Tabled)]
+struct ProjectRow {
+    #[tabled(rename = "ID")]
+    id: i32,
+    #[tabled(rename = "Name")]
+    name: String,
+    #[tabled(rename = "Description")]
+    description: String,
+    #[tabled(rename = "Created at")]
+    created_at: String,
+    #[tabled(rename = "Updated at")]
+    updated_at: String,
+}
 
 pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
@@ -86,7 +101,7 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
                 .interact()
                 .unwrap();
 
-            let mut spinner = Spinner::new(
+            let spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
                 succeed_message("Deleting project"),
             );
@@ -99,21 +114,16 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
                 });
             }
             match delete_project(env, id).await {
-                Ok(_) => {
-                    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Done."));
-                    Ok(CommandResult {
-                        spinner: Spinner::new(
-                            spinners::Spinners::SimpleDotsScrolling,
-                            succeed_message("Loading"),
-                        ),
-                        symbol: succeed_symbol(),
-                        msg: succeed_message("Project has been deleted."),
-                    })
-                }
-                Err(e) => {
-                    spinner.stop_and_persist(&fail_symbol(), fail_message("Failed."));
-                    Err(anyhow!("{e}"))
-                }
+                Ok(_) => Ok(CommandResult {
+                    spinner,
+                    symbol: succeed_symbol(),
+                    msg: succeed_message("Done. Project has been deleted."),
+                }),
+                Err(e) => Ok(CommandResult {
+                    spinner,
+                    symbol: fail_symbol(),
+                    msg: fail_message(&e.to_string()),
+                }),
             }
         }
         Commands::Use { id } => {
@@ -157,22 +167,19 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
 // Private functions
 
 fn show_projects(projects: Vec<Project>) {
-    // println!("Projects: {projects:#?}");
     if projects.is_empty() {
         return;
     }
-    println!(
-        "{0: <5} | {1: <20} | {2: <30} | {3: <20} | {4: <20}",
-        "ID", "Name", "Description", "Created at", "Updated at"
-    );
-    for project in projects {
-        println!(
-            "{0: <5} | {1: <20} | {2: <30} | {3: <20} | {4: <20}",
-            project.id,
-            project.name,
-            project.description,
-            project.created_at.date_naive(),
-            project.updated_at.date_naive(),
-        );
-    }
+    let rows: Vec<ProjectRow> = projects
+        .into_iter()
+        .map(|p| ProjectRow {
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            created_at: p.created_at.date_naive().to_string(),
+            updated_at: p.updated_at.date_naive().to_string(),
+        })
+        .collect();
+    let table = Table::new(rows);
+    println!("{table}");
 }

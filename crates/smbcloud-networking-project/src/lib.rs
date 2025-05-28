@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use log::debug;
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use smbcloud_model::{
     self,
     project::{Project, ProjectCreate},
@@ -81,11 +81,12 @@ pub async fn delete_project(env: Environment, id: String) -> Result<()> {
         .await?;
 
     match response.status() {
-        reqwest::StatusCode::OK => {
+        StatusCode::OK => {
             debug!("Project deleted.");
             Ok(())
         }
-        _ => Err(anyhow!("Failed to delete a project.")),
+        StatusCode::NOT_FOUND => Err(anyhow!("Failed to delete a project: project not found.")),
+        _ => Err(anyhow!("Failed to delete a project: unknown error.")),
     }
 }
 
