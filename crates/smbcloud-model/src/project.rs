@@ -24,16 +24,26 @@ pub struct ProjectCreate {
     pub description: String,
 }
 
-#[derive(Serialize, Debug)]
-pub struct Payload {
-  pub project_id: i32,
-  pub commit_hash: String,
-  pub status: DeploymentStatus
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Deployment {
+    pub id: i32,
+    pub commit_hash: String,
+    pub status: DeploymentStatus,
+    #[serde(with = "ar_date_format")]
+    pub created_at: DateTime<Utc>,
+    #[serde(with = "ar_date_format")]
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Serialize, Debug)]
+pub struct DeploymentPayload {
+    pub commit_hash: String,
+    pub status: DeploymentStatus,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub enum DeploymentStatus {
-    Started,
+    Started = 0,
     Failed,
     Done,
 }

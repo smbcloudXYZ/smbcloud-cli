@@ -13,8 +13,10 @@ use config::check_config;
 use git::remote_deployment_setup;
 use git2::{PushOptions, RemoteCallbacks, Repository};
 use remote_messages::{build_next_app, start_server};
+use smbcloud_model::project::DeploymentPayload;
+use smbcloud_model::project::DeploymentStatus;
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::crud_deployment_create::Payload;
+use smbcloud_networking_project::crud_project_deployment_create::{create, update};
 use spinners::Spinner;
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
@@ -37,7 +39,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    let _main_branch = match repo.head() {
+    let main_branch = match repo.head() {
         Ok(branch) => branch,
         Err(_) => {
             return Err(anyhow!(fail_message(
@@ -47,6 +49,20 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     };
 
     let mut origin = remote_deployment_setup(&repo, &config.repository.name).await?;
+
+    let commit_hash = match main_branch.resolve() {
+        Ok(result) => match result.target() {
+            Some(hash_id) => hash_id,
+            None => todo!(),
+        },
+        Err(_) => todo!(),
+    };
+    let payload = DeploymentPayload {
+        commit_hash: commit_hash.to_string(),
+        status: DeploymentStatus::Started,
+    };
+
+    let _deployment = create(env, config.repository.id, payload).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
@@ -79,12 +95,6 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         spinners::Spinners::Hamburger,
         succeed_message("Deploying > "),
     );
-
-    let payload = Payload { 
-        project_id: config.repository.id, 
-        commit_hash: todo!(), 
-        status: todo!()
-    };
 
     match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
         Ok(_) => Ok(CommandResult {
