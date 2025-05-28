@@ -21,17 +21,17 @@ pub(crate) async fn process_deployment(
     // Load project id from .smb/config.toml
     let config = check_config().await?;
 
-    check_project(env, config.repository.id).await?;
+    check_project(env, config.project.id).await?;
 
     if let Some(deployment_id) = id {
         // Show detail for a specific deployment
         let deployment_id: i32 = deployment_id.parse()?;
-        let deployment = get_deployment_detail(env, config.repository.id, deployment_id).await?;
+        let deployment = get_deployment_detail(env, config.project.id, deployment_id).await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded"));
         show_deployment_detail(&deployment);
     } else {
         // List all deployments for the project
-        let deployments = list_deployments(env, config.repository.id).await?;
+        let deployments = list_deployments(env, config.project.id).await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Load all deployments"));
         show_project_deployments(&deployments);
     };

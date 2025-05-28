@@ -67,13 +67,13 @@ pub(crate) async fn check_project(env: Environment, id: i32) -> Result<(), Confi
 pub struct Config {
     pub name: String,
     pub description: String,
-    pub repository: Repository,
+    pub project: Project,
 }
 
 #[derive(Deserialize)]
-pub struct Repository {
+pub struct Project {
     pub id: i32,
-    pub name: String,
+    pub repository: String,
 }
 
 impl Config {
@@ -90,7 +90,7 @@ impl Config {
         let home = dirs::home_dir().expect("Could not determine home directory");
         let key_path = home
             .join(".ssh")
-            .join(format!("id_{}@smbcloud.xyz", self.repository.name));
+            .join(format!("id_{}@smbcloud.xyz", self.project.repository));
         let key_path_str = key_path.to_string_lossy().to_string();
         println!("Use key path: {}", key_path_str);
         key_path_str

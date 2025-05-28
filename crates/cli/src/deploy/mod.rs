@@ -27,7 +27,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let config = check_config().await?;
 
     // Validate config with project.
-    check_project(env, config.repository.id).await?;
+    check_project(env, config.project.id).await?;
 
     // Check remote repository setup.
     let repo = match Repository::open(".") {
@@ -48,7 +48,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    let mut origin = remote_deployment_setup(&repo, &config.repository.name).await?;
+    let mut origin = remote_deployment_setup(&repo, &config.project.repository).await?;
 
     let commit_hash = match main_branch.resolve() {
         Ok(result) => match result.target() {
@@ -62,7 +62,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         status: DeploymentStatus::Started,
     };
 
-    let _deployment = create(env, config.repository.id, payload).await?;
+    let _deployment = create(env, config.project.id, payload).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
@@ -75,7 +75,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                 if line.contains(&build_next_app()) {
                     println!("Building the app {}", succeed_symbol());
                 }
-                if line.contains(&start_server(&config.repository.name)) {
+                if line.contains(&start_server(&config.project.repository)) {
                     println!("App restart {}", succeed_symbol());
                 }
             }
