@@ -1,4 +1,3 @@
-use crate::deploy::config::check_config;
 use crate::{
     account::lib::protected_request,
     cli::CommandResult,
@@ -14,9 +13,6 @@ use spinners::Spinner;
 
 pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
     protected_request(env).await?;
-
-    // Check config.
-    let config = check_config().await?;
 
     let project_name = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Project name")

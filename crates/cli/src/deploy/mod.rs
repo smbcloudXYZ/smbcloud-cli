@@ -5,6 +5,7 @@ mod remote_messages;
 use crate::{
     account::lib::protected_request,
     cli::CommandResult,
+    deploy::config::check_project,
     ui::{fail_message, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
@@ -21,6 +22,9 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     // Check config.
     let config = check_config().await?;
+
+    // Validate config with project.
+    check_project(env, config.repository.id).await?;
 
     // Check remote repository setup.
     let repo = match Repository::open(".") {
@@ -54,8 +58,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                 if line.contains(&build_next_app()) {
                     println!("Building the app {}", succeed_symbol());
                 }
-                if line.contains(&start_server(&config.name)) {
-                    println!("Restarting the server {}", succeed_symbol());
+                if line.contains(&start_server(&config.repository.name)) {
+                    println!("App restart {}", succeed_symbol());
                 }
             }
         }
@@ -72,7 +76,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     let spinner = Spinner::new(
         spinners::Spinners::Hamburger,
-        succeed_message("Deploying: "),
+        succeed_message("Deploying > "),
     );
     match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
         Ok(_) => Ok(CommandResult {

@@ -3,6 +3,8 @@ use std::{fs, path::Path};
 use crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol};
 use git2::{Cred, CredentialType, Error};
 use serde::Deserialize;
+use smbcloud_networking::environment::Environment;
+use smbcloud_networking_project::get_project;
 use spinners::Spinner;
 use thiserror::Error;
 
@@ -22,10 +24,7 @@ pub(crate) async fn check_config() -> Result<Config, ConfigError> {
     }
 
     // Parse toml file
-    let config_content = fs::read_to_string(config_path)
-    .map_err(|_| {
-        ConfigError::MissingConfig
-    })?;
+    let config_content = fs::read_to_string(config_path).map_err(|_| ConfigError::MissingConfig)?;
 
     let config: Config = match toml::from_str(&config_content) {
         Ok(value) => value,
@@ -33,23 +32,42 @@ pub(crate) async fn check_config() -> Result<Config, ConfigError> {
             println!("{}", e);
             spinner.stop_and_persist(&fail_symbol(), fail_message("Config unsync."));
             handle_config_error()?
-        },
+        }
     };
-
-    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid config."));
+    spinner.stop_and_persist(
+        &succeed_symbol(),
+        succeed_message(&format!("Valid config for {}", config.name)),
+    );
 
     Ok(config)
 }
 
-fn handle_config_error() -> Result<Config, ConfigError>  {
-   todo!()
+fn handle_config_error() -> Result<Config, ConfigError> {
+    todo!()
+}
+
+pub(crate) async fn check_project(env: Environment, id: i32) -> Result<(), ConfigError> {
+    let mut spinner: Spinner = Spinner::new(
+        spinners::Spinners::Hamburger,
+        succeed_message("Validate project"),
+    );
+    match get_project(env, id.to_string()).await {
+        Ok(_) => {
+            spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid project"));
+            Ok(())
+        }
+        Err(_) => {
+            spinner.stop_and_persist(&fail_symbol(), succeed_message("Project is unsynched"));
+            Err(ConfigError::ProjectNotFound)
+        }
+    }
 }
 
 #[derive(Deserialize)]
 pub struct Config {
     pub name: String,
     pub description: String,
-    pub repository: Repository
+    pub repository: Repository,
 }
 
 #[derive(Deserialize)]
@@ -81,8 +99,10 @@ impl Config {
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ConfigError {
-    #[error("Missing config.")]
+    #[error("Missing config file. Please regenerate with 'smb init'.")]
     MissingConfig,
-    #[error("Missing id in repository")]
+    #[error("Missing id in repository. Please regenerate with 'smb init'.")]
     MissingId,
+    #[error("Could not find project in your list. Make sure you have access to the project.")]
+    ProjectNotFound,
 }
