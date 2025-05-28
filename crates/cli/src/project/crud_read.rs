@@ -2,10 +2,10 @@ use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use smbcloud_model::project::Project;
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::get_all;
+use smbcloud_networking_project::{get_all, get_project};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
 
@@ -54,6 +54,32 @@ pub async fn process_project_list(env: Environment) -> Result<CommandResult> {
                 symbol: fail_symbol(),
                 msg: fail_message("Failed to get all projects."),
             })
+        }
+    }
+}
+
+pub async fn process_project_show(env: Environment, id: String) -> Result<CommandResult> {
+    let mut spinner = Spinner::new(
+        spinners::Spinners::SimpleDotsScrolling,
+        succeed_message("Loading"),
+    );
+    match get_project(env, id).await {
+        Ok(project) => {
+            spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
+            let message = succeed_message(&format!("Showing project {}.", &project.name));
+            show_projects(vec![project]);
+            Ok(CommandResult {
+                spinner: Spinner::new(
+                    spinners::Spinners::SimpleDotsScrolling,
+                    succeed_message("Loading"),
+                ),
+                symbol: succeed_symbol(),
+                msg: message,
+            })
+        }
+        Err(e) => {
+            spinner.stop_and_persist(&fail_symbol(), fail_message("Failed."));
+            Err(anyhow!("{e}"))
         }
     }
 }
