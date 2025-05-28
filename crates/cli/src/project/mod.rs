@@ -2,13 +2,17 @@ pub mod cli;
 pub mod crud_create;
 pub mod crud_delete;
 pub mod crud_read;
+mod deployment;
 
 use self::cli::Commands;
 use crate::{
     cli::CommandResult,
-    project::crud_create::process_project_init,
-    project::crud_delete::process_project_delete,
-    project::crud_read::{process_project_list, process_project_show},
+    project::{
+        crud_create::process_project_init,
+        crud_delete::process_project_delete,
+        crud_read::{process_project_list, process_project_show},
+        deployment::process_deployment,
+    },
     ui::{succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
@@ -60,5 +64,6 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
                 }
             }
         }
+        Commands::Deployment { id } => process_deployment(env, id).await,
     }
 }

@@ -27,4 +27,9 @@ pub enum Commands {
         #[clap(short, long, required = true)]
         id: String,
     },
+    #[clap(about = "Manage project deployment. Pass --id to get detail deployment.")]
+    Deployment {
+        #[clap(short, long)]
+        id: Option<String>,
+    },
 }

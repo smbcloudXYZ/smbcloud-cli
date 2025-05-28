@@ -24,7 +24,7 @@ log = "0.4.14"
 maybe-async = "0.2"
 open = "4.0"
 regex = "1.11"
-reqwest = "0.12"
+reqwest = "0.12.18"
 serde = "1"
 serde_json = "1.0.82"
 serde_repr = "0.1"
@@ -33,7 +33,7 @@ smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
 smbcloud-networking-project = { version = "0.3.0", path = "crates/smbcloud-networking-project" }
 smbcloud-utils = { version = "0.3.0", path = "crates/smbcloud-utils" }
 spinners = "4.1.0"
-tabled = "0.15"
+tabled = "0.19"
 thiserror = "2.0"
 tokio = "1.44"
 toml = "0.8"

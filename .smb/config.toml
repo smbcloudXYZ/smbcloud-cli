@@ -1,6 +1,6 @@
 name = 'smbCloud CLI'
 description = 'smbCloud CLI monorepo'
 
-[repository]
+[project]
 id = 1
-name = 'smbcloudcli'
+repository = 'smbcloudcli'
