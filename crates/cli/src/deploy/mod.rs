@@ -16,7 +16,7 @@ use remote_messages::{build_next_app, start_server};
 use smbcloud_model::project::DeploymentPayload;
 use smbcloud_model::project::DeploymentStatus;
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::crud_project_deployment_create::{create, update};
+use smbcloud_networking_project::crud_project_deployment_create::create;
 use spinners::Spinner;
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {

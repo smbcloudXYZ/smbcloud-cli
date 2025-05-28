@@ -24,11 +24,15 @@ pub async fn create(
         .await?;
 
     match response.status() {
-        reqwest::StatusCode::OK => {
+        reqwest::StatusCode::CREATED => {
             let deployment: Deployment = response.json().await?;
             Ok(deployment)
+            // After receiving the response
+            //let body = response.text().await?;
+            //println!("Response body: {}", body);
+            // todo!()
         }
-        _ => Err(anyhow!("Failed to fetch projects.")),
+        _ => Err(anyhow!("Something wrong.")),
     }
 }
 

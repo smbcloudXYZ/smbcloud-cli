@@ -1,6 +1,7 @@
 use crate::{app_auth::AuthApp, ar_date_format};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_repr::{Deserialize_repr, Serialize_repr};
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct Config {
@@ -27,6 +28,7 @@ pub struct ProjectCreate {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Deployment {
     pub id: i32,
+    pub project_id: i32,
     pub commit_hash: String,
     pub status: DeploymentStatus,
     #[serde(with = "ar_date_format")]
@@ -35,13 +37,14 @@ pub struct Deployment {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct DeploymentPayload {
     pub commit_hash: String,
     pub status: DeploymentStatus,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize_repr, Serialize_repr, Debug)]
+#[repr(u8)]
 pub enum DeploymentStatus {
     Started = 0,
     Failed,
