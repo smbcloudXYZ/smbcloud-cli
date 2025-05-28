@@ -1,119 +1,30 @@
 pub mod cli;
-pub mod init;
+pub mod crud_create;
+pub mod crud_delete;
+pub mod crud_read;
 
 use self::cli::Commands;
-use crate::cli::CommandResult;
+use crate::{
+    cli::CommandResult,
+    project::crud_create::process_project_init,
+    project::crud_delete::process_project_delete,
+    project::crud_read::{process_project_list, process_project_show},
+    ui::{succeed_message, succeed_symbol},
+};
 use anyhow::{anyhow, Result};
-use console::style;
-use dialoguer::{theme::ColorfulTheme, Input};
-use init::process_project_init;
 use log::debug;
-use smbcloud_model::project::{Config, Project};
+use smbcloud_model::project::Config;
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::{delete_project, get_all, get_project};
+use smbcloud_networking_project::get_project;
 use spinners::Spinner;
 use std::{fs::OpenOptions, io::Write};
 
 pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
         Commands::New {} => process_project_init(env).await,
-        Commands::List {} => {
-            let mut spinner = Spinner::new(
-                spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
-            );
-
-            // Get all
-            match get_all(env).await {
-                Ok(projects) => {
-                    spinner.stop_and_persist("✅", "Loaded.".to_owned());
-                    let msg = if projects.is_empty() {
-                        "No projects found.".to_owned()
-                    } else {
-                        "Showing all projects.".to_owned()
-                    };
-                    show_projects(projects);
-                    Ok(CommandResult {
-                        spinner: Spinner::new(
-                            spinners::Spinners::SimpleDotsScrolling,
-                            style("Loading...").green().bold().to_string(),
-                        ),
-                        symbol: "✅".to_owned(),
-                        msg,
-                    })
-                }
-                Err(e) => {
-                    println!("Error: {e:#?}");
-                    Ok(CommandResult {
-                        spinner,
-                        symbol: "😩".to_owned(),
-                        msg: "Failed to get all projects.".to_owned(),
-                    })
-                }
-            }
-        }
-        Commands::Show { id } => {
-            let mut spinner = Spinner::new(
-                spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
-            );
-            // Get Detail
-            match get_project(env, id).await {
-                Ok(project) => {
-                    spinner.stop_and_persist("✅", "Loaded.".to_owned());
-                    let message = format!("Showing project {}.", &project.name);
-                    show_projects(vec![project]);
-                    Ok(CommandResult {
-                        spinner: Spinner::new(
-                            spinners::Spinners::SimpleDotsScrolling,
-                            style("Loading...").green().bold().to_string(),
-                        ),
-                        symbol: "✅".to_owned(),
-                        msg: message,
-                    })
-                }
-                Err(e) => {
-                    spinner.stop_and_persist("😩", "Failed.".to_string());
-                    Err(anyhow!("{e}"))
-                }
-            }
-        }
-        Commands::Delete { id } => {
-            let confirmation = Input::<String>::with_theme(&ColorfulTheme::default())
-                .with_prompt("Are you sure? (y/n)")
-                .interact()
-                .unwrap();
-
-            let mut spinner = Spinner::new(
-                spinners::Spinners::SimpleDotsScrolling,
-                style("Deleting project...").green().bold().to_string(),
-            );
-
-            if confirmation != "y" {
-                return Ok(CommandResult {
-                    spinner,
-                    symbol: "✅".to_owned(),
-                    msg: "Cancelled.".to_string(),
-                });
-            }
-            match delete_project(env, id).await {
-                Ok(_) => {
-                    spinner.stop_and_persist("✅", "Done.".to_string());
-                    Ok(CommandResult {
-                        spinner: Spinner::new(
-                            spinners::Spinners::SimpleDotsScrolling,
-                            style("Loading...").green().bold().to_string(),
-                        ),
-                        symbol: "✅".to_owned(),
-                        msg: "Project has been deleted.".to_string(),
-                    })
-                }
-                Err(e) => {
-                    spinner.stop_and_persist("😩", "Failed.".to_string());
-                    Err(anyhow!("{e}"))
-                }
-            }
-        }
+        Commands::List {} => process_project_list(env).await,
+        Commands::Show { id } => process_project_show(env, id).await,
+        Commands::Delete { id } => process_project_delete(env, id).await,
         Commands::Use { id } => {
             let project = get_project(env, id).await?;
 
@@ -124,7 +35,7 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
 
             let spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
+                succeed_message("Loading"),
             );
             match home::home_dir() {
                 Some(path) => {
@@ -139,8 +50,8 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
 
                     Ok(CommandResult {
                         spinner,
-                        symbol: "✅".to_owned(),
-                        msg: "Use project successful.".to_string(),
+                        symbol: succeed_symbol(),
+                        msg: succeed_message("Use project successful."),
                     })
                 }
                 None => {
@@ -149,28 +60,5 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
                 }
             }
         }
-    }
-}
-
-// Private functions
-
-fn show_projects(projects: Vec<Project>) {
-    // println!("Projects: {projects:#?}");
-    if projects.is_empty() {
-        return;
-    }
-    println!(
-        "{0: <5} | {1: <20} | {2: <30} | {3: <20} | {4: <20}",
-        "ID", "Name", "Description", "Created at", "Updated at"
-    );
-    for project in projects {
-        println!(
-            "{0: <5} | {1: <20} | {2: <30} | {3: <20} | {4: <20}",
-            project.id,
-            project.name,
-            project.description,
-            project.created_at.date_naive(),
-            project.updated_at.date_naive(),
-        );
     }
 }

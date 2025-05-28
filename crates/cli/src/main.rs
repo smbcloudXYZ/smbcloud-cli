@@ -4,7 +4,7 @@ use console::style;
 use smbcloud_cli::account::login::process_login;
 use smbcloud_cli::account::logout::process_logout;
 use smbcloud_cli::cli::CommandResult;
-use smbcloud_cli::project::init::process_project_init;
+use smbcloud_cli::project::crud_create::process_project_init;
 use smbcloud_cli::{
     account::process_account,
     cli::{Cli, Commands},
