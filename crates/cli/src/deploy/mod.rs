@@ -1,4 +1,4 @@
-mod config;
+pub mod config;
 mod git;
 mod remote_messages;
 
