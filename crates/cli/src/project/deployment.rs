@@ -1,0 +1,84 @@
+use smbcloud_networking::environment::Environment;
+use smbcloud_networking_project::crud_project_deployment_read::{get_deployment_detail, list_deployments};
+use spinners::Spinner;
+use crate::{cli::CommandResult, deploy::config::check_config, ui::{succeed_message, succeed_symbol}};
+use anyhow::{anyhow, Result};
+use smbcloud_model::project::Config;
+use std::fs;
+use dirs;
+use tabled::{Table, Tabled};
+use smbcloud_model::project::Deployment;
+
+pub(crate) async fn process_deployment(env: Environment, id: Option<String>) -> Result<CommandResult>  {
+
+      let mut spinner: Spinner = Spinner::new(
+        spinners::Spinners::Hamburger,
+        succeed_message("Loading"),
+    );
+    // Load project id from .smb/config.toml
+    let config = check_config().await?;
+
+    if let Some(deployment_id) = id {
+        // Show detail for a specific deployment
+        let deployment_id: i32 = deployment_id.parse()?;
+        let deployment = get_deployment_detail(env, config.repository.id, deployment_id).await?;
+        spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded"));
+        show_deployment_detail(&deployment);
+    } else {
+        // List all deployments for the project
+        let deployments = list_deployments(env, config.repository.id).await?;
+        spinner.stop_and_persist(&succeed_symbol(), succeed_message("Load all deployments"));
+        show_project_deployments(&deployments);
+    };
+
+    Ok(CommandResult { spinner: Spinner::new(
+        spinners::Spinners::Hamburger,
+        succeed_message("Loading."),
+    ), symbol: succeed_symbol(), msg: succeed_message("Loaded") })
+}
+
+// Helper struct for table display
+#[derive(Tabled)]
+struct DeploymentRow {
+    id: i32,
+    commit_hash: String,
+    status: String,
+    created_at: String,
+    updated_at: String,
+}
+
+pub fn show_project_deployments(deployments: &[Deployment]) {
+    let rows: Vec<DeploymentRow> = deployments
+        .iter()
+        .map(|d| DeploymentRow {
+            id: d.id,
+            commit_hash: d.commit_hash.clone(),
+            status: format!("{:?}", d.status),
+            created_at: d.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+            updated_at: d.updated_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+        })
+        .collect();
+
+    let table = Table::new(rows);
+    println!("{table}");
+}
+
+#[derive(Tabled)]
+struct DeploymentDetailRow {
+    field: &'static str,
+    value: String,
+}
+
+pub fn show_deployment_detail(deployment: &Deployment) {
+    let rows = vec![
+        DeploymentDetailRow { field: "ID", value: deployment.id.to_string() },
+        DeploymentDetailRow { field: "Project ID", value: deployment.project_id.to_string() },
+        DeploymentDetailRow { field: "Commit Hash", value: deployment.commit_hash.clone() },
+        DeploymentDetailRow { field: "Status", value: format!("{:?}", deployment.status) },
+        DeploymentDetailRow { field: "Created At", value: deployment.created_at.format("%Y-%m-%d %H:%M:%S").to_string() },
+        DeploymentDetailRow { field: "Updated At", value: deployment.updated_at.format("%Y-%m-%d %H:%M:%S").to_string() },
+    ];
+
+    let table = Table::new(rows);
+    println!("{table}");
+}
