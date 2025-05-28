@@ -24,6 +24,20 @@ pub struct ProjectCreate {
     pub description: String,
 }
 
+#[derive(Serialize, Debug)]
+pub struct Payload {
+  pub project_id: i32,
+  pub commit_hash: String,
+  pub status: DeploymentStatus
+}
+
+#[derive(Serialize, Debug)]
+pub enum DeploymentStatus {
+    Started,
+    Failed,
+    Done,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
