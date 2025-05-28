@@ -1,11 +1,11 @@
 pub mod cli;
+pub mod crud_create;
 pub mod crud_read;
-pub mod init;
 
 use self::cli::Commands;
 use crate::{
     cli::CommandResult,
-    project::{crud_read::process_project_list, init::process_project_init},
+    project::{crud_create::process_project_init, crud_read::process_project_list},
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
