@@ -1,20 +1,23 @@
-use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::crud_project_deployment_read::{get_deployment_detail, list_deployments};
-use spinners::Spinner;
-use crate::{cli::CommandResult, deploy::config::check_config, ui::{succeed_message, succeed_symbol}};
-use anyhow::{anyhow, Result};
-use smbcloud_model::project::Config;
-use std::fs;
-use dirs;
-use tabled::{Table, Tabled};
+use crate::{
+    cli::CommandResult,
+    deploy::config::check_config,
+    ui::{succeed_message, succeed_symbol},
+};
+use anyhow::Result;
 use smbcloud_model::project::Deployment;
+use smbcloud_networking::environment::Environment;
+use smbcloud_networking_project::crud_project_deployment_read::{
+    get_deployment_detail, list_deployments,
+};
+use spinners::Spinner;
+use tabled::{Table, Tabled};
 
-pub(crate) async fn process_deployment(env: Environment, id: Option<String>) -> Result<CommandResult>  {
-
-      let mut spinner: Spinner = Spinner::new(
-        spinners::Spinners::Hamburger,
-        succeed_message("Loading"),
-    );
+pub(crate) async fn process_deployment(
+    env: Environment,
+    id: Option<String>,
+) -> Result<CommandResult> {
+    let mut spinner: Spinner =
+        Spinner::new(spinners::Spinners::Hamburger, succeed_message("Loading"));
     // Load project id from .smb/config.toml
     let config = check_config().await?;
 
@@ -31,10 +34,11 @@ pub(crate) async fn process_deployment(env: Environment, id: Option<String>) -> 
         show_project_deployments(&deployments);
     };
 
-    Ok(CommandResult { spinner: Spinner::new(
-        spinners::Spinners::Hamburger,
-        succeed_message("Loading."),
-    ), symbol: succeed_symbol(), msg: succeed_message("Loaded") })
+    Ok(CommandResult {
+        spinner: Spinner::new(spinners::Spinners::Hamburger, succeed_message("Loading.")),
+        symbol: succeed_symbol(),
+        msg: succeed_message("Loaded"),
+    })
 }
 
 // Helper struct for table display
@@ -85,8 +89,14 @@ pub fn show_deployment_detail(deployment: &Deployment) {
         project_id: deployment.project_id,
         commit_hash: deployment.commit_hash.clone(),
         status: format!("{:?}", deployment.status),
-        created_at: deployment.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-        updated_at: deployment.updated_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+        created_at: deployment
+            .created_at
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string(),
+        updated_at: deployment
+            .updated_at
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string(),
     };
 
     let table = Table::new(vec![row]);

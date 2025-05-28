@@ -4,10 +4,7 @@ use reqwest::Client;
 use smbcloud_model::project::Deployment;
 use smbcloud_networking::{environment::Environment, get_smb_token};
 
-pub async fn list_deployments(
-    env: Environment,
-    project_id: i32,
-) -> Result<Vec<Deployment>> {
+pub async fn list_deployments(env: Environment, project_id: i32) -> Result<Vec<Deployment>> {
     let token = get_smb_token(env).await?;
 
     let response = Client::new()
