@@ -1,19 +1,21 @@
 pub mod cli;
 pub mod crud_create;
+pub mod crud_delete;
 pub mod crud_read;
 
 use self::cli::Commands;
 use crate::{
     cli::CommandResult,
-    project::{crud_create::process_project_init, crud_read::process_project_list},
+    project::crud_create::process_project_init,
+    project::crud_delete::process_project_delete,
+    project::crud_read::process_project_list,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
-use dialoguer::{theme::ColorfulTheme, Input};
 use log::debug;
 use smbcloud_model::project::{Config, Project};
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::{delete_project, get_project};
+use smbcloud_networking_project::get_project;
 use spinners::Spinner;
 use std::{fs::OpenOptions, io::Write};
 use tabled::{Table, Tabled};
@@ -36,6 +38,7 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
     match commands {
         Commands::New {} => process_project_init(env).await,
         Commands::List {} => process_project_list(env).await,
+        Commands::Delete { id } => process_project_delete(env, id).await,
         Commands::Show { id } => {
             let mut spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
@@ -60,37 +63,6 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
                     spinner.stop_and_persist(&fail_symbol(), fail_message("Failed."));
                     Err(anyhow!("{e}"))
                 }
-            }
-        }
-        Commands::Delete { id } => {
-            let confirmation = Input::<String>::with_theme(&ColorfulTheme::default())
-                .with_prompt("Are you sure? (y/n)")
-                .interact()
-                .unwrap();
-
-            let spinner = Spinner::new(
-                spinners::Spinners::SimpleDotsScrolling,
-                succeed_message("Deleting project"),
-            );
-
-            if confirmation != "y" {
-                return Ok(CommandResult {
-                    spinner,
-                    symbol: succeed_symbol(),
-                    msg: succeed_message("Cancelled."),
-                });
-            }
-            match delete_project(env, id).await {
-                Ok(_) => Ok(CommandResult {
-                    spinner,
-                    symbol: succeed_symbol(),
-                    msg: succeed_message("Done. Project has been deleted."),
-                }),
-                Err(e) => Ok(CommandResult {
-                    spinner,
-                    symbol: fail_symbol(),
-                    msg: fail_message(&e.to_string()),
-                }),
             }
         }
         Commands::Use { id } => {
