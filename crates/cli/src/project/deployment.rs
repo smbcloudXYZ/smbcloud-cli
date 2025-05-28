@@ -63,22 +63,32 @@ pub fn show_project_deployments(deployments: &[Deployment]) {
     println!("{table}");
 }
 
-#[derive(Tabled)]
-struct DeploymentDetailRow {
-    field: &'static str,
-    value: String,
-}
-
 pub fn show_deployment_detail(deployment: &Deployment) {
-    let rows = vec![
-        DeploymentDetailRow { field: "ID", value: deployment.id.to_string() },
-        DeploymentDetailRow { field: "Project ID", value: deployment.project_id.to_string() },
-        DeploymentDetailRow { field: "Commit Hash", value: deployment.commit_hash.clone() },
-        DeploymentDetailRow { field: "Status", value: format!("{:?}", deployment.status) },
-        DeploymentDetailRow { field: "Created At", value: deployment.created_at.format("%Y-%m-%d %H:%M:%S").to_string() },
-        DeploymentDetailRow { field: "Updated At", value: deployment.updated_at.format("%Y-%m-%d %H:%M:%S").to_string() },
-    ];
+    #[derive(Tabled)]
+    struct Detail {
+        #[tabled(rename = "ID")]
+        id: i32,
+        #[tabled(rename = "Project ID")]
+        project_id: i32,
+        #[tabled(rename = "Commit Hash")]
+        commit_hash: String,
+        #[tabled(rename = "Status")]
+        status: String,
+        #[tabled(rename = "Created At")]
+        created_at: String,
+        #[tabled(rename = "Updated At")]
+        updated_at: String,
+    }
 
-    let table = Table::new(rows);
+    let row = Detail {
+        id: deployment.id,
+        project_id: deployment.project_id,
+        commit_hash: deployment.commit_hash.clone(),
+        status: format!("{:?}", deployment.status),
+        created_at: deployment.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+        updated_at: deployment.updated_at.format("%Y-%m-%d %H:%M:%S").to_string(),
+    };
+
+    let table = Table::new(vec![row]);
     println!("{table}");
 }

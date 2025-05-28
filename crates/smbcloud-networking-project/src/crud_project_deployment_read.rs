@@ -1,4 +1,4 @@
-use crate::build_project_deployment_index;
+use crate::{build_project_deployment, build_project_deployment_index};
 use anyhow::{anyhow, Result};
 use reqwest::Client;
 use smbcloud_model::project::Deployment;
@@ -33,11 +33,7 @@ pub async fn get_deployment_detail(
 ) -> Result<Deployment> {
     let token = get_smb_token(env).await?;
 
-    let url = format!(
-        "{}/{}",
-        build_project_deployment_index(env, project_id.to_string()),
-        deployment_id
-    );
+    let url = build_project_deployment(env, project_id.to_string(), deployment_id.to_string());
 
     let response = Client::new()
         .get(url)
