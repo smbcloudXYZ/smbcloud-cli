@@ -1,6 +1,6 @@
 use crate::{
     cli::CommandResult,
-    deploy::config::check_config,
+    deploy::config::{check_config, check_project},
     ui::{succeed_message, succeed_symbol},
 };
 use anyhow::Result;
@@ -20,6 +20,8 @@ pub(crate) async fn process_deployment(
         Spinner::new(spinners::Spinners::Hamburger, succeed_message("Loading"));
     // Load project id from .smb/config.toml
     let config = check_config().await?;
+
+    check_project(env, config.repository.id).await?;
 
     if let Some(deployment_id) = id {
         // Show detail for a specific deployment
