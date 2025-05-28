@@ -1,18 +1,19 @@
 pub mod cli;
+pub mod crud_read;
 pub mod init;
 
 use self::cli::Commands;
 use crate::{
     cli::CommandResult,
+    project::{crud_read::process_project_list, init::process_project_init},
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
-use init::process_project_init;
 use log::debug;
 use smbcloud_model::project::{Config, Project};
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::{delete_project, get_all, get_project};
+use smbcloud_networking_project::{delete_project, get_project};
 use spinners::Spinner;
 use std::{fs::OpenOptions, io::Write};
 use tabled::{Table, Tabled};
@@ -34,41 +35,7 @@ struct ProjectRow {
 pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
         Commands::New {} => process_project_init(env).await,
-        Commands::List {} => {
-            let mut spinner = Spinner::new(
-                spinners::Spinners::SimpleDotsScrolling,
-                succeed_message("Loading"),
-            );
-
-            // Get all
-            match get_all(env).await {
-                Ok(projects) => {
-                    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
-                    let msg = if projects.is_empty() {
-                        succeed_message("No projects found.")
-                    } else {
-                        succeed_message("Showing all projects.")
-                    };
-                    show_projects(projects);
-                    Ok(CommandResult {
-                        spinner: Spinner::new(
-                            spinners::Spinners::SimpleDotsScrolling,
-                            succeed_message("Loading"),
-                        ),
-                        symbol: succeed_symbol(),
-                        msg,
-                    })
-                }
-                Err(e) => {
-                    println!("Error: {e:#?}");
-                    Ok(CommandResult {
-                        spinner,
-                        symbol: fail_symbol(),
-                        msg: fail_message("Failed to get all projects."),
-                    })
-                }
-            }
-        }
+        Commands::List {} => process_project_list(env).await,
         Commands::Show { id } => {
             let mut spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
