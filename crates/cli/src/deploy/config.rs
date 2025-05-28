@@ -22,14 +22,18 @@ pub(crate) async fn check_config() -> Result<Config, ConfigError> {
     }
 
     // Parse toml file
-    let config_content = fs::read_to_string(config_path).map_err(|_| ConfigError::MissingConfig)?;
+    let config_content = fs::read_to_string(config_path)
+    .map_err(|_| {
+        ConfigError::MissingConfig
+    })?;
 
     let config: Config = match toml::from_str(&config_content) {
         Ok(value) => value,
-        Err(_) => {
+        Err(e) => {
+            println!("{}", e);
             spinner.stop_and_persist(&fail_symbol(), fail_message("Config unsync."));
             handle_config_error()?
-        }
+        },
     };
 
     spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid config."));
@@ -37,15 +41,15 @@ pub(crate) async fn check_config() -> Result<Config, ConfigError> {
     Ok(config)
 }
 
-fn handle_config_error() -> Result<Config, ConfigError> {
-    todo!()
+fn handle_config_error() -> Result<Config, ConfigError>  {
+   todo!()
 }
 
 #[derive(Deserialize)]
 pub struct Config {
     pub name: String,
     pub description: String,
-    pub repository: Repository,
+    pub repository: Repository
 }
 
 #[derive(Deserialize)]
@@ -68,7 +72,7 @@ impl Config {
         let home = dirs::home_dir().expect("Could not determine home directory");
         let key_path = home
             .join(".ssh")
-            .join(format!("id_{}@smbcloud.xyz", self.name));
+            .join(format!("id_{}@smbcloud.xyz", self.repository.name));
         let key_path_str = key_path.to_string_lossy().to_string();
         println!("Use key path: {}", key_path_str);
         key_path_str

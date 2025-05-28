@@ -41,7 +41,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    let mut origin = remote_deployment_setup(&repo, &config.name).await?;
+    let mut origin = remote_deployment_setup(&repo, &config.repository.name).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
