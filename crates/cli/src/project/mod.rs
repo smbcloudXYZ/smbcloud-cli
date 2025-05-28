@@ -2,9 +2,11 @@ pub mod cli;
 pub mod init;
 
 use self::cli::Commands;
-use crate::cli::CommandResult;
+use crate::{
+    cli::CommandResult,
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+};
 use anyhow::{anyhow, Result};
-use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
 use init::process_project_init;
 use log::debug;
@@ -20,25 +22,25 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
         Commands::List {} => {
             let mut spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
+                succeed_message("Loading"),
             );
 
             // Get all
             match get_all(env).await {
                 Ok(projects) => {
-                    spinner.stop_and_persist("✅", "Loaded.".to_owned());
+                    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
                     let msg = if projects.is_empty() {
-                        "No projects found.".to_owned()
+                        succeed_message("No projects found.")
                     } else {
-                        "Showing all projects.".to_owned()
+                        succeed_message("Showing all projects.")
                     };
                     show_projects(projects);
                     Ok(CommandResult {
                         spinner: Spinner::new(
                             spinners::Spinners::SimpleDotsScrolling,
-                            style("Loading...").green().bold().to_string(),
+                            succeed_message("Loading"),
                         ),
-                        symbol: "✅".to_owned(),
+                        symbol: succeed_symbol(),
                         msg,
                     })
                 }
@@ -46,8 +48,8 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
                     println!("Error: {e:#?}");
                     Ok(CommandResult {
                         spinner,
-                        symbol: "😩".to_owned(),
-                        msg: "Failed to get all projects.".to_owned(),
+                        symbol: fail_symbol(),
+                        msg: fail_message("Failed to get all projects."),
                     })
                 }
             }
@@ -55,25 +57,25 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
         Commands::Show { id } => {
             let mut spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
+                succeed_message("Loading"),
             );
             // Get Detail
             match get_project(env, id).await {
                 Ok(project) => {
-                    spinner.stop_and_persist("✅", "Loaded.".to_owned());
-                    let message = format!("Showing project {}.", &project.name);
+                    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
+                    let message = succeed_message(&format!("Showing project {}.", &project.name));
                     show_projects(vec![project]);
                     Ok(CommandResult {
                         spinner: Spinner::new(
                             spinners::Spinners::SimpleDotsScrolling,
-                            style("Loading...").green().bold().to_string(),
+                            succeed_message("Loading"),
                         ),
-                        symbol: "✅".to_owned(),
+                        symbol: succeed_symbol(),
                         msg: message,
                     })
                 }
                 Err(e) => {
-                    spinner.stop_and_persist("😩", "Failed.".to_string());
+                    spinner.stop_and_persist(&fail_symbol(), fail_message("Failed."));
                     Err(anyhow!("{e}"))
                 }
             }
@@ -86,30 +88,30 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
 
             let mut spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Deleting project...").green().bold().to_string(),
+                succeed_message("Deleting project"),
             );
 
             if confirmation != "y" {
                 return Ok(CommandResult {
                     spinner,
-                    symbol: "✅".to_owned(),
-                    msg: "Cancelled.".to_string(),
+                    symbol: succeed_symbol(),
+                    msg: succeed_message("Cancelled."),
                 });
             }
             match delete_project(env, id).await {
                 Ok(_) => {
-                    spinner.stop_and_persist("✅", "Done.".to_string());
+                    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Done."));
                     Ok(CommandResult {
                         spinner: Spinner::new(
                             spinners::Spinners::SimpleDotsScrolling,
-                            style("Loading...").green().bold().to_string(),
+                            succeed_message("Loading"),
                         ),
-                        symbol: "✅".to_owned(),
-                        msg: "Project has been deleted.".to_string(),
+                        symbol: succeed_symbol(),
+                        msg: succeed_message("Project has been deleted."),
                     })
                 }
                 Err(e) => {
-                    spinner.stop_and_persist("😩", "Failed.".to_string());
+                    spinner.stop_and_persist(&fail_symbol(), fail_message("Failed."));
                     Err(anyhow!("{e}"))
                 }
             }
@@ -124,7 +126,7 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
 
             let spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
+                succeed_message("Loading"),
             );
             match home::home_dir() {
                 Some(path) => {
@@ -139,8 +141,8 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
 
                     Ok(CommandResult {
                         spinner,
-                        symbol: "✅".to_owned(),
-                        msg: "Use project successful.".to_string(),
+                        symbol: succeed_symbol(),
+                        msg: succeed_message("Use project successful."),
                     })
                 }
                 None => {
