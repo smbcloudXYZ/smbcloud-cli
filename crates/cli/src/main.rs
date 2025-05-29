@@ -117,6 +117,6 @@ async fn run() -> Result<CommandResult> {
         Some(Commands::Login {}) => process_login(cli.environment).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
-        None => { process_deploy(cli.environment).await }
+        None => process_deploy(cli.environment).await,
     }
 }

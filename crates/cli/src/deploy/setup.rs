@@ -1,4 +1,7 @@
-use crate::{deploy::config::{Config, ConfigError}, ui::highlight};
+use crate::{
+    deploy::config::{Config, ConfigError},
+    ui::highlight,
+};
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use regex::Regex;
 use smbcloud_model::project::{Project, ProjectCreate};
@@ -56,7 +59,11 @@ pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {
     Ok(config)
 }
 
-async fn select_project(env: Environment, projects: Vec<Project>, path: &str) -> Result<Project, ConfigError> {
+async fn select_project(
+    env: Environment,
+    projects: Vec<Project>,
+    path: &str,
+) -> Result<Project, ConfigError> {
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Use existing project? y/n")
         .interact()
@@ -97,7 +104,7 @@ async fn create_new_project(env: Environment, path: &str) -> Result<Project, Con
     let re = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
     let default_repository = name.clone().to_lowercase().replace(' ', "_");
     let default_repo = re.replace_all(&default_repository, "");
-    
+
     let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
         .default(default_repo.to_string())
         .with_prompt("Repository")
