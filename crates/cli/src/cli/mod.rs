@@ -26,8 +26,8 @@ pub struct Cli {
     #[clap(short, long, global = true)]
     pub log_level: Option<String>,
 
-    #[clap(subcommand)]
-    pub command: Commands,
+    #[command(subcommand)]
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]

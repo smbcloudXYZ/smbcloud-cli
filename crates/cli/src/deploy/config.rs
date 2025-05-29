@@ -1,14 +1,17 @@
-use std::{fs, path::Path};
-
-use crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol};
+use crate::{
+    deploy::setup::setup_project,
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+};
 use git2::{Cred, CredentialType, Error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use smbcloud_model::project::Project;
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::get_project;
 use spinners::Spinner;
+use std::{fs, path::Path};
 use thiserror::Error;
 
-pub(crate) async fn check_config() -> Result<Config, ConfigError> {
+pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Checking config"),
@@ -19,8 +22,12 @@ pub(crate) async fn check_config() -> Result<Config, ConfigError> {
     // Get .smb/config.toml file path in the current directory
     let config_path = Path::new(".smb/config.toml");
     if !config_path.exists() {
-        spinner.stop_and_persist(&fail_symbol(), fail_message("Invalid config."));
-        return Err(ConfigError::MissingConfig);
+        spinner.stop_and_persist(&succeed_symbol(), succeed_message("Setting up deployment"));
+        setup_project(env).await?;
+        spinner = Spinner::new(
+            spinners::Spinners::SimpleDotsScrolling,
+            succeed_message("Checking config"),
+        );
     }
 
     // Parse toml file
@@ -63,17 +70,11 @@ pub(crate) async fn check_project(env: Environment, id: i32) -> Result<(), Confi
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Config {
     pub name: String,
-    pub description: String,
+    pub description: Option<String>,
     pub project: Project,
-}
-
-#[derive(Deserialize)]
-pub struct Project {
-    pub id: i32,
-    pub repository: String,
 }
 
 impl Config {
@@ -105,4 +106,8 @@ pub enum ConfigError {
     MissingId,
     #[error("Could not find project in your list. Make sure you have access to the project.")]
     ProjectNotFound,
+    #[error("Cancel operation.")]
+    Cancel,
+    #[error("Input error.")]
+    InputError,
 }

@@ -1,9 +1,10 @@
 pub mod config;
 mod git;
 mod remote_messages;
+mod setup;
 
 use crate::{
-    account::lib::protected_request,
+    account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,
     deploy::config::check_project,
     ui::{fail_message, succeed_message, succeed_symbol},
@@ -21,10 +22,12 @@ use spinners::Spinner;
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     // Check credentials.
-    protected_request(env).await?;
+    if !is_logged_in(env) {
+        let _ = process_login(env).await;
+    }
 
     // Check config.
-    let config = check_config().await?;
+    let config = check_config(env).await?;
 
     // Validate config with project.
     check_project(env, config.project.id).await?;

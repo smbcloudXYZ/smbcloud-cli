@@ -19,7 +19,7 @@ pub(crate) async fn process_deployment(
     let mut spinner: Spinner =
         Spinner::new(spinners::Spinners::Hamburger, succeed_message("Loading"));
     // Load project id from .smb/config.toml
-    let config = check_config().await?;
+    let config = check_config(env).await?;
 
     check_project(env, config.project.id).await?;
 

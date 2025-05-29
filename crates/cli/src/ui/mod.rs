@@ -15,3 +15,7 @@ pub fn succeed_message(message: &str) -> String {
 pub fn fail_message(message: &str) -> String {
     style(message).italic().red().to_string()
 }
+
+pub fn highlight(string: &str) -> String {
+    style(string).italic().green().to_string()
+}

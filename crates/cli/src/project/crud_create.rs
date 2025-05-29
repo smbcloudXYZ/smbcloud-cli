@@ -1,5 +1,5 @@
 use crate::{
-    account::lib::protected_request,
+    account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,
     ui::{fail_message, succeed_message, succeed_symbol},
 };
@@ -12,9 +12,20 @@ use smbcloud_networking_project::create_project;
 use spinners::Spinner;
 
 pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
-    protected_request(env).await?;
+    if !is_logged_in(env) {
+        let _ = process_login(env).await;
+    }
 
     let project_name = match Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt("Project name")
+        .interact()
+    {
+        Ok(project_name) => project_name,
+        Err(_) => {
+            return Err(anyhow!(fail_message("Invalid project name.")));
+        }
+    };
+    let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Project name")
         .interact()
     {
@@ -44,6 +55,7 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
         env,
         ProjectCreate {
             name: project_name.clone(),
+            repository,
             description: description.clone(),
         },
     )
@@ -73,6 +85,7 @@ async fn setup_smb_folder(name: &str, description: &str) -> Result<()> {
 name = "{name}"
 description = "{description}"
 [repository]
+id = 1
 name = "{repository_name}"
 "#,
         ),
