@@ -1,15 +1,17 @@
-use std::{fs, path::Path};
-
-use crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol};
+use crate::{
+    deploy::setup::setup,
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+};
 use git2::{Cred, CredentialType, Error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use smbcloud_model::project::Project;
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::get_project;
 use spinners::Spinner;
+use std::{fs, path::Path};
 use thiserror::Error;
 
-pub(crate) async fn check_config() -> Result<Config, ConfigError> {
+pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Checking config"),
@@ -21,7 +23,7 @@ pub(crate) async fn check_config() -> Result<Config, ConfigError> {
     let config_path = Path::new(".smb/config.toml");
     if !config_path.exists() {
         spinner.stop_and_persist(&fail_symbol(), fail_message("Invalid config."));
-        return Err(ConfigError::MissingConfig);
+        setup(env).await?;
     }
 
     // Parse toml file
@@ -64,7 +66,7 @@ pub(crate) async fn check_project(env: Environment, id: i32) -> Result<(), Confi
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Config {
     pub name: String,
     pub description: Option<String>,

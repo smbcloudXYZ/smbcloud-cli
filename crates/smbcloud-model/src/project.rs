@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{app_auth::AuthApp, ar_date_format};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -9,7 +11,7 @@ pub struct Config {
     pub current_auth_app: Option<AuthApp>,
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, Clone)]
 pub struct Project {
     pub id: i32,
     pub name: String,
@@ -19,6 +21,21 @@ pub struct Project {
     pub created_at: DateTime<Utc>,
     #[serde(with = "ar_date_format")]
     pub updated_at: DateTime<Utc>,
+}
+
+impl Display for Project {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ID: {}\nName: {}\nRepository: {}\nDescription: {}\nCreated At: {}\nUpdated At: {}",
+            self.id,
+            self.name,
+            self.repository,
+            self.description.as_deref().unwrap_or(""),
+            self.created_at.format("%Y-%m-%d %H:%M:%S"),
+            self.updated_at.format("%Y-%m-%d %H:%M:%S"),
+        )
+    }
 }
 #[derive(Serialize, Debug)]
 pub struct ProjectCreate {

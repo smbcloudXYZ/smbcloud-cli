@@ -1,6 +1,7 @@
 pub mod config;
 mod git;
 mod remote_messages;
+mod setup;
 
 use crate::{
     account::lib::protected_request,
@@ -24,7 +25,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     protected_request(env).await?;
 
     // Check config.
-    let config = check_config().await?;
+    let config = check_config(env).await?;
 
     // Validate config with project.
     check_project(env, config.project.id).await?;
