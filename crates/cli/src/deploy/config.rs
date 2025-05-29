@@ -22,7 +22,7 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError
     // Get .smb/config.toml file path in the current directory
     let config_path = Path::new(".smb/config.toml");
     if !config_path.exists() {
-        spinner.stop_and_persist(&fail_symbol(), fail_message("Invalid config."));
+        spinner.stop_and_persist(&succeed_symbol(), succeed_message("Setting up deployment"));
         setup(env).await?;
     }
 
@@ -102,4 +102,8 @@ pub enum ConfigError {
     MissingId,
     #[error("Could not find project in your list. Make sure you have access to the project.")]
     ProjectNotFound,
+    #[error("Cancel operation.")]
+    Cancel,
+    #[error("Input error.")]
+    InputError,
 }

@@ -1,4 +1,4 @@
-use crate::deploy::config::{Config, ConfigError};
+use crate::{deploy::config::{Config, ConfigError}, ui::highlight};
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use smbcloud_model::project::{Project, ProjectCreate};
 use smbcloud_networking::environment::Environment;
@@ -13,17 +13,17 @@ pub async fn setup(env: Environment) -> Result<Config, ConfigError> {
         .unwrap_or_else(|| ".".to_string());
 
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt(format!("Setup project in {}? y/n", path_str))
+        .with_prompt(format!("Setup project in {}? y/n", highlight(&path_str)))
         .interact()
-        .map_err(|_| ConfigError::MissingConfig)?;
+        .map_err(|_| ConfigError::InputError)?;
 
     if !confirm {
-        return Err(ConfigError::MissingConfig);
+        return Err(ConfigError::Cancel);
     }
 
     let projects = match get_all(env).await {
         Ok(x) => x,
-        Err(_) => return Err(ConfigError::MissingConfig),
+        Err(_) => return Err(ConfigError::InputError),
     };
 
     let project = if !projects.is_empty() {
@@ -61,7 +61,7 @@ async fn select_project(env: Environment, projects: Vec<Project>) -> Result<Proj
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Use existing project? y/n")
         .interact()
-        .map_err(|_| ConfigError::MissingConfig)?;
+        .map_err(|_| ConfigError::InputError)?;
 
     if !confirm {
         return create_new_project(env).await;
@@ -70,7 +70,7 @@ async fn select_project(env: Environment, projects: Vec<Project>) -> Result<Proj
         .items(&projects)
         .default(0)
         .interact()
-        .map_err(|_| ConfigError::MissingConfig)?;
+        .map_err(|_| ConfigError::InputError)?;
 
     let project = projects[selection].clone();
 
@@ -84,7 +84,7 @@ async fn create_new_project(env: Environment) -> Result<Project, ConfigError> {
     {
         Ok(project_name) => project_name,
         Err(_) => {
-            return Err(ConfigError::MissingConfig);
+            return Err(ConfigError::InputError);
         }
     };
     let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
@@ -94,7 +94,7 @@ async fn create_new_project(env: Environment) -> Result<Project, ConfigError> {
     {
         Ok(project_name) => project_name,
         Err(_) => {
-            return Err(ConfigError::MissingConfig);
+            return Err(ConfigError::InputError);
         }
     };
     let description = match Input::<String>::with_theme(&ColorfulTheme::default())
@@ -103,7 +103,7 @@ async fn create_new_project(env: Environment) -> Result<Project, ConfigError> {
     {
         Ok(description) => description,
         Err(_) => {
-            return Err(ConfigError::MissingConfig);
+            return Err(ConfigError::InputError);
         }
     };
 
