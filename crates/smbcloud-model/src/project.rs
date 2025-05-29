@@ -13,7 +13,8 @@ pub struct Config {
 pub struct Project {
     pub id: i32,
     pub name: String,
-    pub description: String,
+    pub repository: String,
+    pub description: Option<String>,
     #[serde(with = "ar_date_format")]
     pub created_at: DateTime<Utc>,
     #[serde(with = "ar_date_format")]

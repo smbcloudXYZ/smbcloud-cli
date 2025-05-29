@@ -3,6 +3,7 @@ use std::{fs, path::Path};
 use crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol};
 use git2::{Cred, CredentialType, Error};
 use serde::Deserialize;
+use smbcloud_model::project::Project;
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::get_project;
 use spinners::Spinner;
@@ -66,14 +67,8 @@ pub(crate) async fn check_project(env: Environment, id: i32) -> Result<(), Confi
 #[derive(Deserialize)]
 pub struct Config {
     pub name: String,
-    pub description: String,
+    pub description: Option<String>,
     pub project: Project,
-}
-
-#[derive(Deserialize)]
-pub struct Project {
-    pub id: i32,
-    pub repository: String,
 }
 
 impl Config {
