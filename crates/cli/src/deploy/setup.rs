@@ -78,8 +78,18 @@ async fn select_project(env: Environment, projects: Vec<Project>) -> Result<Proj
 }
 
 async fn create_new_project(env: Environment) -> Result<Project, ConfigError> {
-    let project_name = match Input::<String>::with_theme(&ColorfulTheme::default())
+    let name = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Project name")
+        .interact()
+    {
+        Ok(project_name) => project_name,
+        Err(_) => {
+            return Err(ConfigError::MissingConfig);
+        }
+    };
+    let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
+        .default(name.clone())
+        .with_prompt("Repository")
         .interact()
     {
         Ok(project_name) => project_name,
@@ -100,7 +110,8 @@ async fn create_new_project(env: Environment) -> Result<Project, ConfigError> {
     match create_project(
         env,
         ProjectCreate {
-            name: project_name,
+            name,
+            repository,
             description,
         },
     )

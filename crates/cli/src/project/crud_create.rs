@@ -6,7 +6,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
-use smbcloud_model::project::ProjectCreate;
+use smbcloud_model::project::{self, ProjectCreate};
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::create_project;
 use spinners::Spinner;
@@ -15,6 +15,15 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
     protected_request(env).await?;
 
     let project_name = match Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt("Project name")
+        .interact()
+    {
+        Ok(project_name) => project_name,
+        Err(_) => {
+            return Err(anyhow!(fail_message("Invalid project name.")));
+        }
+    };
+    let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Project name")
         .interact()
     {
@@ -44,6 +53,7 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
         env,
         ProjectCreate {
             name: project_name.clone(),
+            repository,
             description: description.clone(),
         },
     )
@@ -73,6 +83,7 @@ async fn setup_smb_folder(name: &str, description: &str) -> Result<()> {
 name = "{name}"
 description = "{description}"
 [repository]
+id = 1
 name = "{repository_name}"
 "#,
         ),

@@ -40,6 +40,7 @@ impl Display for Project {
 #[derive(Serialize, Debug)]
 pub struct ProjectCreate {
     pub name: String,
+    pub repository: String,
     pub description: String,
 }
 
@@ -77,6 +78,7 @@ mod tests {
     fn test_project_create() {
         let project_create = ProjectCreate {
             name: "test".to_owned(),
+            repository: "test".to_owned(),
             description: "test".to_owned(),
         };
         let json = json!({
