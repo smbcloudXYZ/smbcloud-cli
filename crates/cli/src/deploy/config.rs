@@ -1,5 +1,5 @@
 use crate::{
-    deploy::setup::setup,
+    deploy::setup::setup_project,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use git2::{Cred, CredentialType, Error};
@@ -23,7 +23,7 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError
     let config_path = Path::new(".smb/config.toml");
     if !config_path.exists() {
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Setting up deployment"));
-        setup(env).await?;
+        setup_project(env).await?;
     }
 
     // Parse toml file

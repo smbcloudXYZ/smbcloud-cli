@@ -1,18 +1,20 @@
 use crate::{
-    account::lib::protected_request,
+    account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,
     ui::{fail_message, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
-use smbcloud_model::project::{self, ProjectCreate};
+use smbcloud_model::project::ProjectCreate;
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::create_project;
 use spinners::Spinner;
 
 pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
-    protected_request(env).await?;
+    if !is_logged_in(env) {
+        let _ = process_login(env).await;
+    }
 
     let project_name = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Project name")

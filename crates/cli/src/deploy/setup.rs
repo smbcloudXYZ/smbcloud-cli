@@ -1,11 +1,12 @@
 use crate::{deploy::config::{Config, ConfigError}, ui::highlight};
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
+use regex::Regex;
 use smbcloud_model::project::{Project, ProjectCreate};
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::{create_project, get_all};
 use std::{env, fs, path::Path};
 
-pub async fn setup(env: Environment) -> Result<Config, ConfigError> {
+pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {
     let path = env::current_dir().ok();
     let path_str = path
         .as_ref()
@@ -26,10 +27,10 @@ pub async fn setup(env: Environment) -> Result<Config, ConfigError> {
         Err(_) => return Err(ConfigError::InputError),
     };
 
-    let project = if !projects.is_empty() {
-        select_project(env, projects).await?
+    let project: Project = if !projects.is_empty() {
+        select_project(env, projects, &path_str).await?
     } else {
-        create_new_project(env).await?
+        create_new_project(env, &path_str).await?
     };
 
     let name = project.name.clone();
@@ -57,14 +58,14 @@ pub async fn setup(env: Environment) -> Result<Config, ConfigError> {
     Ok(config)
 }
 
-async fn select_project(env: Environment, projects: Vec<Project>) -> Result<Project, ConfigError> {
+async fn select_project(env: Environment, projects: Vec<Project>, path: &str) -> Result<Project, ConfigError> {
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Use existing project? y/n")
         .interact()
         .map_err(|_| ConfigError::InputError)?;
 
     if !confirm {
-        return create_new_project(env).await;
+        return create_new_project(env, path).await;
     }
     let selection = Select::with_theme(&ColorfulTheme::default())
         .items(&projects)
@@ -77,9 +78,15 @@ async fn select_project(env: Environment, projects: Vec<Project>) -> Result<Proj
     Ok(project)
 }
 
-async fn create_new_project(env: Environment) -> Result<Project, ConfigError> {
+async fn create_new_project(env: Environment, path: &str) -> Result<Project, ConfigError> {
+    let default_name = Path::new(path)
+        .file_name()
+        .and_then(|os_str| os_str.to_str())
+        .unwrap_or("project");
+
     let name = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Project name")
+        .default(default_name.to_string())
         .interact()
     {
         Ok(project_name) => project_name,
@@ -87,16 +94,23 @@ async fn create_new_project(env: Environment) -> Result<Project, ConfigError> {
             return Err(ConfigError::InputError);
         }
     };
+
+    // Create a repository name: lowercased, remove spaces and special characters
+    let re = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
+    let default_repository = name.clone().to_lowercase().replace(' ', "_");
+    let default_repo = re.replace_all(&default_repository, "");
+    
     let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
-        .default(name.clone())
+        .default(default_repo.to_string())
         .with_prompt("Repository")
         .interact()
     {
-        Ok(project_name) => project_name,
+        Ok(repo) => repo,
         Err(_) => {
             return Err(ConfigError::InputError);
         }
     };
+
     let description = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Description")
         .interact()
