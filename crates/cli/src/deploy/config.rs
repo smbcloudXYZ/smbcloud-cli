@@ -24,6 +24,10 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError
     if !config_path.exists() {
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Setting up deployment"));
         setup_project(env).await?;
+        spinner = Spinner::new(
+            spinners::Spinners::SimpleDotsScrolling,
+            succeed_message("Checking config"),
+        );
     }
 
     // Parse toml file

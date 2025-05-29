@@ -17,24 +17,13 @@ pub struct Project {
     pub name: String,
     pub repository: String,
     pub description: Option<String>,
-    #[serde(with = "ar_date_format")]
     pub created_at: DateTime<Utc>,
-    #[serde(with = "ar_date_format")]
     pub updated_at: DateTime<Utc>,
 }
 
 impl Display for Project {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "ID: {}\nName: {}\nRepository: {}\nDescription: {}\nCreated At: {}\nUpdated At: {}",
-            self.id,
-            self.name,
-            self.repository,
-            self.description.as_deref().unwrap_or(""),
-            self.created_at.format("%Y-%m-%d %H:%M:%S"),
-            self.updated_at.format("%Y-%m-%d %H:%M:%S"),
-        )
+        write!(f, "ID: {}, Name: {}", self.id, self.name,)
     }
 }
 #[derive(Serialize, Debug)]

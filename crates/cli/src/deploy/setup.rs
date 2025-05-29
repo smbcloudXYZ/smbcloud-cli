@@ -50,10 +50,8 @@ pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {
     }
 
     // Write config to .smb/config.toml
-    let config_toml = toml::to_string_pretty(&config).map_err(|_| ConfigError::MissingConfig)?;
+    let config_toml = toml::to_string(&config).map_err(|_| ConfigError::MissingConfig)?;
     fs::write(".smb/config.toml", config_toml).map_err(|_| ConfigError::MissingConfig)?;
-
-    println!("Config saved to .smb/config.toml");
 
     Ok(config)
 }
