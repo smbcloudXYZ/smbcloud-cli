@@ -2,5 +2,9 @@ name = 'smbCloud CLI'
 description = 'smbCloud CLI monorepo'
 
 [project]
-id = 1
-repository = 'smbcloudcli'
+id = 4
+name = "smbcloud-cli"
+repository = "smbcloud-cli"
+description = "smbcloud cli monorepo"
+created_at = "2025-05-29T16:41:20.350Z"
+updated_at = "2025-05-29T16:41:20.350Z"
