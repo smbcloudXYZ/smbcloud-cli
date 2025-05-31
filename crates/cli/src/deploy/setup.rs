@@ -6,7 +6,7 @@ use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use regex::Regex;
 use smbcloud_model::project::{Project, ProjectCreate};
 use smbcloud_networking::{environment::Environment, get_smb_token};
-use smbcloud_networking_project::{create_project, get_projects};
+use smbcloud_networking_project::{create_project, crud_project_read::get_projects};
 use std::{env, fs, path::Path};
 
 pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {

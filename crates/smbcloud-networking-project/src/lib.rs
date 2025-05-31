@@ -7,25 +7,8 @@ pub mod crud_project_read;
 use anyhow::{anyhow, Result};
 use log::debug;
 use reqwest::{Client, StatusCode};
-use smbcloud_model::{
-    error_codes::ErrorResponse,
-    project::{Project, ProjectCreate},
-};
-use smbcloud_networking::{
-    constants::SMB_USER_AGENT, environment::Environment, get_smb_token, network::request,
-    smb_base_url_builder,
-};
-
-pub async fn get_projects(
-    env: Environment,
-    access_token: String,
-) -> Result<Vec<Project>, ErrorResponse> {
-    let builder = Client::new()
-        .get(build_project_url(env))
-        .header("Authorization", access_token)
-        .header("User-agent", SMB_USER_AGENT);
-    request(builder).await
-}
+use smbcloud_model::project::{Project, ProjectCreate};
+use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
 
 pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<Project> {
     // Get current token

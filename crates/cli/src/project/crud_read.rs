@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use smbcloud_model::project::{Config, Project};
 use smbcloud_networking::{environment::Environment, get_smb_token};
-use smbcloud_networking_project::{crud_project_read::get_project, get_projects};
+use smbcloud_networking_project::crud_project_read::{get_project, get_projects};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
 
