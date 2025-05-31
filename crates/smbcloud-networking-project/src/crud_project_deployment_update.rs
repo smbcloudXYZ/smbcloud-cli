@@ -4,9 +4,9 @@ use smbcloud_model::{
     error_codes::ErrorResponse,
     project::{Deployment, DeploymentPayload},
 };
-use smbcloud_networking::{environment::Environment, network::request};
+use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, network::request};
 
-use crate::build_project_deployment;
+use crate::url_builder::build_project_deployment;
 
 pub async fn update(
     env: Environment,
@@ -19,6 +19,7 @@ pub async fn update(
     let builder = Client::new()
         .put(url)
         .json(&status)
-        .header("Authorization", access_token);
+        .header("Authorization", access_token)
+        .header("User-agent", SMB_USER_AGENT);
     request(builder).await
 }

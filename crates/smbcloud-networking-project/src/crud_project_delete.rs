@@ -1,4 +1,4 @@
-use crate::build_project_url_with_id;
+use crate::url_builder::build_project_url_with_id;
 use reqwest::Client;
 use smbcloud_model::error_codes::ErrorResponse;
 use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, network::request};

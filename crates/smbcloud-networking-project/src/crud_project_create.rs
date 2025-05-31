@@ -6,7 +6,7 @@ use smbcloud_model::{
 };
 use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, network::request};
 
-use crate::build_project_url;
+use crate::url_builder::build_project_url;
 
 pub async fn create_project(
     env: Environment,
