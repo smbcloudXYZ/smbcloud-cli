@@ -8,6 +8,7 @@ pub const GH_OAUTH_REDIRECT_PORT: &str = "8808";
 
 pub const SMB_CLIENT_ID: &str = "cli";
 pub const SMB_CLIENT_SECRET: &str = "secretttttttt";
+pub const SMB_USER_AGENT: &str = "smbcloud-cli";
 
 // Paths
 pub const PATH_USERS_ME: &str = "v1/me";

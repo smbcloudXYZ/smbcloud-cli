@@ -4,10 +4,7 @@ pub mod crud_project_deployment_read;
 use anyhow::{anyhow, Result};
 use log::debug;
 use reqwest::{Client, StatusCode};
-use smbcloud_model::{
-    self,
-    project::{Project, ProjectCreate},
-};
+use smbcloud_model::project::{Project, ProjectCreate};
 use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
 
 pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
@@ -50,26 +47,6 @@ pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<
             Ok(project)
         }
         _ => Err(anyhow!("Failed to create a project.")),
-    }
-}
-
-pub async fn get_project(env: Environment, id: String) -> Result<Project> {
-    // Get current token
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
-        .get(build_project_url_with_id(env, id))
-        .header("Authorization", token)
-        .send()
-        .await?;
-
-    match response.status() {
-        reqwest::StatusCode::OK => {
-            let project: Project = response.json().await?;
-            //println!("Project requested: {project:#?}");
-            Ok(project)
-        }
-        _ => Err(anyhow!("Failed to request a project.")),
     }
 }
 

@@ -1,5 +1,6 @@
 pub mod constants;
 pub mod environment;
+pub mod network;
 
 use anyhow::{anyhow, Result};
 use constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET};
