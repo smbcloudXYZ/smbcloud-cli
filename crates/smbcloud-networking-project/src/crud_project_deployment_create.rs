@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use reqwest::Client;
 use smbcloud_model::project::{Deployment, DeploymentPayload};
-use smbcloud_networking::{environment::Environment, get_smb_token};
+use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, get_smb_token};
 
 pub async fn create(
     env: Environment,
@@ -19,7 +19,7 @@ pub async fn create(
         .post(build_project_deployment_index(env, project_id.to_string()))
         .json(&payload)
         .header("Authorization", token)
-        .header("User-agent", "smbcloud-cli")
+        .header("User-agent", SMB_USER_AGENT)
         .send()
         .await?;
 
@@ -57,7 +57,7 @@ pub async fn update(
         .put(url)
         .json(&payload)
         .header("Authorization", token)
-        .header("User-agent", "smbcloud-cli")
+        .header("User-agent", SMB_USER_AGENT)
         .send()
         .await?;
 

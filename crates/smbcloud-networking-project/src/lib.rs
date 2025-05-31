@@ -5,7 +5,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use reqwest::{Client, StatusCode};
 use smbcloud_model::project::{Project, ProjectCreate};
-use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
+use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, get_smb_token, smb_base_url_builder};
 
 pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
     // Get current token
@@ -16,7 +16,7 @@ pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
     let response = Client::new()
         .get(build_project_url(env))
         .header("Authorization", token)
-        .header("User-agent", "smbcloud-cli")
+        .header("User-agent", SMB_USER_AGENT)
         .send()
         .await?;
 

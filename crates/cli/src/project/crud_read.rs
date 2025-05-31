@@ -22,6 +22,18 @@ struct ProjectRow {
     repository: String,
     #[tabled(rename = "Description")]
     description: String,
+}
+
+#[derive(Tabled)]
+struct ProjectDetailRow {
+    #[tabled(rename = "ID")]
+    id: i32,
+    #[tabled(rename = "Name")]
+    name: String,
+    #[tabled(rename = "Repository")]
+    repository: String,
+    #[tabled(rename = "Description")]
+    description: String,
     #[tabled(rename = "Created at")]
     created_at: String,
     #[tabled(rename = "Updated at")]
@@ -73,7 +85,7 @@ pub async fn process_project_show(env: Environment, id: String) -> Result<Comman
         Ok(project) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             let message = succeed_message(&format!("Showing project {}.", &project.name));
-            show_projects(vec![project]);
+            show_project_detail(&project);
             Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
@@ -101,11 +113,22 @@ pub(crate) fn show_projects(projects: Vec<Project>) {
             name: p.name,
             repository: p.repository,
             description: p.description.unwrap_or("-".to_owned()),
-            created_at: p.created_at.date_naive().to_string(),
-            updated_at: p.updated_at.date_naive().to_string(),
         })
         .collect();
     let table = Table::new(rows);
+    println!("{table}");
+}
+
+pub(crate) fn show_project_detail(project: &Project) {
+    let row = ProjectDetailRow {
+        id: project.id,
+        name: project.name.clone(),
+        repository: project.repository.clone(),
+        description: project.description.clone().unwrap_or("-".to_owned()),
+        created_at: project.created_at.date_naive().to_string(),
+        updated_at: project.updated_at.date_naive().to_string(),
+    };
+    let table = Table::new(vec![row]);
     println!("{table}");
 }
 
