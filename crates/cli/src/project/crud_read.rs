@@ -1,9 +1,12 @@
+use std::{fs::OpenOptions, io::Write};
+
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
-use smbcloud_model::project::Project;
+use log::debug;
+use smbcloud_model::project::{Config, Project};
 use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::{crud_project_deployment_read::get_project, get_all};
 use spinners::Spinner;
@@ -104,4 +107,41 @@ pub(crate) fn show_projects(projects: Vec<Project>) {
         .collect();
     let table = Table::new(rows);
     println!("{table}");
+}
+
+pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<CommandResult> {
+    let access_token = get_smb_token(env).await?;
+    let project = get_project(env, access_token, id).await?;
+
+    let config = Config {
+        current_project: Some(project),
+        current_auth_app: None,
+    };
+
+    let spinner = Spinner::new(
+        spinners::Spinners::SimpleDotsScrolling,
+        succeed_message("Loading"),
+    );
+    match home::home_dir() {
+        Some(path) => {
+            debug!("{}", path.to_str().unwrap());
+            let mut file = OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open([path.to_str().unwrap(), "/.smb/config.json"].join(""))?;
+            let json = serde_json::to_string(&config)?;
+            file.write_all(json.as_bytes())?;
+
+            Ok(CommandResult {
+                spinner,
+                symbol: succeed_symbol(),
+                msg: succeed_message("Use project successful."),
+            })
+        }
+        None => {
+            let error = anyhow!("Failed to get home directory.");
+            Err(error)
+        }
+    }
 }
