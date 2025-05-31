@@ -10,15 +10,15 @@ Gem::Specification.new do |spec|
 
   spec.summary = "Ruby binding for smbcloud-cli model."
   spec.description = "Ruby binding for smbcloud-cli modellllllllllll."
-  spec.homepage = "https://github.com/smbcloudXYZ/smbcloud-cli/gems/model"
+  spec.homepage = "https://github.com/smbcloudXYZ/smbcloud-cli/tree/development/gems/model"
   spec.required_ruby_version = ">= 3.1.0"
   spec.required_rubygems_version = ">= 3.3.11"
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://github.com/smbcloudXYZ/smbcloud-cli"
-  spec.metadata["changelog_uri"] = "https://github.com/smbcloudXYZ/smbcloud-cli/CHANGELOG.md"
+  spec.metadata["source_code_uri"] = "https://github.com/smbcloudXYZ/smbcloud-cli/tree/development/gems/model"
+  spec.metadata["changelog_uri"] = "https://github.com/smbcloudXYZ/smbcloud-cli/tree/development/gems/model/CHANGELOG.md"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
