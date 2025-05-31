@@ -11,6 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary = "Ruby binding for smbcloud-cli model."
   spec.description = "Ruby binding for smbcloud-cli modellllllllllll."
   spec.homepage = "https://github.com/smbcloudXYZ/smbcloud-cli/tree/development/gems/model"
+  spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
   spec.required_rubygems_version = ">= 3.3.11"
 
