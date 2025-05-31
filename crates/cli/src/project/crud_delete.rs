@@ -4,7 +4,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_networking::{environment::Environment, get_smb_token};
-use smbcloud_networking_project::delete_project;
+use smbcloud_networking_project::crud_project_delete::delete_project;
 use spinners::Spinner;
 
 pub async fn process_project_delete(env: Environment, id: String) -> Result<CommandResult> {

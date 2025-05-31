@@ -1,1 +1,15 @@
+use reqwest::Client;
+use smbcloud_model::error_codes::ErrorResponse;
+use smbcloud_networking::{environment::Environment, network::request};
+use crate::build_project_url_with_id;
 
+pub async fn delete_project(
+    env: Environment,
+    access_token: String,
+    id: String,
+) -> Result<(), ErrorResponse> {
+    let builder = Client::new()
+        .delete(build_project_url_with_id(env, id))
+        .header("Authorization", access_token);
+    request(builder).await
+}
