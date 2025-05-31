@@ -32,6 +32,8 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    #[clap(about = "Your account info.", display_order = 3)]
+    Me {},
     #[clap(
         about = "Deploy project. This is smb main command. Requires an smbCloud account.",
         display_order = 0

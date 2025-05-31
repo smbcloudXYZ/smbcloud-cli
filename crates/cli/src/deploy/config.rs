@@ -4,7 +4,7 @@ use crate::{
 };
 use git2::{Cred, CredentialType, Error};
 use serde::{Deserialize, Serialize};
-use smbcloud_model::project::Project;
+use smbcloud_model::{account::User, project::Project};
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::get_project;
 use spinners::Spinner;
@@ -80,18 +80,19 @@ pub struct Config {
 impl Config {
     pub fn credentials(
         &self,
+        user: User,
     ) -> impl FnMut(&str, Option<&str>, CredentialType) -> Result<Cred, Error> + '_ {
         move |_url, _username_from_url, _allowed_types| {
-            Cred::ssh_key("git", None, Path::new(&self.ssh_key_path()), None)
+            Cred::ssh_key("git", None, Path::new(&self.ssh_key_path(user.id)), None)
         }
     }
 
-    fn ssh_key_path(&self) -> String {
+    fn ssh_key_path(&self, user_id: i32) -> String {
         // Use the dirs crate to get the home directory
         let home = dirs::home_dir().expect("Could not determine home directory");
         let key_path = home
             .join(".ssh")
-            .join(format!("id_{}@smbcloud.xyz", self.project.repository));
+            .join(format!("id_{}@smbcloud.xyz", user_id));
         let key_path_str = key_path.to_string_lossy().to_string();
         println!("Use key path: {}", key_path_str);
         key_path_str
