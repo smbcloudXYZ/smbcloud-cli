@@ -1,7 +1,7 @@
+use crate::build_project_url_with_id;
 use reqwest::Client;
 use smbcloud_model::error_codes::ErrorResponse;
 use smbcloud_networking::{environment::Environment, network::request};
-use crate::build_project_url_with_id;
 
 pub async fn delete_project(
     env: Environment,

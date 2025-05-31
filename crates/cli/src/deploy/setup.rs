@@ -131,8 +131,14 @@ async fn create_new_project(env: Environment, path: &str) -> Result<Project, Con
         }
     };
 
+    let access_token = match get_smb_token(env).await {
+        Ok(token) => token,
+        Err(_) => return Err(ConfigError::MissingToken),
+    };
+
     match create_project(
         env,
+        access_token,
         ProjectCreate {
             name,
             repository,

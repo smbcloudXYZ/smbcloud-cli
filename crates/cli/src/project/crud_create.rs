@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_model::project::ProjectCreate;
-use smbcloud_networking::environment::Environment;
+use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::create_project;
 use spinners::Spinner;
 
@@ -51,8 +51,10 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
         style("Creating a project...").green().bold().to_string(),
     );
 
+    let access_token = get_smb_token(env).await?;
     match create_project(
         env,
+        access_token,
         ProjectCreate {
             name: project_name.clone(),
             repository,

@@ -1,7 +1,7 @@
 use core::fmt;
-use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use std::fmt::{Display, Formatter};
 use strum_macros::EnumIter;
 use thiserror::Error;
 
@@ -61,7 +61,7 @@ impl ErrorCode {
             ErrorCode::ProjectNotFound => "Project not found.",
             ErrorCode::ParseError => "Parse error.",
             ErrorCode::NetworkError => "Network error.",
-            ErrorCode::Unauthorized => "Unauthorized access."
+            ErrorCode::Unauthorized => "Unauthorized access.",
         }
     }
 

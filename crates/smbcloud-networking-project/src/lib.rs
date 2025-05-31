@@ -4,34 +4,24 @@ pub mod crud_project_deployment_read;
 pub mod crud_project_deployment_update;
 pub mod crud_project_read;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use reqwest::Client;
-use smbcloud_model::
-    project::{Project, ProjectCreate}
-;
-use smbcloud_networking::{
-    environment::Environment, get_smb_token, smb_base_url_builder,
+use smbcloud_model::{
+    error_codes::ErrorResponse,
+    project::{Project, ProjectCreate},
 };
+use smbcloud_networking::{environment::Environment, network::request, smb_base_url_builder};
 
-pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<Project> {
-    // Get current token
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
+pub async fn create_project(
+    env: Environment,
+    access_token: String,
+    project: ProjectCreate,
+) -> Result<Project, ErrorResponse> {
+    let builder = Client::new()
         .post(build_project_url(env))
         .json(&project)
-        .header("Authorization", token)
-        .send()
-        .await?;
-
-    match response.status() {
-        reqwest::StatusCode::CREATED => {
-            let project: Project = response.json().await?;
-            // println!("Project created: {project:#?}");
-            Ok(project)
-        }
-        _ => Err(anyhow!("Failed to create a project.")),
-    }
+        .header("Authorization", access_token);
+    request(builder).await
 }
 
 // Private functions

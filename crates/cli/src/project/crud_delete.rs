@@ -1,5 +1,7 @@
 use crate::{
-    account::lib::is_logged_in, cli::CommandResult, ui::{fail_message, fail_symbol, succeed_message, succeed_symbol}
+    account::lib::is_logged_in,
+    cli::CommandResult,
+    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
