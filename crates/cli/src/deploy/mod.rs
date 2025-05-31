@@ -4,7 +4,7 @@ mod remote_messages;
 mod setup;
 
 use crate::{
-    account::{lib::is_logged_in, login::process_login},
+    account::{lib::is_logged_in, login::process_login, me::me},
     cli::CommandResult,
     deploy::config::check_project,
     ui::{fail_message, succeed_message, succeed_symbol},
@@ -66,11 +66,12 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     };
 
     let _deployment = create(env, config.project.id, payload).await?;
+    let user = me(env).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
     // Set the credentials
-    callbacks.credentials(config.credentials());
+    callbacks.credentials(config.credentials(user));
     callbacks.sideband_progress(|data| {
         // Convert bytes to string, print line by line
         if let Ok(text) = std::str::from_utf8(data) {

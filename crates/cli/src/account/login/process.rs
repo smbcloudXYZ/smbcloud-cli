@@ -1,6 +1,6 @@
 use crate::{
     account::{
-        lib::{authorize_github, save_token},
+        lib::{authorize_github, is_logged_in, save_token},
         signup::{do_signup, SignupMethod},
     },
     cli::CommandResult,
@@ -23,18 +23,18 @@ use smbcloud_networking::{
         PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
     },
     environment::Environment,
-    smb_base_url_builder, smb_token_file_path,
+    smb_base_url_builder,
 };
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
 pub async fn process_login(env: Environment) -> Result<CommandResult> {
     // Check if token file exists
-    if smb_token_file_path(env).is_some() {
+    if is_logged_in(env) {
         return Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Loading...").green().bold().to_string(),
+                succeed_message("Loading"),
             ),
             symbol: fail_symbol(),
             msg: fail_message("You are already logged in. Please logout first."),
@@ -298,6 +298,11 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
 }
 
 async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandResult> {
+    let mut spinner = Spinner::new(
+        spinners::Spinners::SimpleDotsScrolling,
+        succeed_message("Loading"),
+    );
+
     let login_params = LoginParams {
         user: UserParam {
             email: args.username,
@@ -320,10 +325,7 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
             // Login successful
             save_token(env, &response).await?;
             Ok(CommandResult {
-                spinner: Spinner::new(
-                    spinners::Spinners::SimpleDotsScrolling,
-                    style("Loading...").green().bold().to_string(),
-                ),
+                spinner,
                 symbol: succeed_symbol(),
                 msg: succeed_message("You are logged in!"),
             })
@@ -331,15 +333,16 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
         StatusCode::NOT_FOUND => {
             // Account not found and we show signup option
             Ok(CommandResult {
-                spinner: Spinner::new(
-                    spinners::Spinners::SimpleDotsScrolling,
-                    style("Account not found.").green().bold().to_string(),
-                ),
+                spinner,
                 symbol: fail_symbol(),
-                msg: fail_message("Please signup!"),
+                msg: fail_message("Account not found. Please signup!"),
             })
         }
         StatusCode::UNPROCESSABLE_ENTITY => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Please complete registration"),
+            );
             // Account found but email not verified / password not set
             let result: SmbAuthorization = response.json().await?;
             // println!("Result: {:#?}", &result);

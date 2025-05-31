@@ -3,6 +3,7 @@ pub mod forgot;
 pub mod lib;
 pub mod login;
 pub mod logout;
+pub mod me;
 pub mod signup;
 
 use self::{cli::Commands, forgot::process_forgot, login::process_login, signup::process_signup};

@@ -1,4 +1,5 @@
 use crate::signup::GithubEmail;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::fmt::{Display, Formatter};
@@ -8,6 +9,8 @@ use std::fmt::{Display, Formatter};
 pub struct User {
     pub id: i32,
     pub email: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl Display for User {

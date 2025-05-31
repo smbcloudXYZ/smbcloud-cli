@@ -3,6 +3,7 @@ use clap::Parser;
 use console::style;
 use smbcloud_cli::account::login::process_login;
 use smbcloud_cli::account::logout::process_logout;
+use smbcloud_cli::account::me::process_me;
 use smbcloud_cli::cli::CommandResult;
 use smbcloud_cli::project::crud_create::process_project_init;
 use smbcloud_cli::{
@@ -111,6 +112,7 @@ async fn run() -> Result<CommandResult> {
     }
 
     match cli.command {
+        Some(Commands::Me {}) => process_me(cli.environment).await,
         Some(Commands::Init {}) => process_project_init(cli.environment).await,
         Some(Commands::Deploy {}) => process_deploy(cli.environment).await,
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
