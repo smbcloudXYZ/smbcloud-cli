@@ -1,10 +1,7 @@
 use crate::{build_project_deployment, build_project_deployment_index};
 use anyhow::Result;
 use reqwest::Client;
-use smbcloud_model::{
-    error_codes::ErrorResponse,
-    project::Deployment,
-};
+use smbcloud_model::{error_codes::ErrorResponse, project::Deployment};
 use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, network::request};
 
 pub async fn get_deployments(

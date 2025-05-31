@@ -27,7 +27,7 @@ pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {
 
     let access_token = match get_smb_token(env).await {
         Ok(token) => token,
-        Err(_) => { return Err(ConfigError::MissingToken) },
+        Err(_) => return Err(ConfigError::MissingToken),
     };
 
     let projects = match get_projects(env, access_token).await {

@@ -1,36 +1,30 @@
+pub mod crud_project_delete;
 pub mod crud_project_deployment_create;
 pub mod crud_project_deployment_read;
-pub mod crud_project_read;
-pub mod crud_project_delete;
 pub mod crud_project_deployment_update;
+pub mod crud_project_read;
 
 use anyhow::{anyhow, Result};
 use log::debug;
 use reqwest::{Client, StatusCode};
-use smbcloud_model::project::{Project, ProjectCreate};
-use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, get_smb_token, smb_base_url_builder};
+use smbcloud_model::{
+    error_codes::ErrorResponse,
+    project::{Project, ProjectCreate},
+};
+use smbcloud_networking::{
+    constants::SMB_USER_AGENT, environment::Environment, get_smb_token, network::request,
+    smb_base_url_builder,
+};
 
 pub async fn get_projects(
     env: Environment,
-    access_token: String
-) -> Result<Vec<Project>> {
-
-    debug!("Current token: {}", access_token);
-
-    let response = Client::new()
+    access_token: String,
+) -> Result<Vec<Project>, ErrorResponse> {
+    let builder = Client::new()
         .get(build_project_url(env))
         .header("Authorization", access_token)
-        .header("User-agent", SMB_USER_AGENT)
-        .send()
-        .await?;
-
-    match response.status() {
-        reqwest::StatusCode::OK => {
-            let projects: Vec<Project> = response.json().await?;
-            Ok(projects)
-        }
-        _ => Err(anyhow!("Failed to fetch projects.")),
-    }
+        .header("User-agent", SMB_USER_AGENT);
+    request(builder).await
 }
 
 pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<Project> {
