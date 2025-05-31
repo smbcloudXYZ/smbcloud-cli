@@ -1,74 +1,11 @@
+pub mod crud_project_create;
+pub mod crud_project_delete;
 pub mod crud_project_deployment_create;
 pub mod crud_project_deployment_read;
+pub mod crud_project_deployment_update;
+pub mod crud_project_read;
 
-use anyhow::{anyhow, Result};
-use log::debug;
-use reqwest::{Client, StatusCode};
-use smbcloud_model::project::{Project, ProjectCreate};
-use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
-
-pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
-    // Get current token
-    let token = get_smb_token(env).await?;
-
-    debug!("Current token: {}", token);
-
-    let response = Client::new()
-        .get(build_project_url(env))
-        .header("Authorization", token)
-        .header("User-agent", "smbcloud-cli")
-        .send()
-        .await?;
-
-    match response.status() {
-        reqwest::StatusCode::OK => {
-            let projects: Vec<Project> = response.json().await?;
-            Ok(projects)
-        }
-        _ => Err(anyhow!("Failed to fetch projects.")),
-    }
-}
-
-pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<Project> {
-    // Get current token
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
-        .post(build_project_url(env))
-        .json(&project)
-        .header("Authorization", token)
-        .send()
-        .await?;
-
-    match response.status() {
-        reqwest::StatusCode::CREATED => {
-            let project: Project = response.json().await?;
-            // println!("Project created: {project:#?}");
-            Ok(project)
-        }
-        _ => Err(anyhow!("Failed to create a project.")),
-    }
-}
-
-pub async fn delete_project(env: Environment, id: String) -> Result<()> {
-    // Get current token
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
-        .delete(build_project_url_with_id(env, id))
-        .header("Authorization", token)
-        .send()
-        .await?;
-
-    match response.status() {
-        StatusCode::OK => {
-            debug!("Project deleted.");
-            Ok(())
-        }
-        StatusCode::NOT_FOUND => Err(anyhow!("Failed to delete a project: project not found.")),
-        _ => Err(anyhow!("Failed to delete a project: unknown error.")),
-    }
-}
+use smbcloud_networking::{environment::Environment, smb_base_url_builder};
 
 // Private functions
 

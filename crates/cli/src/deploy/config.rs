@@ -6,7 +6,7 @@ use git2::{Cred, CredentialType, Error};
 use serde::{Deserialize, Serialize};
 use smbcloud_model::{account::User, project::Project};
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::crud_project_deployment_read::get_project;
+use smbcloud_networking_project::crud_project_read::get_project;
 use spinners::Spinner;
 use std::{fs, path::Path};
 use thiserror::Error;
@@ -103,6 +103,8 @@ impl Config {
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ConfigError {
+    #[error("Missing token. Make sure you are logged in.")]
+    MissingToken,
     #[error("Missing config file. Please regenerate with 'smb init'.")]
     MissingConfig,
     #[error("Missing id in repository. Please regenerate with 'smb init'.")]
