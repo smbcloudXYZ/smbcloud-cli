@@ -10,15 +10,16 @@ use reqwest::{Client, StatusCode};
 use smbcloud_model::project::{Project, ProjectCreate};
 use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, get_smb_token, smb_base_url_builder};
 
-pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
-    // Get current token
-    let token = get_smb_token(env).await?;
+pub async fn get_projects(
+    env: Environment,
+    access_token: String
+) -> Result<Vec<Project>> {
 
-    debug!("Current token: {}", token);
+    debug!("Current token: {}", access_token);
 
     let response = Client::new()
         .get(build_project_url(env))
-        .header("Authorization", token)
+        .header("Authorization", access_token)
         .header("User-agent", SMB_USER_AGENT)
         .send()
         .await?;

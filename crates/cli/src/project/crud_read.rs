@@ -8,7 +8,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use smbcloud_model::project::{Config, Project};
 use smbcloud_networking::{environment::Environment, get_smb_token};
-use smbcloud_networking_project::{crud_project_read::get_project, get_all};
+use smbcloud_networking_project::{crud_project_read::get_project, get_projects};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
 
@@ -45,8 +45,8 @@ pub async fn process_project_list(env: Environment) -> Result<CommandResult> {
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-
-    match get_all(env).await {
+    let token = get_smb_token(env).await?;
+    match get_projects(env, token).await {
         Ok(projects) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             let msg = if projects.is_empty() {

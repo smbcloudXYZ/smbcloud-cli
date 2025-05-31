@@ -5,8 +5,8 @@ use crate::{
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
 use regex::Regex;
 use smbcloud_model::project::{Project, ProjectCreate};
-use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::{create_project, get_all};
+use smbcloud_networking::{environment::Environment, get_smb_token};
+use smbcloud_networking_project::{create_project, get_projects};
 use std::{env, fs, path::Path};
 
 pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {
@@ -25,7 +25,12 @@ pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {
         return Err(ConfigError::Cancel);
     }
 
-    let projects = match get_all(env).await {
+    let access_token = match get_smb_token(env).await {
+        Ok(token) => token,
+        Err(_) => { return Err(ConfigError::MissingToken) },
+    };
+
+    let projects = match get_projects(env, access_token).await {
         Ok(x) => x,
         Err(_) => return Err(ConfigError::InputError),
     };

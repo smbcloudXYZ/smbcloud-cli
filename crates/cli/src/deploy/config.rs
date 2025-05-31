@@ -103,6 +103,8 @@ impl Config {
 
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum ConfigError {
+    #[error("Missing token. Make sure you are logged in.")]
+    MissingToken,
     #[error("Missing config file. Please regenerate with 'smb init'.")]
     MissingConfig,
     #[error("Missing id in repository. Please regenerate with 'smb init'.")]
