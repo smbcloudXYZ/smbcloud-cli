@@ -92,7 +92,7 @@ impl Config {
         let home = dirs::home_dir().expect("Could not determine home directory");
         let key_path = home
             .join(".ssh")
-            .join(format!("id_{}@smbcloud.xyz", user_id));
+            .join(format!("id_{}@smbcloud", user_id));
         let key_path_str = key_path.to_string_lossy().to_string();
         println!("Use key path: {}", key_path_str);
         key_path_str
