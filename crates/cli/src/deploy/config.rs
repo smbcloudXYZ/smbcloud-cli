@@ -55,14 +55,14 @@ fn handle_config_error() -> Result<Config, ConfigError> {
 
 pub(crate) async fn check_project(
     env: Environment,
-    access_token: String,
-    id: i32
+    access_token: &str,
+    id: i32,
 ) -> Result<(), ConfigError> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::Hamburger,
         succeed_message("Validate project"),
     );
-    match get_project(env, access_token, id.to_string()).await {
+    match get_project(env, access_token.to_string(), id.to_string()).await {
         Ok(_) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid project"));
             Ok(())
@@ -94,9 +94,7 @@ impl Config {
     fn ssh_key_path(&self, user_id: i32) -> String {
         // Use the dirs crate to get the home directory
         let home = dirs::home_dir().expect("Could not determine home directory");
-        let key_path = home
-            .join(".ssh")
-            .join(format!("id_{}@smbcloud", user_id));
+        let key_path = home.join(".ssh").join(format!("id_{}@smbcloud", user_id));
         let key_path_str = key_path.to_string_lossy().to_string();
         println!("Use key path: {}", key_path_str);
         key_path_str

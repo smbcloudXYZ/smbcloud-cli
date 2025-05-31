@@ -31,13 +31,13 @@ impl Display for ErrorResponse {
 pub enum ErrorCode {
     #[error("Unknown error.")]
     Unknown = 0,
-    #[error("Parse error.")]    
+    #[error("Parse error.")]
     ParseError = 1,
-    #[error("Network error.")] 
+    #[error("Network error.")]
     NetworkError = 2,
     // Projects
-    #[error("Project not found.")] 
-    ProjectNotFound = 1000
+    #[error("Project not found.")]
+    ProjectNotFound = 1000,
 }
 
 impl ErrorCode {
@@ -64,7 +64,7 @@ impl ErrorCode {
             ErrorCode::NetworkError => "Network error.",
         }
     }
-    
+
     pub fn rb_constant_name(&self) -> String {
         self.to_string()
     }

@@ -1,10 +1,10 @@
 pub mod account;
 pub mod app_auth;
+pub mod error_codes;
 pub mod forgot;
 pub mod login;
 pub mod project;
 pub mod signup;
-pub mod error_codes;
 
 pub mod ar_date_format {
     use chrono::{DateTime, Utc};

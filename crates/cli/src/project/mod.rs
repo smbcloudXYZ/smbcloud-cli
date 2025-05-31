@@ -23,7 +23,7 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
         Commands::List {} => process_project_list(env).await,
         Commands::Show { id } => process_project_show(env, id).await,
         Commands::Delete { id } => process_project_delete(env, id).await,
-        Commands::Use { id } => { process_project_use(env, id).await }
+        Commands::Use { id } => process_project_use(env, id).await,
         Commands::Deployment { id } => process_deployment(env, id).await,
     }
 }

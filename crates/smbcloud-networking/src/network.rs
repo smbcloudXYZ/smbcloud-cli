@@ -38,7 +38,7 @@ pub async fn parse_error_response<T: DeserializeOwned>(
         }
     };
     error!("Error response: {:?}", e);
-    return Err(e);
+    Err(e)
 }
 
 pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, ErrorResponse> {

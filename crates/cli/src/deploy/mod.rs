@@ -33,7 +33,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let config = check_config(env).await?;
 
     // Validate config with project.
-    check_project(env, access_token, config.project.id).await?;
+    check_project(env, &access_token, config.project.id).await?;
 
     // Check remote repository setup.
     let repo = match Repository::open(".") {
