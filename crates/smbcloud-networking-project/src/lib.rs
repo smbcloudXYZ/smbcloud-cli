@@ -4,10 +4,10 @@ pub mod crud_project_deployment_read;
 use anyhow::{anyhow, Result};
 use log::debug;
 use reqwest::{Client, StatusCode};
-use smbcloud_model::{
-    self, error_codes::ErrorResponse, project::{Project, ProjectCreate}
-};
-use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, get_smb_token, network::request, smb_base_url_builder};
+use smbcloud_model::
+    project::{Project, ProjectCreate}
+;
+use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
 
 pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
     // Get current token
@@ -50,19 +50,6 @@ pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<
         }
         _ => Err(anyhow!("Failed to create a project.")),
     }
-}
-
-pub async fn get_project(
-    env: Environment,
-    access_token: String,
-    id: String
-) -> Result<Project, ErrorResponse> {
-    let builder = Client::new()
-        .get(build_project_url_with_id(env, id))
-        .header("Authorization", access_token)
-        .header("User-agent", SMB_USER_AGENT);
-
-    request(builder).await?
 }
 
 pub async fn delete_project(env: Environment, id: String) -> Result<()> {

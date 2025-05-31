@@ -5,7 +5,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use smbcloud_model::project::Project;
 use smbcloud_networking::{environment::Environment, get_smb_token};
-use smbcloud_networking_project::{get_all, get_project};
+use smbcloud_networking_project::{crud_project_deployment_read::get_project, get_all};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
 

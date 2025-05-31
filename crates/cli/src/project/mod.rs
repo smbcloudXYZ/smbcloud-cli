@@ -19,7 +19,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use smbcloud_model::project::Config;
 use smbcloud_networking::environment::Environment;
-use smbcloud_networking_project::get_project;
+use smbcloud_networking_project::crud_project_deployment_read::get_project;
 use spinners::Spinner;
 use std::{fs::OpenOptions, io::Write};
 
