@@ -72,7 +72,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         status: DeploymentStatus::Started,
     };
 
-    let created_deployment = create(env, config.project.id.clone(), payload).await?;
+    let created_deployment = create(env, &access_token, config.project.id.clone(), payload).await?;
     let user = me(env).await?;
 
     let mut push_opts = PushOptions::new();

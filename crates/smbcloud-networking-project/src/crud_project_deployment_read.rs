@@ -1,4 +1,4 @@
-use crate::{build_project_deployment, build_project_deployment_index};
+use crate::url_builder::{build_project_deployment, build_project_deployment_index};
 use anyhow::Result;
 use reqwest::Client;
 use smbcloud_model::{error_codes::ErrorResponse, project::Deployment};
