@@ -30,7 +30,7 @@ pub async fn process_project(env: Environment, commands: Commands) -> Result<Com
         Commands::Show { id } => process_project_show(env, id).await,
         Commands::Delete { id } => process_project_delete(env, id).await,
         Commands::Use { id } => {
-            let project = get_project(env, id).await?;
+            let project = get_project(env,"access token".to_owned(),  id).await?;
 
             let config = Config {
                 current_project: Some(project),

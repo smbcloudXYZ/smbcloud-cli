@@ -5,7 +5,7 @@ use crate::{
 };
 use anyhow::Result;
 use smbcloud_model::project::Deployment;
-use smbcloud_networking::environment::Environment;
+use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::crud_project_deployment_read::{
     get_deployment_detail, list_deployments,
 };
@@ -21,7 +21,9 @@ pub(crate) async fn process_deployment(
     // Load project id from .smb/config.toml
     let config = check_config(env).await?;
 
-    check_project(env, config.project.id).await?;
+    let access_token = get_smb_token(env).await?;
+
+    check_project(env,access_token, config.project.id).await?;
 
     if let Some(deployment_id) = id {
         // Show detail for a specific deployment
@@ -31,7 +33,8 @@ pub(crate) async fn process_deployment(
         show_deployment_detail(&deployment);
     } else {
         // List all deployments for the project
-        let deployments = list_deployments(env, config.project.id).await?;
+        let access_token = get_smb_token(env).await?;
+        let deployments = list_deployments(env, access_token, config.project.id).await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Load all deployments"));
         show_project_deployments(&deployments);
     };

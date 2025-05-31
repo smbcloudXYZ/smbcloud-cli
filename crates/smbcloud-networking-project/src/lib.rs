@@ -5,10 +5,9 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use reqwest::{Client, StatusCode};
 use smbcloud_model::{
-    self,
-    project::{Project, ProjectCreate},
+    self, error_codes::ErrorResponse, project::{Project, ProjectCreate}
 };
-use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
+use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, get_smb_token, network::request, smb_base_url_builder};
 
 pub async fn get_all(env: Environment) -> Result<Vec<Project>> {
     // Get current token
@@ -53,24 +52,17 @@ pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<
     }
 }
 
-pub async fn get_project(env: Environment, id: String) -> Result<Project> {
-    // Get current token
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
+pub async fn get_project(
+    env: Environment,
+    access_token: String,
+    id: String
+) -> Result<Project, ErrorResponse> {
+    let builder = Client::new()
         .get(build_project_url_with_id(env, id))
-        .header("Authorization", token)
-        .send()
-        .await?;
+        .header("Authorization", access_token)
+        .header("User-agent", SMB_USER_AGENT);
 
-    match response.status() {
-        reqwest::StatusCode::OK => {
-            let project: Project = response.json().await?;
-            //println!("Project requested: {project:#?}");
-            Ok(project)
-        }
-        _ => Err(anyhow!("Failed to request a project.")),
-    }
+    request(builder).await?
 }
 
 pub async fn delete_project(env: Environment, id: String) -> Result<()> {

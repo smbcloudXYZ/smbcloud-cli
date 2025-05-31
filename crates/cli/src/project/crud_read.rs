@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use smbcloud_model::project::Project;
-use smbcloud_networking::environment::Environment;
+use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::{get_all, get_project};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
@@ -65,7 +65,8 @@ pub async fn process_project_show(env: Environment, id: String) -> Result<Comman
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    match get_project(env, id).await {
+    let access_token = get_smb_token(env).await?;
+    match get_project(env, access_token, id).await {
         Ok(project) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             let message = succeed_message(&format!("Showing project {}.", &project.name));
