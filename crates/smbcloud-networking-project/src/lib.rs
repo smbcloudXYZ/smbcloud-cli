@@ -1,5 +1,8 @@
 pub mod crud_project_deployment_create;
 pub mod crud_project_deployment_read;
+pub mod crud_project_read;
+pub mod crud_project_delete;
+pub mod crud_project_deployment_update;
 
 use anyhow::{anyhow, Result};
 use log::debug;
