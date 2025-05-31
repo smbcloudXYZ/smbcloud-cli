@@ -59,9 +59,9 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let commit_hash = match main_branch.resolve() {
         Ok(result) => match result.target() {
             Some(hash_id) => hash_id,
-            None => todo!(),
+            None => return Err(anyhow!("Should have at least one commit.")),
         },
-        Err(_) => todo!(),
+        Err(_) => return Err(anyhow!("Cannot resolve main branch.")),
     };
     let payload = DeploymentPayload {
         commit_hash: commit_hash.to_string(),
@@ -73,6 +73,13 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
+
+    // For updating status to failed
+    let deployment_failed_flag = Arc::new(AtomicBool::new(false));
+    let update_access_token = access_token.clone();
+    let update_project_id = config.project.id.clone();
+    let update_deployment_id = created_deployment.id.clone();
+
     // Set the credentials
     callbacks.credentials(config.credentials(user));
     callbacks.sideband_progress(|data| {
