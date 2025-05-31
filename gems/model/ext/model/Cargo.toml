@@ -11,4 +11,6 @@ crate-type = ["cdylib"]
 [dependencies]
 magnus = { version = "0.7.1" }
 strum = "0.27"
+# Local crates
+#smbcloud-model = "0.3"
 smbcloud-model = { path = "./../../../../crates/smbcloud-model"}
