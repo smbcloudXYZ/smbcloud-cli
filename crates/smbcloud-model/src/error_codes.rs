@@ -1,15 +1,11 @@
 use core::fmt;
-use std::{
-    error::Error,
-    fmt::{Display, Formatter},
-};
-
+use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum_macros::EnumIter;
 use thiserror::Error;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Error, Serialize, Deserialize, Debug)]
 #[serde(untagged)]
 pub enum ErrorResponse {
     Error {
@@ -17,8 +13,6 @@ pub enum ErrorResponse {
         message: String,
     },
 }
-
-impl Error for ErrorResponse {}
 
 impl Display for ErrorResponse {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
@@ -35,6 +29,9 @@ pub enum ErrorCode {
     ParseError = 1,
     #[error("Network error.")]
     NetworkError = 2,
+    // Account
+    #[error("Unauthorized access.")]
+    Unauthorized = 100,
     // Projects
     #[error("Project not found.")]
     ProjectNotFound = 1000,
@@ -45,6 +42,8 @@ impl ErrorCode {
     /// so we need to get it from i32.
     pub fn from_i32(value: i32) -> Self {
         match value {
+            // Account
+            100 => ErrorCode::Unauthorized,
             // Projects
             1000 => ErrorCode::ProjectNotFound,
             // Fallback
@@ -62,6 +61,7 @@ impl ErrorCode {
             ErrorCode::ProjectNotFound => "Project not found.",
             ErrorCode::ParseError => "Parse error.",
             ErrorCode::NetworkError => "Network error.",
+            ErrorCode::Unauthorized => "Unauthorized access."
         }
     }
 

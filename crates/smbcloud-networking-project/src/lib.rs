@@ -5,10 +5,14 @@ pub mod crud_project_deployment_update;
 pub mod crud_project_read;
 
 use anyhow::{anyhow, Result};
-use log::debug;
-use reqwest::{Client, StatusCode};
-use smbcloud_model::project::{Project, ProjectCreate};
-use smbcloud_networking::{environment::Environment, get_smb_token, smb_base_url_builder};
+use reqwest::Client;
+use smbcloud_model::{
+    error_codes::ErrorResponse,
+    project::{Project, ProjectCreate},
+};
+use smbcloud_networking::{
+    environment::Environment, get_smb_token, network::request, smb_base_url_builder,
+};
 
 pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<Project> {
     // Get current token
@@ -31,24 +35,15 @@ pub async fn create_project(env: Environment, project: ProjectCreate) -> Result<
     }
 }
 
-pub async fn delete_project(env: Environment, id: String) -> Result<()> {
-    // Get current token
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
+pub async fn delete_project(
+    env: Environment,
+    access_token: String,
+    id: String,
+) -> Result<(), ErrorResponse> {
+    let builder = Client::new()
         .delete(build_project_url_with_id(env, id))
-        .header("Authorization", token)
-        .send()
-        .await?;
-
-    match response.status() {
-        StatusCode::OK => {
-            debug!("Project deleted.");
-            Ok(())
-        }
-        StatusCode::NOT_FOUND => Err(anyhow!("Failed to delete a project: project not found.")),
-        _ => Err(anyhow!("Failed to delete a project: unknown error.")),
-    }
+        .header("Authorization", access_token);
+    request(builder).await
 }
 
 // Private functions
