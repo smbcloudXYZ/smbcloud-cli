@@ -2,7 +2,7 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::fmt::{Display, Formatter};
-use strum_macros::EnumIter;
+use strum_macros::{EnumIter, IntoStaticStr};
 use thiserror::Error;
 
 #[derive(Error, Serialize, Deserialize, Debug)]
@@ -20,7 +20,7 @@ impl Display for ErrorResponse {
     }
 }
 
-#[derive(Error, Serialize_repr, Deserialize_repr, Debug, EnumIter)]
+#[derive(Error, Serialize_repr, Deserialize_repr, Debug, EnumIter, IntoStaticStr)]
 #[repr(i32)]
 pub enum ErrorCode {
     #[error("Unknown error.")]
@@ -66,6 +66,9 @@ impl ErrorCode {
     }
 
     pub fn rb_constant_name(&self) -> String {
-        self.to_string()
+        // Using IntoStaticStr to get the variant name directly.
+        // self.into() will return a &'static str representing the variant name.
+        let variant_name_static_str: &'static str = self.into();
+        variant_name_static_str.to_string()
     }
 }
