@@ -51,12 +51,22 @@ pub struct DeploymentPayload {
     pub status: DeploymentStatus,
 }
 
-#[derive(Deserialize_repr, Serialize_repr, Debug)]
+#[derive(Deserialize_repr, Serialize_repr, Debug, Clone, Copy)] // Added Clone, Copy
 #[repr(u8)]
 pub enum DeploymentStatus {
     Started = 0,
     Failed,
     Done,
+}
+
+impl Display for DeploymentStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeploymentStatus::Started => write!(f, "🚀"),
+            DeploymentStatus::Failed => write!(f, "❌"),
+            DeploymentStatus::Done => write!(f, "✅"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -72,8 +82,21 @@ mod tests {
         };
         let json = json!({
             "name": "test",
+            "repository": "test", // Corrected: repository should be included as per struct
             "description": "test",
         });
         assert_eq!(serde_json::to_value(project_create).unwrap(), json);
+    }
+
+    #[test]
+    fn test_deployment_status_display() {
+        assert_eq!(format!("{}", DeploymentStatus::Started), "🚀");
+        assert_eq!(DeploymentStatus::Started.to_string(), "🚀");
+
+        assert_eq!(format!("{}", DeploymentStatus::Failed), "❌");
+        assert_eq!(DeploymentStatus::Failed.to_string(), "❌");
+
+        assert_eq!(format!("{}", DeploymentStatus::Done), "✅");
+        assert_eq!(DeploymentStatus::Done.to_string(), "✅");
     }
 }

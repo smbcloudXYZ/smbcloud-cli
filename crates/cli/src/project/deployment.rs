@@ -50,7 +50,7 @@ pub(crate) async fn process_deployment(
 struct DeploymentRow {
     id: i32,
     commit_hash: String,
-    status: String,
+    status: String, // Keep as String, but populate with Display trait output + Debug output
 }
 
 pub fn show_project_deployments(deployments: &[Deployment]) {
@@ -59,7 +59,7 @@ pub fn show_project_deployments(deployments: &[Deployment]) {
         .map(|d| DeploymentRow {
             id: d.id,
             commit_hash: d.commit_hash.clone(),
-            status: format!("{:?}", d.status),
+            status: format!("{} {:?}", d.status, d.status), // Use Display for emoji and Debug for text
         })
         .collect();
 
@@ -88,7 +88,7 @@ pub fn show_deployment_detail(deployment: &Deployment) {
         id: deployment.id,
         project_id: deployment.project_id,
         commit_hash: deployment.commit_hash.clone(),
-        status: format!("{:?}", deployment.status),
+        status: format!("{} {:?}", deployment.status, deployment.status), // Use Display for emoji and Debug for text
         created_at: deployment
             .created_at
             .format("%Y-%m-%d %H:%M:%S")
