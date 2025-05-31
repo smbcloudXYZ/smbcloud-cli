@@ -22,4 +22,3 @@ pub async fn update(
         .header("Authorization", access_token);
     request(builder).await
 }
-

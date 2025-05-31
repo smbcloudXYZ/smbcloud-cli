@@ -14,11 +14,15 @@ use config::check_config;
 use git::remote_deployment_setup;
 use git2::{PushOptions, RemoteCallbacks, Repository};
 use remote_messages::{build_next_app, start_server};
-use smbcloud_model::project::DeploymentPayload;
-use smbcloud_model::project::DeploymentStatus;
+use smbcloud_model::project::{DeploymentPayload, DeploymentStatus};
 use smbcloud_networking::{environment::Environment, get_smb_token};
-use smbcloud_networking_project::crud_project_deployment_create::create;
+use smbcloud_networking_project::{
+    crud_project_deployment_create::create, crud_project_deployment_update::update,
+};
 use spinners::Spinner;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     // Check credentials.
@@ -33,7 +37,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let config = check_config(env).await?;
 
     // Validate config with project.
-    check_project(env, &access_token, config.project.id).await?;
+    check_project(env, &access_token, config.project.id.clone()).await?;
 
     // Check remote repository setup.
     let repo = match Repository::open(".") {
@@ -68,7 +72,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         status: DeploymentStatus::Started,
     };
 
-    let _deployment = create(env, config.project.id, payload).await?;
+    let created_deployment = create(env, config.project.id.clone(), payload).await?;
     let user = me(env).await?;
 
     let mut push_opts = PushOptions::new();
@@ -76,6 +80,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     // For updating status to failed
     let deployment_failed_flag = Arc::new(AtomicBool::new(false));
+    let update_env = env; // Env is Copy
     let update_access_token = access_token.clone();
     let update_project_id = config.project.id.clone();
     let update_deployment_id = created_deployment.id.clone();
@@ -96,12 +101,49 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
         true // continue receiving.
     });
-    callbacks.push_update_reference(|_x, status_message| match status_message {
-        Some(e) => {
-            println!("Deployment fail: {}", e);
-            Ok(())
+    callbacks.push_update_reference({
+        let flag_clone = deployment_failed_flag.clone();
+        let access_token_for_update_cb = update_access_token.clone();
+        let project_id_for_update_cb = update_project_id.clone();
+        let deployment_id_for_update_cb = update_deployment_id.clone();
+
+        move |_refname, status_message| {
+            if let Some(e) = status_message {
+                // Try to set the flag. If it was already true, do nothing.
+                if !flag_clone.swap(true, Ordering::SeqCst) {
+                    println!(
+                        "Deployment ref update failed: {}. Marking deployment as Failed.",
+                        e
+                    );
+
+                    let update_payload = DeploymentPayload {
+                        commit_hash: commit_hash.to_string(),
+                        status: DeploymentStatus::Failed,
+                    };
+
+                    // We are in a sync callback, so we need to block on the async task.
+                    let handle = tokio::runtime::Handle::current();
+                    let result = handle.block_on(async {
+                        update(
+                            update_env, // Env is Copy
+                            access_token_for_update_cb.clone(),
+                            project_id_for_update_cb.clone(),
+                            deployment_id_for_update_cb.clone(),
+                            update_payload,
+                        )
+                        .await
+                    });
+
+                    match result {
+                        Ok(_) => println!("Deployment status successfully updated to Failed."),
+                        Err(update_err) => {
+                            eprintln!("Error updating deployment status to Failed: {}", update_err)
+                        }
+                    }
+                }
+            }
+            Ok(()) // Report success for the git callback itself, error is handled above.
         }
-        None => Ok(()),
     });
     push_opts.remote_callbacks(callbacks);
 
