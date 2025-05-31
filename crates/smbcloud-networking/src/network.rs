@@ -1,10 +1,9 @@
-
-use log::{debug, error};
+use log::error;
 use reqwest::{RequestBuilder, Response};
 use serde::de::DeserializeOwned;
 use smbcloud_model::error_codes::{ErrorCode, ErrorResponse};
 #[cfg(debug_assertions)]
-const LOG_RESPONSE_BODY: bool = true; // You know what to do here.
+const LOG_RESPONSE_BODY: bool = false; // You know what to do here.
 #[cfg(not(debug_assertions))]
 const LOG_RESPONSE_BODY: bool = false;
 
@@ -23,9 +22,11 @@ pub async fn parse_error_response<T: DeserializeOwned>(
     };
 
     if LOG_RESPONSE_BODY {
+        println!("Parse Error >>>>");
         println!("{:?}", serde_json::to_string_pretty(&response_body));
+        println!("Parse Error >>>>");
     }
-    
+
     let e = match serde_json::from_str::<ErrorResponse>(&response_body) {
         Ok(json) => json,
         Err(e) => {
@@ -72,7 +73,9 @@ pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, 
     };
 
     if LOG_RESPONSE_BODY {
-        debug!("{:?}", serde_json::to_string_pretty(&response_body));
+        println!("Parse >>>>");
+        println!("{:?}", serde_json::to_string_pretty(&response_body));
+        println!("Parse >>>>");
     }
 
     let response = match serde_json::from_str::<R>(&response_body) {

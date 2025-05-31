@@ -52,8 +52,6 @@ struct DeploymentRow {
     id: i32,
     commit_hash: String,
     status: String,
-    created_at: String,
-    updated_at: String,
 }
 
 pub fn show_project_deployments(deployments: &[Deployment]) {
@@ -63,8 +61,6 @@ pub fn show_project_deployments(deployments: &[Deployment]) {
             id: d.id,
             commit_hash: d.commit_hash.clone(),
             status: format!("{:?}", d.status),
-            created_at: d.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-            updated_at: d.updated_at.format("%Y-%m-%d %H:%M:%S").to_string(),
         })
         .collect();
 

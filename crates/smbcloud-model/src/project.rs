@@ -11,7 +11,7 @@ pub struct Config {
     pub current_auth_app: Option<AuthApp>,
 }
 
-#[derive(Deserialize, Debug, Serialize, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Project {
     pub id: i32,
     pub name: String,

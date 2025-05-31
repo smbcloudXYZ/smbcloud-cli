@@ -7,6 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use strum_macros::EnumIter;
+use thiserror::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -25,20 +26,18 @@ impl Display for ErrorResponse {
     }
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, EnumIter)]
+#[derive(Error, Serialize_repr, Deserialize_repr, Debug, EnumIter)]
 #[repr(i32)]
 pub enum ErrorCode {
-    Unknown = 0,    
+    #[error("Unknown error.")]
+    Unknown = 0,
+    #[error("Parse error.")]    
     ParseError = 1,
+    #[error("Network error.")] 
     NetworkError = 2,
     // Projects
+    #[error("Project not found.")] 
     ProjectNotFound = 1000
-}
-
-impl Display for ErrorCode {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
-    }
 }
 
 impl ErrorCode {
@@ -55,6 +54,7 @@ impl ErrorCode {
         }
     }
 
+    // This could be better.
     pub fn message(&self, l: Option<String>) -> &str {
         print!("Language code: {:?}, {}", l, self);
         match self {

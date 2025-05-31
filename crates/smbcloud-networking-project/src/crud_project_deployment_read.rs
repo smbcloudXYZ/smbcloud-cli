@@ -47,10 +47,9 @@ pub async fn get_project(
     access_token: String,
     id: String
 ) -> Result<Project, ErrorResponse> {
-    let builder = Client::new()
+    let builder: reqwest::RequestBuilder = Client::new()
         .get(build_project_url_with_id(env, id))
         .header("Authorization", access_token)
         .header("User-agent", SMB_USER_AGENT);
-
-    request(builder).await?
+    request(builder).await
 }
