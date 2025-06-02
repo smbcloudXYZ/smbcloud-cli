@@ -17,7 +17,7 @@ use remote_messages::{build_next_app, start_server};
 use smbcloud_model::project::{DeploymentPayload, DeploymentStatus};
 use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::{
-    crud_project_deployment_create::create, crud_project_deployment_update::update,
+    crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
 };
 use spinners::Spinner;
 use std::sync::atomic::AtomicBool;
@@ -72,7 +72,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         status: DeploymentStatus::Started,
     };
 
-    let created_deployment = create(env, &access_token, config.project.id.clone(), payload).await?;
+    let created_deployment = create_deployment(env, &access_token, config.project.id.clone(), payload).await?;
     let user = me(env).await?;
 
     let mut push_opts = PushOptions::new();

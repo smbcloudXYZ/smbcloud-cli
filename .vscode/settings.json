@@ -1,6 +1,7 @@
 {
     "rust-analyzer.server.path": null,
     "rust-analyzer.linkedProjects": [
+        "Cargo.toml",
         "gems/model/ext/model/Cargo.toml"
     ],
     "java.jdt.ls.java.home": "/Users/setoelka/.local/share/mise/installs/java/openjdk-21.0.2",

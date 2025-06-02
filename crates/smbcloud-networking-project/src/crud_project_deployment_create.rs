@@ -7,7 +7,7 @@ use smbcloud_model::{
 };
 use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, network::request};
 
-pub async fn create(
+pub async fn create_deployment(
     env: Environment,
     access_token: &str,
     project_id: i32,
