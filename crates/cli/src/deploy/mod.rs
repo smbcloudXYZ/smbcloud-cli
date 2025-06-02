@@ -37,7 +37,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let config = check_config(env).await?;
 
     // Validate config with project.
-    check_project(env, &access_token, config.project.id.clone()).await?;
+    check_project(env, &access_token, config.project.id).await?;
 
     // Check remote repository setup.
     let repo = match Repository::open(".") {
@@ -72,7 +72,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         status: DeploymentStatus::Started,
     };
 
-    let created_deployment = create_deployment(env, &access_token, config.project.id.clone(), payload).await?;
+    let created_deployment =
+        create_deployment(env, &access_token, config.project.id, payload).await?;
     let user = me(env).await?;
 
     let mut push_opts = PushOptions::new();
@@ -82,8 +83,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let deployment_failed_flag = Arc::new(AtomicBool::new(false));
     let update_env = env; // Env is Copy
     let update_access_token = access_token.clone();
-    let update_project_id = config.project.id.clone();
-    let update_deployment_id = created_deployment.id.clone();
+    let update_project_id = config.project.id;
+    let update_deployment_id = created_deployment.id;
 
     // Set the credentials
     callbacks.credentials(config.credentials(user));
@@ -104,8 +105,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     callbacks.push_update_reference({
         let flag_clone = deployment_failed_flag.clone();
         let access_token_for_update_cb = update_access_token.clone();
-        let project_id_for_update_cb = update_project_id.clone();
-        let deployment_id_for_update_cb = update_deployment_id.clone();
+        let project_id_for_update_cb = update_project_id;
+        let deployment_id_for_update_cb = update_deployment_id;
 
         move |_refname, status_message| {
             if let Some(e) = status_message {
@@ -127,8 +128,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                         update(
                             update_env, // Env is Copy
                             access_token_for_update_cb.clone(),
-                            project_id_for_update_cb.clone(),
-                            deployment_id_for_update_cb.clone(),
+                            project_id_for_update_cb,
+                            deployment_id_for_update_cb,
                             update_payload,
                         )
                         .await
@@ -162,20 +163,23 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             let result = update(
                 env,
                 access_token.clone(),
-                config.project.id.clone(),
-                created_deployment.id.clone(),
+                config.project.id,
+                created_deployment.id,
                 update_payload,
-            ).await;
+            )
+            .await;
             match result {
                 Ok(_) => println!("Deployment status successfully updated to Done."),
-                Err(update_err) => eprintln!("Error updating deployment status to Done: {}", update_err),
+                Err(update_err) => {
+                    eprintln!("Error updating deployment status to Done: {}", update_err)
+                }
             }
             Ok(CommandResult {
                 spinner,
                 symbol: succeed_symbol(),
                 msg: succeed_message("Deployment complete."),
             })
-        },
+        }
         Err(e) => Err(anyhow!(fail_message(&e.to_string()))),
     }
 }

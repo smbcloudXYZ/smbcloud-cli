@@ -22,11 +22,11 @@ pub async fn parse_error_response<T: DeserializeOwned>(
     };
 
     if LOG_RESPONSE_BODY {
-        println!("");
+        println!();
         println!("Parse Error >>>>");
         println!("{:?}", serde_json::to_string_pretty(&response_body));
         println!("Parse Error >>>>");
-        println!("");
+        println!();
     }
 
     let e = match serde_json::from_str::<ErrorResponse>(&response_body) {
@@ -75,11 +75,11 @@ pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, 
     };
 
     if LOG_RESPONSE_BODY {
-        println!("");
+        println!();
         println!("Parse >>>>");
         println!("{:?}", serde_json::to_string_pretty(&response_body));
         println!("Parse >>>>");
-        println!("");
+        println!();
     }
 
     let response = match serde_json::from_str::<R>(&response_body) {

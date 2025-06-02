@@ -1,4 +1,3 @@
-
 use smbcloud_networking::{environment::Environment, smb_base_url_builder};
 
 // Private functions
