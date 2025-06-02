@@ -153,11 +153,29 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     );
 
     match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
-        Ok(_) => Ok(CommandResult {
-            spinner,
-            symbol: succeed_symbol(),
-            msg: succeed_message("Deployment complete."),
-        }),
+        Ok(_) => {
+            // Update deployment status to Done
+            let update_payload = DeploymentPayload {
+                commit_hash: commit_hash.to_string(),
+                status: DeploymentStatus::Done,
+            };
+            let result = update(
+                env,
+                access_token.clone(),
+                config.project.id.clone(),
+                created_deployment.id.clone(),
+                update_payload,
+            ).await;
+            match result {
+                Ok(_) => println!("Deployment status successfully updated to Done."),
+                Err(update_err) => eprintln!("Error updating deployment status to Done: {}", update_err),
+            }
+            Ok(CommandResult {
+                spinner,
+                symbol: succeed_symbol(),
+                msg: succeed_message("Deployment complete."),
+            })
+        },
         Err(e) => Err(anyhow!(fail_message(&e.to_string()))),
     }
 }
