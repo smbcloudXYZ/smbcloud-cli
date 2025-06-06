@@ -30,6 +30,7 @@ dialoguer = { workspace = true }
 dirs = { workspace = true }
 git2 = { workspace = true }
 home = { workspace = true }
+chrono ={ workspace = true }
 indicatif = { workspace = true }
 log = { workspace = true }
 open = { workspace = true }

@@ -4,6 +4,7 @@ use crate::{
     ui::{fail_message, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
+use chrono::Utc;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_model::project::ProjectCreate;
@@ -80,15 +81,19 @@ async fn setup_smb_folder(name: &str, description: &str) -> Result<()> {
     std::fs::create_dir(".smb")?;
     // Create config.toml file in the .smb folder
     let repository_name = name.to_lowercase().replace(" ", "");
+    let now = Utc::now().to_rfc3339();
     std::fs::write(
         ".smb/config.toml",
         format!(
             r#"
 name = "{name}"
 description = "{description}"
-[repository]
+[project]
 id = 1
 name = "{repository_name}"
+description = "{description}"
+created_at = "{now}"
+updated_at = "{now}" 
 "#,
         ),
     )?;
