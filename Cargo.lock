@@ -1648,7 +1648,7 @@ checksum = "8917285742e9f3e1683f0a9c4e6b57960b7314d0b08d30d1ecd426713ee2eee9"
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.17"
+version = "0.3.18"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1718,7 +1718,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-project"
-version = "0.3.17"
+version = "0.3.18"
 dependencies = [
  "anyhow",
  "async-trait",
