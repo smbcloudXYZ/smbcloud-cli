@@ -1687,6 +1687,7 @@ name = "smbcloud-model"
 version = "0.3.15"
 dependencies = [
  "chrono",
+ "log",
  "serde",
  "serde_json",
  "serde_repr",
