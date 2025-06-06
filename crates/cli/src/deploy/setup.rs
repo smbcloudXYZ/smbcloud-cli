@@ -21,7 +21,7 @@ pub async fn setup_project(env: Environment) -> Result<Config, ConfigError> {
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt(format!("Setup project in {}? y/n", highlight(&path_str)))
         .interact()
-        .map_err(|_| ConfigError::InputSetupProjectError)?;
+        .map_err(|_| ConfigError::InputError)?;
 
     if !confirm {
         return Err(ConfigError::Cancel);
