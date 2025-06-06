@@ -1,0 +1,54 @@
+[package]
+name = "smbcloud-cli"
+version = "0.3.17"
+edition = "2021"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+description = "Command line tool for deploying NextJS app on the smbCloud platform."
+license = "Apache-2.0"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://docs.smbcloud.xyz/cli"
+keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
+categories = [
+    "command-line-utilities",
+    "command-line-interface",
+    "cryptography::cryptocurrencies",
+    "development-tools",
+    "wasm",
+]
+readme = "README.md"
+
+[[bin]]
+name = "smb"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+clap_mangen = { workspace = true }
+console = { workspace = true }
+dialoguer = { workspace = true }
+dirs = { workspace = true }
+git2 = { workspace = true }
+home = { workspace = true }
+chrono ={ workspace = true }
+indicatif = { workspace = true }
+log = { workspace = true }
+open = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_repr = { workspace = true }
+smbcloud-model = { workspace = true }
+smbcloud-networking = { workspace = true }
+smbcloud-networking-project = { workspace = true }
+smbcloud-utils = { workspace = true }
+spinners = { workspace = true }
+tabled = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+toml = { workspace = true }
+tracing = { workspace = true, features = ["log"] }
+tracing-bunyan-formatter = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["registry", "env-filter"] }
+url-builder = { workspace = true }

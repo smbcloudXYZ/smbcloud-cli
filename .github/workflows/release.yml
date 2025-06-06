@@ -1,6 +1,7 @@
-name: Release to crates.io
+name: Release to Crates.io
 
-on: [push]
+on: 
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
