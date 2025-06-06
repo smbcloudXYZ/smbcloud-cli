@@ -109,7 +109,11 @@ async fn create_new_project(env: Environment, path: &str) -> Result<Project, Con
 
     // Create a repository name: lowercased, remove spaces and special characters
     let re = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
-    let default_repository = name.clone().to_lowercase().replace(' ', "_").replace('-', "");
+    let default_repository = name
+        .clone()
+        .to_lowercase()
+        .replace(' ', "_")
+        .replace('-', "");
     let default_repo = re.replace_all(&default_repository, "");
 
     let repository = match Input::<String>::with_theme(&ColorfulTheme::default())

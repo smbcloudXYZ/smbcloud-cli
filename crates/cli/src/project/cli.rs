@@ -32,4 +32,9 @@ pub enum Commands {
         #[clap(short, long)]
         id: Option<String>,
     },
+    #[clap(about = "Update project description. Specify `--id` to update specific project.")]
+    Update {
+        #[clap(short, long)]
+        id: String,
+    },
 }
