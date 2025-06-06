@@ -19,3 +19,7 @@ pub fn fail_message(message: &str) -> String {
 pub fn highlight(string: &str) -> String {
     style(string).italic().green().to_string()
 }
+
+pub fn description(string: &str) -> String {
+    style(string).italic().yellow().to_string()
+}

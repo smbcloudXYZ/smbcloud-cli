@@ -6,11 +6,11 @@ use smbcloud_cli::account::logout::process_logout;
 use smbcloud_cli::account::me::process_me;
 use smbcloud_cli::cli::CommandResult;
 use smbcloud_cli::project::crud_create::process_project_init;
+use smbcloud_cli::project::process::process_project;
 use smbcloud_cli::{
     account::process_account,
     cli::{Cli, Commands},
     deploy::process_deploy,
-    project::process_project,
 };
 use smbcloud_networking::environment::Environment;
 use std::{
