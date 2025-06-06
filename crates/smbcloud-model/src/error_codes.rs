@@ -1,4 +1,5 @@
 use core::fmt;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::fmt::{Display, Formatter};
@@ -55,7 +56,7 @@ impl ErrorCode {
 
     // This could be better.
     pub fn message(&self, l: Option<String>) -> &str {
-        print!("Language code: {:?}, {}", l, self);
+        debug!("Language code: {:?}, {}", l, self);
         match self {
             ErrorCode::Unknown => "Unknown error.",
             ErrorCode::ProjectNotFound => "Project not found.",
