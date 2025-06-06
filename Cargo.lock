@@ -1679,7 +1679,6 @@ dependencies = [
  "tracing",
  "tracing-bunyan-formatter",
  "tracing-subscriber",
- "url",
  "url-builder",
 ]
 
@@ -2300,7 +2299,6 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
- "serde",
 ]
 
 [[package]]
