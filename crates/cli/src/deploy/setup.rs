@@ -94,7 +94,10 @@ async fn create_new_project(env: Environment, path: &str) -> Result<Project, Con
     let default_name = Path::new(path)
         .file_name()
         .and_then(|os_str| os_str.to_str())
-        .unwrap_or("project");
+        .unwrap_or("project")
+        .to_lowercase()
+        .replace(' ', "")
+        .replace('-', "");
 
     let name = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Project name")
