@@ -4,14 +4,17 @@ use crate::{
 };
 use git2::{Cred, CredentialType, Error};
 use serde::{Deserialize, Serialize};
-use smbcloud_model::{account::User, project::Project};
+use smbcloud_model::{
+    account::User,
+    error_codes::{ErrorCode, ErrorResponse},
+    project::Project,
+};
 use smbcloud_networking::environment::Environment;
 use smbcloud_networking_project::crud_project_read::get_project;
 use spinners::Spinner;
 use std::{fs, path::Path};
-use thiserror::Error;
 
-pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError> {
+pub(crate) async fn check_config(env: Environment) -> Result<Config, ErrorResponse> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Checking config"),
@@ -31,7 +34,10 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError
     }
 
     // Parse toml file
-    let config_content = fs::read_to_string(config_path).map_err(|_| ConfigError::MissingConfig)?;
+    let config_content = fs::read_to_string(config_path).map_err(|_| ErrorResponse::Error {
+        error_code: ErrorCode::MissingConfig,
+        message: ErrorCode::MissingConfig.message(None).to_string(),
+    })?;
 
     let config: Config = match toml::from_str(&config_content) {
         Ok(value) => value,
@@ -49,7 +55,7 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ConfigError
     Ok(config)
 }
 
-fn handle_config_error() -> Result<Config, ConfigError> {
+fn handle_config_error() -> Result<Config, ErrorResponse> {
     todo!()
 }
 
@@ -57,7 +63,7 @@ pub(crate) async fn check_project(
     env: Environment,
     access_token: &str,
     id: i32,
-) -> Result<(), ConfigError> {
+) -> Result<(), ErrorResponse> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::Hamburger,
         succeed_message("Validate project"),
@@ -69,7 +75,10 @@ pub(crate) async fn check_project(
         }
         Err(_) => {
             spinner.stop_and_persist(&fail_symbol(), succeed_message("Project is unsynched"));
-            Err(ConfigError::ProjectNotFound)
+            Err(ErrorResponse::Error {
+                error_code: ErrorCode::ProjectNotFound,
+                message: ErrorCode::ProjectNotFound.message(None).to_string(),
+            })
         }
     }
 }
@@ -99,20 +108,4 @@ impl Config {
         println!("Use key path: {}", key_path_str);
         key_path_str
     }
-}
-
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum ConfigError {
-    #[error("Missing token. Make sure you are logged in.")]
-    MissingToken,
-    #[error("Missing config file. Please regenerate with 'smb init'.")]
-    MissingConfig,
-    #[error("Missing id in repository. Please regenerate with 'smb init'.")]
-    MissingId,
-    #[error("Could not find project in your list. Make sure you have access to the project.")]
-    ProjectNotFound,
-    #[error("Cancel operation.")]
-    Cancel,
-    #[error("Input error.")]
-    InputError,
 }

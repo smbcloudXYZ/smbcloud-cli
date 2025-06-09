@@ -24,12 +24,21 @@ impl Display for ErrorResponse {
 #[derive(Error, Serialize_repr, Deserialize_repr, Debug, EnumIter, IntoStaticStr)]
 #[repr(i32)]
 pub enum ErrorCode {
+    // Generic errors
     #[error("Unknown error.")]
     Unknown = 0,
     #[error("Parse error.")]
     ParseError = 1,
     #[error("Network error.")]
     NetworkError = 2,
+    #[error("Input error")]
+    InputError = 3,
+    #[error("Missing config file. Please regenerate with 'smb init'.")]
+    MissingConfig = 4,
+    // #[error("Missing id in repository. Please regenerate with 'smb init'.")]
+    // MissingId,
+    #[error("Cancel operation.")]
+    Cancel = 5,
     // Account
     #[error("Unauthorized access.")]
     Unauthorized = 100,
@@ -47,9 +56,13 @@ impl ErrorCode {
             100 => ErrorCode::Unauthorized,
             // Projects
             1000 => ErrorCode::ProjectNotFound,
-            // Fallback
+            // Generic errors
+            5 => ErrorCode::Cancel,
+            4 => ErrorCode::MissingConfig,
+            3 => ErrorCode::InputError,
             2 => ErrorCode::ParseError,
             1 => ErrorCode::NetworkError,
+            // Fallback
             _ => ErrorCode::Unknown,
         }
     }
@@ -63,6 +76,9 @@ impl ErrorCode {
             ErrorCode::ParseError => "Parse error.",
             ErrorCode::NetworkError => "Network error.",
             ErrorCode::Unauthorized => "Unauthorized access.",
+            ErrorCode::InputError => "Input error.",
+            ErrorCode::MissingConfig => "Missing config.",
+            ErrorCode::Cancel => "Cancelled operation.",
         }
     }
 
