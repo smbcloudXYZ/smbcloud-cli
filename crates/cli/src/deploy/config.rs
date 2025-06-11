@@ -34,10 +34,11 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ErrorRespon
     }
 
     // Parse toml file
-    let config_content = fs::read_to_string(config_path).map_err(|_| ErrorResponse::Error {
-        error_code: ErrorCode::MissingConfig,
-        message: ErrorCode::MissingConfig.message(None).to_string(),
-    })?;
+    let config_content: String =
+        fs::read_to_string(config_path).map_err(|_| ErrorResponse::Error {
+            error_code: ErrorCode::MissingConfig,
+            message: ErrorCode::MissingConfig.message(None).to_string(),
+        })?;
 
     let config: Config = match toml::from_str(&config_content) {
         Ok(value) => value,

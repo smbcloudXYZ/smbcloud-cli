@@ -7,6 +7,7 @@ use crate::{
     account::{lib::is_logged_in, login::process_login, me::me},
     cli::CommandResult,
     deploy::config::check_project,
+    project::runner::detect_runner,
     ui::{fail_message, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
@@ -35,6 +36,9 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     // Check config.
     let config = check_config(env).await?;
+
+    // Check runner.
+    detect_runner().await?;
 
     // Validate config with project.
     check_project(env, &access_token, config.project.id).await?;
