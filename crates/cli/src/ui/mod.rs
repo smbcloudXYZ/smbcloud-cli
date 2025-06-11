@@ -8,10 +8,6 @@ pub fn fail_symbol() -> String {
     style("✘").for_stderr().red().to_string()
 }
 
-pub fn ruby_symbol() -> String {
-    style("💎").red().to_string()
-}
-
 pub fn succeed_message(message: &str) -> String {
     style(message).white().to_string()
 }
