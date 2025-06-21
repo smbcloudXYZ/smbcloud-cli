@@ -1,3 +1,4 @@
+use crate::account::lib::is_logged_in;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
@@ -35,6 +36,16 @@ fn show_user(user: &User) {
 }
 
 pub async fn process_me(env: Environment) -> Result<CommandResult> {
+    if !is_logged_in(env) {
+        return Ok(CommandResult {
+            spinner: Spinner::new(
+                spinners::Spinners::SimpleDotsScrolling,
+                succeed_message("Loading"),
+            ),
+            symbol: fail_symbol(),
+            msg: fail_message("You are not logged in. Please login first."),
+        });
+    }
     let mut spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
@@ -53,10 +64,7 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
             })
         }
         Err(e) => {
-            spinner.stop_and_persist(
-                &fail_symbol(),
-                fail_message("Error while requesting your information."),
-            );
+            spinner.stop_and_persist(&fail_symbol(), fail_message(&e.to_string()));
             Err(e)
         }
     }
