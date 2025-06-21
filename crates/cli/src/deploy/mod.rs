@@ -169,7 +169,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             )
             .await;
             match result {
-                Ok(_) => println!("Deployment status successfully updated to Done."),
+                Ok(_) => println!("App is running {}", succeed_symbol()),
                 Err(update_err) => {
                     eprintln!("Error updating deployment status to Done: {}", update_err)
                 }

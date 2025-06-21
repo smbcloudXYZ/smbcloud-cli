@@ -27,12 +27,12 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
         }
     };
     let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
-        .with_prompt("Project name")
+        .with_prompt("Repository name")
         .interact()
     {
         Ok(project_name) => project_name,
         Err(_) => {
-            return Err(anyhow!(fail_message("Invalid project name.")));
+            return Err(anyhow!(fail_message("Invalid repository name.")));
         }
     };
     let description = match Input::<String>::with_theme(&ColorfulTheme::default())
@@ -91,6 +91,7 @@ description = "{description}"
 [project]
 id = 1
 name = "{repository_name}"
+repository = "{repository_name}"
 description = "{description}"
 created_at = "{now}"
 updated_at = "{now}" 

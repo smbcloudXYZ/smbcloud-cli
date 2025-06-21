@@ -460,11 +460,12 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 
 [[package]]
 name = "smbcloud-model"
-version = "0.3.15"
+version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8001f71021a3d577b36c5bbd3ae17d83900746453e46bbf6fdaffd9527913bd"
+checksum = "b9e9b76b207db1890fd6093b35504665c2305ad6905062dd14b0b6e6b61b0f0b"
 dependencies = [
  "chrono",
+ "log",
  "serde",
  "serde_json",
  "serde_repr",
