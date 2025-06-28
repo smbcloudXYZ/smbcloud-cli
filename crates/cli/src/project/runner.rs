@@ -10,10 +10,14 @@ pub(crate) enum Runner {
 }
 
 impl Runner {
-    pub fn git_host(&self) -> &str {
+    pub fn git_host(&self) -> String {
+        format!("git@{}.smbcloud.xyz", self.api())
+    }
+
+    fn api(&self) -> &str {
         match self {
-            Runner::Swift => "git@api.musik88.com",
-            _ => "git@api.smbcloud.xyz",
+            Runner::NodeJs => "api",
+            Runner::Ruby | Runner::Swift => "api-1",
         }
     }
 }
