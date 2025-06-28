@@ -28,7 +28,12 @@ pub(crate) async fn detect_runner() -> Result<Runner> {
         succeed_message("Checking runner"),
     );
 
-    if Path::new("package.json").exists() {
+    if Path::new("package.json").exists()
+        && (Path::new("next.config.js").exists()
+            || Path::new("next.config.ts").exists()
+            || Path::new("next.config.mjs").exists()
+            || Path::new("astro.config.mjs").exists())
+    {
         spinner.stop_and_persist(
             &succeed_symbol(),
             succeed_message("NodeJs 🟩 runner detected"),
