@@ -7,8 +7,8 @@ use crate::{
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
-use console::{style, Term};
-use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
+use console::style;
+use dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select};
 use log::debug;
 use reqwest::{Client, StatusCode};
 use smbcloud_model::{

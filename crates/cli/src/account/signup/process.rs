@@ -5,8 +5,7 @@ use crate::{
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
-use console::Term;
-use dialoguer::{theme::ColorfulTheme, Input, Password, Select};
+use dialoguer::{console::Term, theme::ColorfulTheme, Input, Password, Select};
 use log::debug;
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
