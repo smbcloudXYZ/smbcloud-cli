@@ -16,7 +16,7 @@ pub async fn get_smb_token(env: Environment) -> Result<String> {
             anyhow!("Error while reading token. Are you logged in?")
         })
     } else {
-        Err(anyhow!("Failed to get home directory."))
+        Err(anyhow!("Failed to get home directory. Are you logged in?"))
     }
 }
 
