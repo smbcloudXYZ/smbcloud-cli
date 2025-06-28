@@ -38,7 +38,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let config = check_config(env).await?;
 
     // Check runner.
-    detect_runner().await?;
+    let runner = detect_runner().await?;
 
     // Validate config with project.
     check_project(env, &access_token, config.project.id).await?;
@@ -62,7 +62,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    let mut origin = remote_deployment_setup(&repo, &config.project.repository).await?;
+    let mut origin = remote_deployment_setup(&runner, &repo, &config.project.repository).await?;
 
     let commit_hash = match main_branch.resolve() {
         Ok(result) => match result.target() {

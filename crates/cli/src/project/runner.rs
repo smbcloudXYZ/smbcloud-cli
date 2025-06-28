@@ -9,6 +9,19 @@ pub(crate) enum Runner {
     Swift,
 }
 
+impl Runner {
+    pub fn git_host(&self) -> String {
+        format!("git@{}.smbcloud.xyz", self.api())
+    }
+
+    fn api(&self) -> &str {
+        match self {
+            Runner::NodeJs => "api",
+            Runner::Ruby | Runner::Swift => "api-1",
+        }
+    }
+}
+
 pub(crate) async fn detect_runner() -> Result<Runner> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
