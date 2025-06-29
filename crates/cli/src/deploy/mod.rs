@@ -7,6 +7,7 @@ use crate::{
     account::{lib::is_logged_in, login::process_login, me::me},
     cli::CommandResult,
     deploy::config::check_project,
+    project::runner::detect_runner,
     ui::{fail_message, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
@@ -36,6 +37,9 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     // Check config.
     let config = check_config(env).await?;
 
+    // Check runner.
+    let runner = detect_runner().await?;
+
     // Validate config with project.
     check_project(env, &access_token, config.project.id).await?;
 
@@ -58,7 +62,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    let mut origin = remote_deployment_setup(&repo, &config.project.repository).await?;
+    let mut origin = remote_deployment_setup(&runner, &repo, &config.project.repository).await?;
 
     let commit_hash = match main_branch.resolve() {
         Ok(result) => match result.target() {
