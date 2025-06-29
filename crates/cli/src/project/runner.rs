@@ -28,24 +28,40 @@ pub(crate) async fn detect_runner() -> Result<Runner> {
         succeed_message("Checking runner"),
     );
 
-    if Path::new("package.json").exists() {
+    if Path::new("package.json").exists()
+        && (Path::new("next.config.js").exists()
+            || Path::new("next.config.ts").exists()
+            || Path::new("next.config.mjs").exists()
+            || Path::new("astro.config.mjs").exists())
+    {
+        let app_string = if Path::new("next.config.js").exists()
+            || Path::new("next.config.ts").exists()
+            || Path::new("next.config.mjs").exists()
+        {
+            "Next.js app"
+        } else if Path::new("astro.config.mjs").exists() {
+            "Astro app"
+        } else {
+            panic!("Unsupported app.")
+        };
+
         spinner.stop_and_persist(
             &succeed_symbol(),
-            succeed_message("NodeJs 🟩 runner detected"),
+            succeed_message(format!("NodeJs 🟩 runner with {} detected", app_string).as_str()),
         );
         return Ok(Runner::NodeJs);
     }
     if Path::new("Gemfile").exists() {
         spinner.stop_and_persist(
             &succeed_symbol(),
-            succeed_message("Ruby 🟥 runner detected"),
+            succeed_message("Ruby 🟥 runner with Rails app detected"),
         );
         return Ok(Runner::Ruby);
     }
     if Path::new("Package.swift").exists() {
         spinner.stop_and_persist(
             &succeed_symbol(),
-            succeed_message("Swift 🟧 runner detected"),
+            succeed_message("Swift 🟧 runner with Vapor app detected"),
         );
         return Ok(Runner::Swift);
     }
