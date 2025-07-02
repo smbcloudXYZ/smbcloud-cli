@@ -78,7 +78,7 @@ async fn main() {
     match run().await {
         Ok(result) => {
             result.stop_and_persist();
-            std::process::exit(1);
+            std::process::exit(0);
         }
         Err(e) => {
             println!(
