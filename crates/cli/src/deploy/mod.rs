@@ -53,14 +53,33 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    let main_branch = match repo.head() {
-        Ok(branch) => branch,
+    // Get the current branch
+    let head = match repo.head() {
+        Ok(head) => head,
         Err(_) => {
             return Err(anyhow!(fail_message(
-                "No main branch found. Create with `git checkout -b <branch>` command."
+                "No HEAD reference found. Create a commit with `git commit` command."
             )))
         }
     };
+
+    // Check if we're on the main branch
+    let branch_name = match head.shorthand() {
+        Some(name) => name,
+        None => {
+            return Err(anyhow!(fail_message(
+                "Unable to determine current branch name."
+            )))
+        }
+    };
+
+    if branch_name != "main" && branch_name != "master" {
+        return Err(anyhow!(fail_message(
+            &format!("Not on main branch. Current branch: '{}'. Switch to main branch with `git checkout main` command.", branch_name)
+        )));
+    }
+
+    let main_branch = head;
 
     let mut origin = remote_deployment_setup(&runner, &repo, &config.project.repository).await?;
 
