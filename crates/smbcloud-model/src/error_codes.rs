@@ -29,7 +29,7 @@ pub enum ErrorCode {
     Unknown = 0,
     #[error("Parse error.")]
     ParseError = 1,
-    #[error("Network error.")]
+    #[error("Network connectivity error.")]
     NetworkError = 2,
     #[error("Input error")]
     InputError = 3,
@@ -74,7 +74,9 @@ impl ErrorCode {
             ErrorCode::Unknown => "Unknown error.",
             ErrorCode::ProjectNotFound => "Project not found.",
             ErrorCode::ParseError => "Parse error.",
-            ErrorCode::NetworkError => "Network error.",
+            ErrorCode::NetworkError => {
+                "Network error. Please check your internet connection and try again."
+            }
             ErrorCode::Unauthorized => "Unauthorized access.",
             ErrorCode::InputError => "Input error.",
             ErrorCode::MissingConfig => "Missing config.",
