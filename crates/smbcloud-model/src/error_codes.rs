@@ -29,7 +29,7 @@ pub enum ErrorCode {
     Unknown = 0,
     #[error("Parse error.")]
     ParseError = 1,
-    #[error("Network connectivity error.")]
+    #[error("Network error. Please check your internet connection and try again.")]
     NetworkError = 2,
     #[error("Input error")]
     InputError = 3,
