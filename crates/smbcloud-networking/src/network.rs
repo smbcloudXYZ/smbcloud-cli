@@ -23,18 +23,22 @@ pub async fn check_internet_connection() -> bool {
         return false;
     }
 
-    match client.unwrap().get("https://dns.google").send().await {
-        Ok(response) => {
-            debug!(
-                "Internet connection check successful: {}",
-                response.status()
-            );
-            response.status().is_success()
+    if let Ok(client) = client {
+        match client.get("https://dns.google").send().await {
+            Ok(response) => {
+                debug!(
+                    "Internet connection check successful: {}",
+                    response.status()
+                );
+                response.status().is_success()
+            }
+            Err(e) => {
+                error!("Internet connection check failed: {:?}", e);
+                false
+            }
         }
-        Err(e) => {
-            error!("Internet connection check failed: {:?}", e);
-            false
-        }
+    } else {
+        false
     }
 }
 
