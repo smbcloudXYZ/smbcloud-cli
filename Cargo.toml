@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/cli",
+    "crates/gresiq",
     "crates/smbcloud-model",
     "crates/smbcloud-networking",
     "crates/smbcloud-networking-project",
@@ -38,6 +39,7 @@ strum_macros = "0.27"
 tabled = "0.20"
 thiserror = "2.0"
 tokio = "1.44"
+tokio-postgres = "0.7"
 toml = "0.8"
 tracing = "0.1.35"
 tracing-bunyan-formatter = "0.3.3"
