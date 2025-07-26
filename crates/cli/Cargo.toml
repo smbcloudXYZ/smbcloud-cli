@@ -42,6 +42,7 @@ serde_repr = { workspace = true }
 network = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-networking = { workspace = true }
+smbcloud-networking-account = { workspace = true }
 smbcloud-networking-project = { workspace = true }
 smbcloud-utils = { workspace = true }
 spinners = { workspace = true }

@@ -7,6 +7,7 @@ members = [
     "crates/smbcloud-model",
     "crates/smbcloud-networking",
     "crates/smbcloud-networking-account",
+    "crates/smbcloud-networking-account-wasm",
     "crates/smbcloud-networking-project",
     "crates/smbcloud-utils",
 ]
@@ -34,6 +35,7 @@ serde_repr = "0.1"
 network = { version = "0.1", path = "crates/network" }
 smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
 smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
+smbcloud-networking-account = { version = "0.3", path = "crates/smbcloud-networking-account" }
 smbcloud-networking-project = { version = "0.3", path = "crates/smbcloud-networking-project" }
 smbcloud-utils = { version = "0.3", path = "crates/smbcloud-utils" }
 spinners = "4.1.0"
@@ -48,3 +50,4 @@ tracing = "0.1.35"
 tracing-bunyan-formatter = "0.3.3"
 tracing-subscriber = "0.3.14"
 url-builder = "0.1.1"
+wasm-bindgen = "0.2"

@@ -17,9 +17,6 @@ categories = [
 ]
 readme = "README.md"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
