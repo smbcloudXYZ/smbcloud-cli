@@ -1,14 +1,14 @@
 use crate::account::lib::is_logged_in;
+use crate::token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
+use network::environment::Environment;
 use reqwest::{Client, StatusCode};
 use smbcloud_model::account::User;
-use smbcloud_networking::{
-    constants::PATH_USERS_ME, environment::Environment, get_smb_token, smb_base_url_builder,
-};
+use smbcloud_networking::{constants::PATH_USERS_ME, smb_base_url_builder};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
 

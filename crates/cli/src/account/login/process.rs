@@ -10,6 +10,7 @@ use anyhow::{anyhow, Result};
 use console::style;
 use dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select};
 use log::debug;
+use network::environment::Environment;
 use reqwest::{Client, StatusCode};
 use smbcloud_model::{
     account::{ErrorCode, GithubInfo, SmbAuthorization, User},
@@ -22,7 +23,6 @@ use smbcloud_networking::{
         PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
         PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
     },
-    environment::Environment,
     smb_base_url_builder,
 };
 use smbcloud_utils::email_validation;

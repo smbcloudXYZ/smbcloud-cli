@@ -1,4 +1,5 @@
 use super::SignupMethod;
+use crate::token::smb_token_file_path;
 use crate::{
     account::lib::authorize_github,
     cli::CommandResult,
@@ -7,12 +8,11 @@ use crate::{
 use anyhow::{anyhow, Result};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, Password, Select};
 use log::debug;
+use network::environment::Environment;
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use smbcloud_model::signup::{SignupEmailParams, SignupResult, SignupUserEmail};
-use smbcloud_networking::{
-    constants::PATH_USERS, environment::Environment, smb_base_url_builder, smb_token_file_path,
-};
+use smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder};
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 

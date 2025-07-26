@@ -24,7 +24,6 @@ crate-type = ["cdylib", "rlib"]
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
 dirs = { workspace = true }
-home = { workspace = true }
 log = { workspace = true }
 network = { workspace = true }
 maybe-async = { workspace = true, features = ["is_sync"] }

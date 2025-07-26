@@ -1,13 +1,14 @@
 use std::{fs::OpenOptions, io::Write};
 
+use crate::token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use log::debug;
+use network::environment::Environment;
 use smbcloud_model::project::{Config, Project};
-use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::crud_project_read::{get_project, get_projects};
 use spinners::Spinner;
 use tabled::{Table, Tabled};

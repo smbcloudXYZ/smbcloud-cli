@@ -1190,6 +1190,7 @@ dependencies = [
 name = "network"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "log",
  "reqwest",
  "serde",
@@ -1937,18 +1938,7 @@ dependencies = [
 name = "smbcloud-networking"
 version = "0.3.20"
 dependencies = [
- "anyhow",
- "async-trait",
- "clap",
- "dirs",
- "home",
- "log",
- "maybe-async",
- "reqwest",
- "serde",
- "serde_json",
- "smbcloud-model",
- "thiserror 2.0.12",
+ "network",
  "url-builder",
 ]
 
@@ -1966,7 +1956,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "dirs",
- "home",
  "log",
  "maybe-async",
  "network",

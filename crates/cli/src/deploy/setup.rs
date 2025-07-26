@@ -1,11 +1,12 @@
+use crate::token::get_smb_token;
 use crate::{deploy::config::Config, ui::highlight};
 use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
+use network::environment::Environment;
 use regex::Regex;
 use smbcloud_model::{
     error_codes::{ErrorCode, ErrorResponse},
     project::{Project, ProjectCreate},
 };
-use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::{
     crud_project_create::create_project, crud_project_read::get_projects,
 };
