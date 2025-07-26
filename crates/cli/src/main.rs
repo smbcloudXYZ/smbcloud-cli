@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use console::style;
+use network::network::check_internet_connection;
 use smbcloud_cli::account::login::process_login;
 use smbcloud_cli::account::logout::process_logout;
 use smbcloud_cli::account::me::process_me;
@@ -12,7 +13,7 @@ use smbcloud_cli::{
     cli::{Cli, Commands},
     deploy::process_deploy,
 };
-use smbcloud_networking::{check_internet_connection, environment::Environment};
+use smbcloud_networking::environment::Environment;
 use std::{
     fs::{create_dir_all, OpenOptions},
     path::PathBuf,

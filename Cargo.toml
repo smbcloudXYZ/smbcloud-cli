@@ -3,8 +3,10 @@ resolver = "2"
 members = [
     "crates/cli",
     "crates/gresiq",
+    "crates/network",
     "crates/smbcloud-model",
     "crates/smbcloud-networking",
+    "crates/smbcloud-networking-account",
     "crates/smbcloud-networking-project",
     "crates/smbcloud-utils",
 ]
@@ -29,6 +31,7 @@ reqwest = "0.12.18"
 serde = "1"
 serde_json = "1.0.82"
 serde_repr = "0.1"
+network = { version = "0.1", path = "crates/network" }
 smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
 smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
 smbcloud-networking-project = { version = "0.3", path = "crates/smbcloud-networking-project" }

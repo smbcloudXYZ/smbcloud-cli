@@ -1,8 +1,5 @@
 pub mod constants;
 pub mod environment;
-pub mod network;
-
-pub use network::check_internet_connection;
 
 use anyhow::{anyhow, Result};
 use constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET};

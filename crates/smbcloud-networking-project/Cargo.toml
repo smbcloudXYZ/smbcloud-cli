@@ -17,12 +17,16 @@ categories = [
 ]
 readme = "README.md"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
 dirs = { workspace = true }
 home = { workspace = true }
 log = { workspace = true }
+network = { workspace = true }
 maybe-async = { workspace = true, features = ["is_sync"] }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
