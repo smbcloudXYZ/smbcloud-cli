@@ -17,6 +17,9 @@ categories = [
 ]
 readme = "README.md"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 chrono = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }

@@ -1,0 +1,10 @@
+[package]
+name = "smbcloud-networking-account"
+version = "0.3.0"
+edition = "2024"
+
+[dependencies]
+network = { workspace = true }
+smbcloud-networking = { workspace = true }
+smbcloud-model = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }

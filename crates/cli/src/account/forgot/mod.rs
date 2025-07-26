@@ -4,12 +4,11 @@ use crate::{
 };
 use anyhow::Result;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
+use network::environment::Environment;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use smbcloud_model::forgot::{Args, Email, Param, UserUpdatePassword};
-use smbcloud_networking::{
-    constants::PATH_USERS_PASSWORD, environment::Environment, smb_base_url_builder,
-};
+use smbcloud_networking::{constants::PATH_USERS_PASSWORD, smb_base_url_builder};
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 

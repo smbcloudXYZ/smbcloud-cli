@@ -1,3 +1,4 @@
+use crate::token::get_smb_token;
 use crate::{
     account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,
@@ -7,8 +8,8 @@ use anyhow::{anyhow, Result};
 use chrono::Utc;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
+use network::environment::Environment;
 use smbcloud_model::project::ProjectCreate;
-use smbcloud_networking::{environment::Environment, get_smb_token};
 use smbcloud_networking_project::crud_project_create::create_project;
 use spinners::Spinner;
 
@@ -94,7 +95,7 @@ name = "{repository_name}"
 repository = "{repository_name}"
 description = "{description}"
 created_at = "{now}"
-updated_at = "{now}" 
+updated_at = "{now}"
 "#,
         ),
     )?;

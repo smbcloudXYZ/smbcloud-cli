@@ -3,8 +3,9 @@ mod git;
 mod remote_messages;
 mod setup;
 
+use crate::token::get_smb_token;
 use crate::{
-    account::{lib::is_logged_in, login::process_login, me::me},
+    account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,
     deploy::config::check_project,
     project::runner::detect_runner,
@@ -14,9 +15,10 @@ use anyhow::{anyhow, Result};
 use config::check_config;
 use git::remote_deployment_setup;
 use git2::{PushOptions, RemoteCallbacks, Repository};
+use network::environment::Environment;
 use remote_messages::{build_next_app, start_server};
 use smbcloud_model::project::{DeploymentPayload, DeploymentStatus};
-use smbcloud_networking::{environment::Environment, get_smb_token};
+use smbcloud_networking_account::me::me;
 use smbcloud_networking_project::{
     crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
 };
@@ -97,7 +99,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     let created_deployment =
         create_deployment(env, &access_token, config.project.id, payload).await?;
-    let user = me(env).await?;
+    let user = me(env, &access_token).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();

@@ -1,4 +1,7 @@
+use wasm_bindgen::prelude::wasm_bindgen;
+
 #[derive(clap::ValueEnum, Clone, Copy)]
+#[wasm_bindgen]
 pub enum Environment {
     Dev,
     Production,

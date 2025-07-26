@@ -2,7 +2,7 @@ use log::{debug, error};
 use reqwest::{RequestBuilder, Response};
 use serde::de::DeserializeOwned;
 use smbcloud_model::error_codes::{ErrorCode, ErrorResponse};
-use std::time::Duration;
+//use std::time::Duration;
 #[cfg(debug_assertions)]
 const LOG_RESPONSE_BODY: bool = false; // You know what to do here.
 #[cfg(not(debug_assertions))]
@@ -15,7 +15,7 @@ const LOG_RESPONSE_BODY: bool = false;
 pub async fn check_internet_connection() -> bool {
     debug!("Checking internet connection");
     let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
+        //.timeout(Duration::from_secs(5)) Does not work on wasm32
         .build();
 
     if let Err(e) = client {
