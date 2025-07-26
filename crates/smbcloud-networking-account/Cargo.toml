@@ -8,3 +8,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 network = { workspace = true }
+smbcloud-networking = { workspace = true }
+smbcloud-model = { workspace = true }
+reqwest = { workspace = true, features = ["json"] }

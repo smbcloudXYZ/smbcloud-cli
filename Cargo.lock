@@ -1947,6 +1947,9 @@ name = "smbcloud-networking-account"
 version = "0.1.0"
 dependencies = [
  "network",
+ "reqwest",
+ "smbcloud-model",
+ "smbcloud-networking",
 ]
 
 [[package]]
