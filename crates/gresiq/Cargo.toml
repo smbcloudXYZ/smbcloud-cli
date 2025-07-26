@@ -1,7 +1,7 @@
 [package]
 name = "gresiq"
 description = "GresIQ is a serverlessPostgresSQL client for on the smbCloud platform."
-version = "0.3.22"
+version = "0.3.23"
 edition = "2024"
 readme = "README.md"
 
