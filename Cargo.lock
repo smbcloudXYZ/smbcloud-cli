@@ -600,7 +600,7 @@ dependencies = [
 
 [[package]]
 name = "gresiq"
-version = "0.1.0"
+version = "0.3.22"
 dependencies = [
  "tokio",
  "tokio-postgres",
@@ -1188,7 +1188,7 @@ dependencies = [
 
 [[package]]
 name = "network"
-version = "0.1.0"
+version = "0.3.22"
 dependencies = [
  "clap",
  "log",
@@ -1896,7 +1896,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1934,7 +1934,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-model"
-version = "0.3.19"
+version = "0.3.22"
 dependencies = [
  "chrono",
  "log",
@@ -1949,7 +1949,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking"
-version = "0.3.20"
+version = "0.3.22"
 dependencies = [
  "network",
  "url-builder",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account"
-version = "0.3.0"
+version = "0.3.22"
 dependencies = [
  "network",
  "reqwest",
@@ -1967,7 +1967,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account-wasm"
-version = "0.1.0"
+version = "0.3.22"
 dependencies = [
  "network",
  "serde-wasm-bindgen",
@@ -1978,7 +1978,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-project"
-version = "0.3.18"
+version = "0.3.22"
 dependencies = [
  "anyhow",
  "async-trait",
