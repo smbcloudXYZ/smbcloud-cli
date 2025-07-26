@@ -1970,14 +1970,8 @@ name = "smbcloud-networking-account-wasm"
 version = "0.1.0"
 dependencies = [
  "network",
- "reqwest",
- "serde",
  "serde-wasm-bindgen",
- "serde_json",
- "serde_repr",
- "smbcloud-model",
- "smbcloud-networking",
- "thiserror 2.0.12",
+ "smbcloud-networking-account",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
