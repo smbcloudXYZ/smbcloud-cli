@@ -15,7 +15,7 @@ pub struct Config {
 pub struct Project {
     pub id: i32,
     pub name: String,
-    pub repository: String,
+    pub repository: Option<String>,
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
