@@ -1,8 +1,8 @@
 use crate::token::{get_smb_token, smb_token_file_path};
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Confirm};
-use network::environment::Environment;
 use reqwest::{Client, StatusCode};
+use smbcloud_network::environment::Environment;
 use smbcloud_networking::{constants::PATH_USERS_SIGN_OUT, smb_base_url_builder};
 use spinners::Spinner;
 use std::fs;

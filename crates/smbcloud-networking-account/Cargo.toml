@@ -4,7 +4,7 @@ version = "0.3.23"
 edition = "2024"
 
 [dependencies]
-network = { workspace = true }
-smbcloud-networking = { workspace = true }
-smbcloud-model = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
+smbcloud-model = { workspace = true }
+smbcloud-network = { workspace = true }
+smbcloud-networking = { workspace = true }

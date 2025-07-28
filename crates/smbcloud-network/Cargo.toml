@@ -1,5 +1,5 @@
 [package]
-name = "network"
+name = "smbcloud-network"
 version = "0.3.23"
 edition = "2024"
 
@@ -7,8 +7,8 @@ edition = "2024"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-log = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
+log = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

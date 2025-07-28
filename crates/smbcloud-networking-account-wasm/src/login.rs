@@ -1,4 +1,4 @@
-use network::environment::Environment;
+use smbcloud_network::environment::Environment;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 

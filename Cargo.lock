@@ -1187,19 +1187,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "network"
-version = "0.3.23"
-dependencies = [
- "clap",
- "log",
- "reqwest",
- "serde",
- "serde_json",
- "smbcloud-model",
- "wasm-bindgen",
-]
-
-[[package]]
 name = "nu-ansi-term"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1909,7 +1896,6 @@ dependencies = [
  "home",
  "indicatif",
  "log",
- "network",
  "open",
  "regex",
  "reqwest",
@@ -1917,6 +1903,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "smbcloud-model",
+ "smbcloud-network",
  "smbcloud-networking",
  "smbcloud-networking-account",
  "smbcloud-networking-project",
@@ -1948,10 +1935,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "smbcloud-network"
+version = "0.3.23"
+dependencies = [
+ "clap",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "smbcloud-model",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "smbcloud-networking"
 version = "0.3.23"
 dependencies = [
- "network",
+ "smbcloud-network",
  "url-builder",
 ]
 
@@ -1959,9 +1959,9 @@ dependencies = [
 name = "smbcloud-networking-account"
 version = "0.3.23"
 dependencies = [
- "network",
  "reqwest",
  "smbcloud-model",
+ "smbcloud-network",
  "smbcloud-networking",
 ]
 
@@ -1969,8 +1969,8 @@ dependencies = [
 name = "smbcloud-networking-account-wasm"
 version = "0.3.23"
 dependencies = [
- "network",
  "serde-wasm-bindgen",
+ "smbcloud-network",
  "smbcloud-networking-account",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1985,11 +1985,11 @@ dependencies = [
  "dirs",
  "log",
  "maybe-async",
- "network",
  "reqwest",
  "serde",
  "serde_json",
  "smbcloud-model",
+ "smbcloud-network",
  "smbcloud-networking",
  "thiserror 2.0.12",
 ]

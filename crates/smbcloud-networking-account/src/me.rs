@@ -1,7 +1,7 @@
-use network::{environment::Environment, network::request};
 use reqwest::Client;
 use smbcloud_model::account::User;
 use smbcloud_model::error_codes::ErrorResponse;
+use smbcloud_network::{environment::Environment, network::request};
 use smbcloud_networking::{constants::PATH_USERS_ME, smb_base_url_builder};
 
 pub async fn me(env: Environment, access_token: &str) -> Result<User, ErrorResponse> {

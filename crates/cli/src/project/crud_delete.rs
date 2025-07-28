@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
-use network::environment::Environment;
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_delete::delete_project;
 use spinners::Spinner;
 

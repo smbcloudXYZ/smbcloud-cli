@@ -2,10 +2,10 @@ use crate::token::smb_token_file_path;
 use anyhow::{anyhow, Result};
 use console::style;
 use log::debug;
-use network::environment::Environment;
 use regex::Regex;
 use reqwest::{Client, Response, StatusCode};
 use smbcloud_model::account::SmbAuthorization;
+use smbcloud_network::environment::Environment;
 use smbcloud_networking::{
     constants::{
         GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,

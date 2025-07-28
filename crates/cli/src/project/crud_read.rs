@@ -7,8 +7,8 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use log::debug;
-use network::environment::Environment;
 use smbcloud_model::project::{Config, Project};
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_read::{get_project, get_projects};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
