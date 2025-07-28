@@ -5,8 +5,8 @@ use crate::{
     ui::{succeed_message, succeed_symbol},
 };
 use anyhow::Result;
-use network::environment::Environment;
 use smbcloud_model::project::Deployment;
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_deployment_read::{get_deployment, get_deployments};
 use spinners::Spinner;
 use tabled::{Table, Tabled};

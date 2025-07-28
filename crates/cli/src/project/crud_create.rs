@@ -8,8 +8,8 @@ use anyhow::{anyhow, Result};
 use chrono::Utc;
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input};
-use network::environment::Environment;
 use smbcloud_model::project::ProjectCreate;
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_create::create_project;
 use spinners::Spinner;
 

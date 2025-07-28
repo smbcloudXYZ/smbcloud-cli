@@ -3,13 +3,13 @@ use crate::{
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use git2::{Cred, CredentialType, Error};
-use network::environment::Environment;
 use serde::{Deserialize, Serialize};
 use smbcloud_model::{
     account::User,
     error_codes::{ErrorCode, ErrorResponse},
     project::Project,
 };
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_read::get_project;
 use spinners::Spinner;
 use std::{fs, path::Path};

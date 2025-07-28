@@ -1,11 +1,10 @@
 use anyhow::Result;
-use network::environment::Environment;
-use network::network::request;
 use reqwest::Client;
 use smbcloud_model::{
     error_codes::ErrorResponse,
     project::{Project, ProjectCreate},
 };
+use smbcloud_network::{environment::Environment, network::request};
 use smbcloud_networking::constants::SMB_USER_AGENT;
 
 use crate::url_builder::build_project_url;

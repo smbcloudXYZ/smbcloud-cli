@@ -1039,9 +1039,9 @@ dependencies = [
 
 [[package]]
 name = "libredox"
-version = "0.1.6"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4488594b9328dee448adb906d8b126d9b7deb7cf5c22161ee591610bb1be83c0"
+checksum = "360e552c93fa0e8152ab463bc4c4837fce76a225df11dfaeea66c313de5e61f7"
 dependencies = [
  "bitflags",
  "libc",
@@ -1184,19 +1184,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "network"
-version = "0.3.23"
-dependencies = [
- "clap",
- "log",
- "reqwest",
- "serde",
- "serde_json",
- "smbcloud-model",
- "wasm-bindgen",
 ]
 
 [[package]]
@@ -1536,9 +1523,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.16"
+version = "0.5.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7251471db004e509f4e75a62cca9435365b5ec7bcdff530d612ac7c87c44a792"
+checksum = "5407465600fb0548f1442edf71dd20683c6ed326200ace4b1ef0763521bb3b77"
 dependencies = [
  "bitflags",
 ]
@@ -1660,9 +1647,9 @@ checksum = "88f8660c1ff60292143c98d08fc6e2f654d722db50410e3f3797d40baaf9d8f3"
 
 [[package]]
 name = "rustc-demangle"
-version = "0.1.25"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "989e6739f80c4ad5b13e0fd7fe89531180375b18520cc8c82080e4dc4035b84f"
+checksum = "56f7d92ca342cea22a06f2121d944b4fd82af56988c270852495420f961d4ace"
 
 [[package]]
 name = "rustix"
@@ -1909,7 +1896,6 @@ dependencies = [
  "home",
  "indicatif",
  "log",
- "network",
  "open",
  "regex",
  "reqwest",
@@ -1917,6 +1903,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "smbcloud-model",
+ "smbcloud-network",
  "smbcloud-networking",
  "smbcloud-networking-account",
  "smbcloud-networking-project",
@@ -1948,10 +1935,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "smbcloud-network"
+version = "0.3.23"
+dependencies = [
+ "clap",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "smbcloud-model",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "smbcloud-networking"
 version = "0.3.23"
 dependencies = [
- "network",
+ "smbcloud-network",
  "url-builder",
 ]
 
@@ -1959,9 +1959,9 @@ dependencies = [
 name = "smbcloud-networking-account"
 version = "0.3.23"
 dependencies = [
- "network",
  "reqwest",
  "smbcloud-model",
+ "smbcloud-network",
  "smbcloud-networking",
 ]
 
@@ -1969,8 +1969,8 @@ dependencies = [
 name = "smbcloud-networking-account-wasm"
 version = "0.3.23"
 dependencies = [
- "network",
  "serde-wasm-bindgen",
+ "smbcloud-network",
  "smbcloud-networking-account",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1985,11 +1985,11 @@ dependencies = [
  "dirs",
  "log",
  "maybe-async",
- "network",
  "reqwest",
  "serde",
  "serde_json",
  "smbcloud-model",
+ "smbcloud-network",
  "smbcloud-networking",
  "thiserror 2.0.12",
 ]
@@ -2935,7 +2935,7 @@ version = "0.60.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
 dependencies = [
- "windows-targets 0.53.2",
+ "windows-targets 0.53.3",
 ]
 
 [[package]]
@@ -2956,10 +2956,11 @@ dependencies = [
 
 [[package]]
 name = "windows-targets"
-version = "0.53.2"
+version = "0.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c66f69fcc9ce11da9966ddb31a40968cad001c5bedeb5c2b82ede4253ab48aef"
+checksum = "d5fe6031c4041849d7c496a8ded650796e7b6ecc19df1a431c1a363342e5dc91"
 dependencies = [
+ "windows-link",
  "windows_aarch64_gnullvm 0.53.0",
  "windows_aarch64_msvc 0.53.0",
  "windows_i686_gnu 0.53.0",

@@ -15,9 +15,9 @@ use anyhow::{anyhow, Result};
 use config::check_config;
 use git::remote_deployment_setup;
 use git2::{PushOptions, RemoteCallbacks, Repository};
-use network::environment::Environment;
 use remote_messages::{build_next_app, start_server};
 use smbcloud_model::project::{DeploymentPayload, DeploymentStatus};
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_account::me::me;
 use smbcloud_networking_project::{
     crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
@@ -88,7 +88,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         None => return Err(anyhow!(fail_message("Repository not found."))),
     };
 
-    let mut origin = remote_deployment_setup(&runner, &repo, &repository).await?;
+    let mut origin = remote_deployment_setup(&runner, &repo, repository).await?;
 
     let commit_hash = match main_branch.resolve() {
         Ok(result) => match result.target() {
@@ -125,7 +125,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                 if line.contains(&build_next_app()) {
                     println!("Building the app {}", succeed_symbol());
                 }
-                if line.contains(&start_server(&repository)) {
+                if line.contains(&start_server(repository)) {
                     println!("App restart {}", succeed_symbol());
                 }
             }

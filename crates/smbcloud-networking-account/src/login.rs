@@ -1,6 +1,6 @@
-use network::{environment::Environment, network::request};
 use reqwest::Client;
 use smbcloud_model::{error_codes::ErrorResponse, login::LoginArgs, login::LoginResult};
+use smbcloud_network::{environment::Environment, network::request};
 use smbcloud_networking::{
     constants::{PATH_USERS_SIGN_IN, SMB_USER_AGENT},
     smb_base_url_builder,

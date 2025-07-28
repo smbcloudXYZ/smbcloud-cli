@@ -1,7 +1,7 @@
 pub mod constants;
 
 use constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET};
-use network::environment::Environment;
+use smbcloud_network::environment::Environment;
 use url_builder::URLBuilder;
 
 pub fn smb_base_url_builder(env: Environment) -> URLBuilder {

@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use anyhow::Result;
-use network::environment::Environment;
+use smbcloud_network::environment::Environment;
 
 pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {

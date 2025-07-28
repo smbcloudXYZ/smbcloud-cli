@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use dirs::home_dir;
 use log::debug;
-use network::environment::Environment;
+use smbcloud_network::environment::Environment;
 use std::path::{Path, PathBuf};
 
 pub async fn get_smb_token(env: Environment) -> Result<String> {
