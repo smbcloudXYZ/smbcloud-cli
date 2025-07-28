@@ -1936,7 +1936,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-network"
-version = "0.3.24"
+version = "0.3.25"
 dependencies = [
  "clap",
  "log",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account"
-version = "0.3.24"
+version = "0.3.25"
 dependencies = [
  "reqwest",
  "smbcloud-model",
@@ -1967,7 +1967,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account-wasm"
-version = "0.3.24"
+version = "0.3.25"
 dependencies = [
  "serde-wasm-bindgen",
  "smbcloud-network",
