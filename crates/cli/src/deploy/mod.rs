@@ -83,7 +83,12 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     let main_branch = head;
 
-    let mut origin = remote_deployment_setup(&runner, &repo, &config.project.repository).await?;
+    let repository = match &config.project.repository {
+        Some(repo) => repo,
+        None => return Err(anyhow!(fail_message("Repository not found."))),
+    };
+
+    let mut origin = remote_deployment_setup(&runner, &repo, &repository).await?;
 
     let commit_hash = match main_branch.resolve() {
         Ok(result) => match result.target() {
@@ -120,7 +125,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                 if line.contains(&build_next_app()) {
                     println!("Building the app {}", succeed_symbol());
                 }
-                if line.contains(&start_server(&config.project.repository)) {
+                if line.contains(&start_server(&repository)) {
                     println!("App restart {}", succeed_symbol());
                 }
             }

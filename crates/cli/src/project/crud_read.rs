@@ -112,7 +112,7 @@ pub(crate) fn show_projects(projects: Vec<Project>) {
         .map(|p| ProjectRow {
             id: p.id,
             name: p.name,
-            repository: p.repository,
+            repository: p.repository.unwrap_or("-".to_string()),
             description: p.description.unwrap_or("-".to_owned()),
         })
         .collect();
@@ -124,7 +124,7 @@ pub(crate) fn show_project_detail(project: &Project) {
     let row = ProjectDetailRow {
         id: project.id,
         name: project.name.clone(),
-        repository: project.repository.clone(),
+        repository: project.repository.clone().unwrap_or("-".to_owned()),
         description: project.description.clone().unwrap_or("-".to_owned()),
         created_at: project.created_at.date_naive().to_string(),
         updated_at: project.updated_at.date_naive().to_string(),
