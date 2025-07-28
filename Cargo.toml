@@ -33,7 +33,7 @@ serde = "1"
 serde_json = "1.0.82"
 serde_repr = "0.1"
 smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
-smbcloud-network = { version = "0.3.22", path = "crates/smbcloud-network" }
+smbcloud-network = { version = "0.3", path = "crates/smbcloud-network" }
 smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
 smbcloud-networking-account = { version = "0.3", path = "crates/smbcloud-networking-account" }
 smbcloud-networking-project = { version = "0.3", path = "crates/smbcloud-networking-project" }
