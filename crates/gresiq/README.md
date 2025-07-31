@@ -1,3 +1,3 @@
 # GresIQ
 
-GresIQ is a serverless PostgresSQL client for on the smbCloud platform.
+GresIQ is a serverless PostgreSQL client for the smbCloud platform.

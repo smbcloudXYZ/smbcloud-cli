@@ -1,16 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
-    "crates/cli",
-    "crates/gresiq",
-    "crates/smbcloud-model",
-    "crates/smbcloud-network",
-    "crates/smbcloud-networking",
-    "crates/smbcloud-networking-account",
-    "crates/smbcloud-networking-account-wasm",
-    "crates/smbcloud-networking-project",
-    "crates/smbcloud-utils",
-]
+members = ["crates/cli", "crates/gresiq", "crates/smbcloud-*"]
 
 [workspace.dependencies]
 anyhow = "1.0.58"
