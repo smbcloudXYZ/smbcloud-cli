@@ -1,32 +1,34 @@
-use crate::{
-    account::{
+use {
+    crate::account::signup::signup_with_email,
+    crate::account::{
         lib::{authorize_github, is_logged_in, save_token},
         signup::{do_signup, SignupMethod},
     },
-    cli::CommandResult,
-    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
-};
-use anyhow::{anyhow, Result};
-use console::style;
-use dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select};
-use log::debug;
-use reqwest::{Client, StatusCode};
-use smbcloud_model::{
-    account::{ErrorCode, GithubInfo, SmbAuthorization, User},
-    forgot::{Param, UserUpdatePassword},
-    login::{LoginArgs, LoginParams, UserParam},
-    signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
-};
-use smbcloud_network::environment::Environment;
-use smbcloud_networking::{
-    constants::{
-        PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
-        PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
+    crate::cli::CommandResult,
+    crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    anyhow::{anyhow, Result},
+    console::style,
+    dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
+    log::debug,
+    reqwest::{Client, StatusCode},
+    smbcloud_model::{
+        account::{ErrorCode, GithubInfo, SmbAuthorization, User},
+        forgot::{Param, UserUpdatePassword},
+        login::{LoginArgs, LoginParams, UserParam},
+        signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
     },
-    smb_base_url_builder,
+    smbcloud_network::environment::Environment,
+    smbcloud_networking::{
+        constants::{
+            PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
+            PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
+        },
+        smb_base_url_builder,
+    },
+    smbcloud_networking_account::signup::check_email,
+    smbcloud_utils::email_validation,
+    spinners::Spinner,
 };
-use smbcloud_utils::email_validation;
-use spinners::Spinner;
 
 pub async fn process_login(env: Environment) -> Result<CommandResult> {
     // Check if token file exists
@@ -284,21 +286,38 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
             return Err(error);
         }
     };
-    let password = match Password::with_theme(&ColorfulTheme::default())
-        .with_prompt("Password")
-        .interact()
-    {
-        Ok(password) => password,
-        Err(_) => {
-            let error = anyhow!("Invalid password.");
-            return Err(error);
+    match check_email(env, &username).await {
+        Ok(auth) => {
+            // Only continue with password input if email is found and confirmed.
+            if let Some(_) = auth.error_code {
+                // Check if email is in the database, unconfirmed. Only presents password input if email is found and confirmed.
+                let spinner = Spinner::new(
+                    spinners::Spinners::SimpleDotsScrolling,
+                    succeed_message("Checking email"),
+                );
+                after_checking_email_step(&env, spinner, auth, Some(username)).await
+            } else {
+                let password = match Password::with_theme(&ColorfulTheme::default())
+                    .with_prompt("Password")
+                    .interact()
+                {
+                    Ok(password) => password,
+                    Err(_) => {
+                        let error = anyhow!("Invalid password.");
+                        return Err(error);
+                    }
+                };
+                do_process_login(env, LoginArgs { username, password }).await
+            }
         }
-    };
-    do_process_login(env, LoginArgs { username, password }).await
+        Err(_) => Err(anyhow!(fail_message(
+            "Server error. Please try again later."
+        ))),
+    }
 }
 
 async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandResult> {
-    let mut spinner = Spinner::new(
+    let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
@@ -339,14 +358,10 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
             })
         }
         StatusCode::UNPROCESSABLE_ENTITY => {
-            spinner.stop_and_persist(
-                &succeed_symbol(),
-                succeed_message("Please complete registration"),
-            );
             // Account found but email not verified / password not set
             let result: SmbAuthorization = response.json().await?;
             // println!("Result: {:#?}", &result);
-            verify_or_set_password(&env, result).await
+            after_checking_email_step(&env, spinner, result, None).await
         }
         _ => Err(anyhow!(fail_message(
             "Login failed. Check your username and password."
@@ -354,17 +369,43 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
     }
 }
 
-async fn verify_or_set_password(
+async fn after_checking_email_step(
     env: &Environment,
+    mut spinner: Spinner,
     result: SmbAuthorization,
+    username: Option<String>,
 ) -> Result<CommandResult> {
     match result.error_code {
         Some(error_code) => {
             debug!("{}", error_code);
             match error_code {
-                ErrorCode::EmailUnverified => send_email_verification(*env, result.user).await,
-                ErrorCode::PasswordNotSet => send_reset_password(*env, result.user).await,
-                _ => Err(anyhow!("Shouldn't be here.")),
+                ErrorCode::EmailNotFound => {
+                    spinner.stop_and_persist(
+                        &succeed_symbol(),
+                        succeed_message(
+                            "Account not found. Please continue with setting up your account.",
+                        ),
+                    );
+                    signup_with_email(env.to_owned(), username).await
+                }
+                ErrorCode::EmailUnverified => {
+                    spinner.stop_and_persist(
+                        &succeed_symbol(),
+                        succeed_message("Email not verified. Please verify your email."),
+                    );
+                    send_email_verification(*env, result.user).await
+                }
+                ErrorCode::PasswordNotSet => {
+                    spinner.stop_and_persist(
+                        &succeed_symbol(),
+                        succeed_message("Password not set. Please reset your password."),
+                    );
+                    send_reset_password(*env, result.user).await
+                }
+                _ => {
+                    spinner.stop_and_persist(&fail_symbol(), fail_message("An error occurred."));
+                    Err(anyhow!("Idk what happened."))
+                }
             }
         }
         None => Err(anyhow!("Shouldn't be here.")),
