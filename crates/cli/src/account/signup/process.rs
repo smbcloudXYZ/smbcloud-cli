@@ -53,7 +53,10 @@ pub async fn signup_with_email(env: Environment, email: Option<String>) -> Resul
             .interact()
             .unwrap()
     };
+    signup_input_password_step(env, email).await
+}
 
+async fn signup_input_password_step(env: Environment, email: String) -> Result<CommandResult> {
     let password = Password::with_theme(&ColorfulTheme::default())
         .with_prompt("Password")
         .validate_with(|input: &String| -> Result<(), &str> {

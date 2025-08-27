@@ -1,5 +1,5 @@
 use {
-    crate::account::signup::process_signup,
+    crate::account::signup::signup_with_email,
     crate::account::{
         lib::{authorize_github, is_logged_in, save_token},
         signup::{do_signup, SignupMethod},
@@ -295,7 +295,7 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
                     spinners::Spinners::SimpleDotsScrolling,
                     succeed_message("Checking email"),
                 );
-                verify_or_set_password(&env, spinner, auth).await
+                after_checking_email_step(&env, spinner, auth, Some(username)).await
             } else {
                 let password = match Password::with_theme(&ColorfulTheme::default())
                     .with_prompt("Password")
@@ -361,7 +361,7 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
             // Account found but email not verified / password not set
             let result: SmbAuthorization = response.json().await?;
             // println!("Result: {:#?}", &result);
-            verify_or_set_password(&env, spinner, result).await
+            after_checking_email_step(&env, spinner, result, None).await
         }
         _ => Err(anyhow!(fail_message(
             "Login failed. Check your username and password."
@@ -369,10 +369,11 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
     }
 }
 
-async fn verify_or_set_password(
+async fn after_checking_email_step(
     env: &Environment,
     mut spinner: Spinner,
     result: SmbAuthorization,
+    username: Option<String>,
 ) -> Result<CommandResult> {
     match result.error_code {
         Some(error_code) => {
@@ -381,9 +382,11 @@ async fn verify_or_set_password(
                 ErrorCode::EmailNotFound => {
                     spinner.stop_and_persist(
                         &succeed_symbol(),
-                        succeed_message("Email not found. Please register."),
+                        succeed_message(
+                            "Account not found. Please continue with setting up your account.",
+                        ),
                     );
-                    process_signup(env.to_owned()).await
+                    signup_with_email(env.to_owned(), username).await
                 }
                 ErrorCode::EmailUnverified => {
                     spinner.stop_and_persist(
