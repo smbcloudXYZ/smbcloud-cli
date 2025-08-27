@@ -1,33 +1,33 @@
-use crate::{
-    account::{
+use {
+    crate::account::signup::process_signup,
+    crate::account::{
         lib::{authorize_github, is_logged_in, save_token},
         signup::{do_signup, SignupMethod},
     },
-    cli::CommandResult,
-    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
-};
-use anyhow::{anyhow, Result};
-use console::style;
-use dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select};
-use log::debug;
-use reqwest::{Client, StatusCode};
-use smbcloud_model::{
-    account::{ErrorCode, GithubInfo, SmbAuthorization, User},
-    forgot::{Param, UserUpdatePassword},
-    login::{LoginArgs, LoginParams, UserParam},
-    signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
-};
-use smbcloud_network::environment::Environment;
-use smbcloud_networking::{
-    constants::{
-        PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
-        PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
+    crate::cli::CommandResult,
+    crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    anyhow::{anyhow, Result},
+    console::style,
+    dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
+    log::debug,
+    reqwest::{Client, StatusCode},
+    smbcloud_model::{
+        account::{ErrorCode, GithubInfo, SmbAuthorization, User},
+        forgot::{Param, UserUpdatePassword},
+        login::{LoginArgs, LoginParams, UserParam},
+        signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
     },
-    smb_base_url_builder,
-};
-use {
-    crate::account::signup::process_signup, smbcloud_networking_account::signup::check_email,
-    smbcloud_utils::email_validation, spinners::Spinner,
+    smbcloud_network::environment::Environment,
+    smbcloud_networking::{
+        constants::{
+            PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
+            PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
+        },
+        smb_base_url_builder,
+    },
+    smbcloud_networking_account::signup::check_email,
+    smbcloud_utils::email_validation,
+    spinners::Spinner,
 };
 
 pub async fn process_login(env: Environment) -> Result<CommandResult> {
@@ -286,19 +286,17 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
             return Err(error);
         }
     };
-    // Check if email is in the database, unconfirmed. Only presents password input if email is found and confirmed.
-    let mut spinner = Spinner::new(
-        spinners::Spinners::SimpleDotsScrolling,
-        succeed_message("Checking email"),
-    );
-
     match check_email(env, &username).await {
         Ok(auth) => {
             // Only continue with password input if email is found and confirmed.
             if let Some(_) = auth.error_code {
+                // Check if email is in the database, unconfirmed. Only presents password input if email is found and confirmed.
+                let spinner = Spinner::new(
+                    spinners::Spinners::SimpleDotsScrolling,
+                    succeed_message("Checking email"),
+                );
                 verify_or_set_password(&env, spinner, auth).await
             } else {
-                spinner.stop();
                 let password = match Password::with_theme(&ColorfulTheme::default())
                     .with_prompt("Password")
                     .interact()
