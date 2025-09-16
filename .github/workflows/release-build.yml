@@ -16,9 +16,9 @@ jobs:
           - name: win-amd64
             runner: windows-latest
             target: x86_64-pc-windows-msvc
-          - name: macos-amd64
-            runner: macos-latest
-            target: x86_64-apple-darwin
+          #- name: macos-amd64
+          #  runner: macos-latest
+          #  target: x86_64-apple-darwin
           - name: macos-arm64
             runner: macos-latest
             target: aarch64-apple-darwin
@@ -33,9 +33,9 @@ jobs:
           toolchain: 1.87
           targets: "${{ matrix.target }}"
 
-      - name: Install OpenSSL
-        if: matrix.name == 'macos-amd64'
-        run: brew install openssl@3
+      #- name: Install OpenSSL
+      #  if: matrix.name == 'macos-amd64'
+      #  run: brew install openssl@3
 
       - name: Setup Cache
         uses: Swatinem/rust-cache@v2
