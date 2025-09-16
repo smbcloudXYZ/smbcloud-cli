@@ -34,7 +34,7 @@ jobs:
           targets: "${{ matrix.target }}"
 
       - name: Install OpenSSL
-        if: matrix.runner == 'macos-amd64'
+        if: matrix.name == 'macos-amd64'
         run: brew install openssl@3
 
       - name: Setup Cache
