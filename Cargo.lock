@@ -600,7 +600,7 @@ dependencies = [
 
 [[package]]
 name = "gresiq"
-version = "0.3.23"
+version = "0.3.26"
 dependencies = [
  "tokio",
  "tokio-postgres",
@@ -1875,7 +1875,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.24"
+version = "0.3.26"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1941,7 +1941,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking"
-version = "0.3.24"
+version = "0.3.26"
 dependencies = [
  "smbcloud-network",
  "url-builder",
@@ -1949,7 +1949,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account"
-version = "0.3.25"
+version = "0.3.26"
 dependencies = [
  "reqwest",
  "smbcloud-model",
