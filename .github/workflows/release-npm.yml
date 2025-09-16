@@ -1,4 +1,4 @@
-name: Publish to npm
+name: NPM Release
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
           - {
               NAME: linux-x64-glibc,
               OS: ubuntu-20.04,
-              TOOLCHAIN: stable,
+              TOOLCHAIN: 1.87,
               TARGET: x86_64-unknown-linux-gnu,
             }
           # Cannot cross-compile for now
@@ -39,25 +39,25 @@ jobs:
           - {
               NAME: win32-x64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: stable,
+              TOOLCHAIN: 1.87,
               TARGET: x86_64-pc-windows-msvc,
             }
           - {
               NAME: win32-arm64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: stable,
+              TOOLCHAIN: 1.87,
               TARGET: aarch64-pc-windows-msvc,
             }
           - {
               NAME: darwin-x64,
               OS: macos-11,
-              TOOLCHAIN: stable,
+              TOOLCHAIN: 1.87,
               TARGET: x86_64-apple-darwin,
             }
           - {
               NAME: darwin-arm64,
               OS: macos-11,
-              TOOLCHAIN: stable,
+              TOOLCHAIN: 1.87,
               TARGET: aarch64-apple-darwin,
             }
     steps:

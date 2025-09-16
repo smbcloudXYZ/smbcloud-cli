@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-networking"
-version = "0.3.20"
+version = "0.3.26"
 edition = "2021"
 readme = "README.md"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
@@ -17,17 +17,9 @@ categories = [
     "wasm",
 ]
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-anyhow = { workspace = true }
-async-trait = { workspace = true, optional = true }
-clap = { workspace = true, features = ["derive", "env"] }
-dirs = { workspace = true }
-home = { workspace = true }
-log = { workspace = true }
-maybe-async = { workspace = true, features = ["is_sync"] }
-reqwest = { workspace = true, features = ["json"] }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-smbcloud-model = { workspace = true }
-thiserror = { workspace = true }
+smbcloud-network = { workspace = true }
 url-builder = { workspace = true }

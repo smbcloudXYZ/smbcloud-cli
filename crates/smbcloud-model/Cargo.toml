@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-model"
-version = "0.3.19"
+version = "0.3.24"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Command line tool for deploying NextJS app on the smbCloud platform."
@@ -17,8 +17,12 @@ categories = [
 ]
 readme = "README.md"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 chrono = { workspace = true, features = ["serde"] }
+log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_repr = { workspace = true }
@@ -26,4 +30,3 @@ spinners = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
-log = { workspace = true }

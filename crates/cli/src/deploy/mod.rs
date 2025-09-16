@@ -3,8 +3,9 @@ mod git;
 mod remote_messages;
 mod setup;
 
+use crate::token::get_smb_token;
 use crate::{
-    account::{lib::is_logged_in, login::process_login, me::me},
+    account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,
     deploy::config::check_project,
     project::runner::detect_runner,
@@ -16,7 +17,8 @@ use git::remote_deployment_setup;
 use git2::{PushOptions, RemoteCallbacks, Repository};
 use remote_messages::{build_next_app, start_server};
 use smbcloud_model::project::{DeploymentPayload, DeploymentStatus};
-use smbcloud_networking::{environment::Environment, get_smb_token};
+use smbcloud_network::environment::Environment;
+use smbcloud_networking_account::me::me;
 use smbcloud_networking_project::{
     crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
 };
@@ -53,16 +55,40 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    let main_branch = match repo.head() {
-        Ok(branch) => branch,
+    // Get the current branch
+    let head = match repo.head() {
+        Ok(head) => head,
         Err(_) => {
             return Err(anyhow!(fail_message(
-                "No main branch found. Create with `git checkout -b <branch>` command."
+                "No HEAD reference found. Create a commit with `git commit` command."
             )))
         }
     };
 
-    let mut origin = remote_deployment_setup(&runner, &repo, &config.project.repository).await?;
+    // Check if we're on the main branch
+    let branch_name = match head.shorthand() {
+        Some(name) => name,
+        None => {
+            return Err(anyhow!(fail_message(
+                "Unable to determine current branch name."
+            )))
+        }
+    };
+
+    if branch_name != "main" && branch_name != "master" {
+        return Err(anyhow!(fail_message(
+            &format!("Not on main branch. Current branch: '{}'. Switch to main branch with `git checkout main` command.", branch_name)
+        )));
+    }
+
+    let main_branch = head;
+
+    let repository = match &config.project.repository {
+        Some(repo) => repo,
+        None => return Err(anyhow!(fail_message("Repository not found."))),
+    };
+
+    let mut origin = remote_deployment_setup(&runner, &repo, repository).await?;
 
     let commit_hash = match main_branch.resolve() {
         Ok(result) => match result.target() {
@@ -78,7 +104,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
 
     let created_deployment =
         create_deployment(env, &access_token, config.project.id, payload).await?;
-    let user = me(env).await?;
+    let user = me(env, &access_token).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
@@ -99,7 +125,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                 if line.contains(&build_next_app()) {
                     println!("Building the app {}", succeed_symbol());
                 }
-                if line.contains(&start_server(&config.project.repository)) {
+                if line.contains(&start_server(repository)) {
                     println!("App restart {}", succeed_symbol());
                 }
             }

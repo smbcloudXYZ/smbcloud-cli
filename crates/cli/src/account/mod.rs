@@ -10,7 +10,7 @@ use self::{cli::Commands, forgot::process_forgot, login::process_login, signup::
 use crate::cli::CommandResult;
 use anyhow::Result;
 use logout::process_logout;
-use smbcloud_networking::environment::Environment;
+use smbcloud_network::environment::Environment;
 
 pub async fn process_account(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {

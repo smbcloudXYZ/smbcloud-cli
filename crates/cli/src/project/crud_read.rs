@@ -1,5 +1,6 @@
 use std::{fs::OpenOptions, io::Write};
 
+use crate::token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
@@ -7,7 +8,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use log::debug;
 use smbcloud_model::project::{Config, Project};
-use smbcloud_networking::{environment::Environment, get_smb_token};
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_read::{get_project, get_projects};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
@@ -111,7 +112,7 @@ pub(crate) fn show_projects(projects: Vec<Project>) {
         .map(|p| ProjectRow {
             id: p.id,
             name: p.name,
-            repository: p.repository,
+            repository: p.repository.unwrap_or("-".to_string()),
             description: p.description.unwrap_or("-".to_owned()),
         })
         .collect();
@@ -123,7 +124,7 @@ pub(crate) fn show_project_detail(project: &Project) {
     let row = ProjectDetailRow {
         id: project.id,
         name: project.name.clone(),
-        repository: project.repository.clone(),
+        repository: project.repository.clone().unwrap_or("-".to_owned()),
         description: project.description.clone().unwrap_or("-".to_owned()),
         created_at: project.created_at.date_naive().to_string(),
         updated_at: project.updated_at.date_naive().to_string(),

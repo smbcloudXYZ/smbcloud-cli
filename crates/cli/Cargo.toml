@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-cli"
-version = "0.3.22"
+version = "0.3.26"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Command line tool for deploying NextJS app on the smbCloud platform."
@@ -23,6 +23,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = { workspace = true }
+chrono = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
 clap_mangen = { workspace = true }
 console = { workspace = true }
@@ -30,7 +31,6 @@ dialoguer = { workspace = true }
 dirs = { workspace = true }
 git2 = { workspace = true }
 home = { workspace = true }
-chrono ={ workspace = true }
 indicatif = { workspace = true }
 log = { workspace = true }
 open = { workspace = true }
@@ -40,7 +40,9 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_repr = { workspace = true }
 smbcloud-model = { workspace = true }
+smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }
+smbcloud-networking-account = { workspace = true }
 smbcloud-networking-project = { workspace = true }
 smbcloud-utils = { workspace = true }
 spinners = { workspace = true }

@@ -1,3 +1,4 @@
+use crate::token::get_smb_token;
 use crate::{
     cli::CommandResult,
     deploy::config::{check_config, check_project},
@@ -5,7 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 use smbcloud_model::project::Deployment;
-use smbcloud_networking::{environment::Environment, get_smb_token};
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_deployment_read::{get_deployment, get_deployments};
 use spinners::Spinner;
 use tabled::{Table, Tabled};

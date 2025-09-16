@@ -1,14 +1,13 @@
 use crate::account::lib::is_logged_in;
+use crate::token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
-use anyhow::{anyhow, Result};
-use reqwest::{Client, StatusCode};
+use anyhow::Result;
 use smbcloud_model::account::User;
-use smbcloud_networking::{
-    constants::PATH_USERS_ME, environment::Environment, get_smb_token, smb_base_url_builder,
-};
+use smbcloud_network::environment::Environment;
+use smbcloud_networking_account::me::me;
 use spinners::Spinner;
 use tabled::{Table, Tabled};
 
@@ -50,7 +49,8 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    match me(env).await {
+    let token = get_smb_token(env).await?;
+    match me(env, &token).await {
         Ok(user) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             show_user(&user);
@@ -64,35 +64,12 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
             })
         }
         Err(e) => {
-            spinner.stop_and_persist(&fail_symbol(), fail_message(&e.to_string()));
-            Err(e)
+            println!("Error: {e:#?}");
+            Ok(CommandResult {
+                spinner,
+                symbol: fail_symbol(),
+                msg: fail_message("Failed to get all projects."),
+            })
         }
     }
-}
-
-pub async fn me(env: Environment) -> Result<User> {
-    let token = get_smb_token(env).await?;
-
-    let response = Client::new()
-        .get(build_smb_info_url(env))
-        .header("Authorization", token)
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .send()
-        .await?;
-
-    match response.status() {
-        StatusCode::OK => {
-            let user: User = response.json().await?;
-            Ok(user)
-        }
-        StatusCode::UNAUTHORIZED => Err(anyhow!("Invalid token. Please logout first.")),
-        _ => Err(anyhow!("Error while requesting your information.")),
-    }
-}
-
-fn build_smb_info_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
-    url_builder.add_route(PATH_USERS_ME);
-    url_builder.build()
 }

@@ -1,15 +1,16 @@
+use crate::token::smb_token_file_path;
 use anyhow::{anyhow, Result};
 use console::style;
 use log::debug;
 use regex::Regex;
 use reqwest::{Client, Response, StatusCode};
 use smbcloud_model::account::SmbAuthorization;
+use smbcloud_network::environment::Environment;
 use smbcloud_networking::{
     constants::{
         GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
     },
-    environment::Environment,
-    smb_base_url_builder, smb_token_file_path,
+    smb_base_url_builder,
 };
 use spinners::Spinner;
 use std::{
@@ -105,7 +106,7 @@ fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
                     <meta charset='utf-8'>
                     <title>Hello!</title>
                 </head>
-                
+
                 <body>
                     <h1>Authenticated!</h1>
                     <p>Back to the terminal console to finish your registration.</p>
@@ -118,17 +119,17 @@ fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
                 "HTTP/1.1 404 NOT FOUND",
                 "<!DOCTYPE html>
                 <html lang='en'>
-                
+
                 <head>
                     <meta charset='utf-8'>
                     <title>404 Not found</title>
                 </head>
-                
+
                 <body>
                     <h1>Oops!</h1>
                     <p>Sorry, I don't know what you're asking for.</p>
                 </body>
-                
+
                 </html>",
             )
         }

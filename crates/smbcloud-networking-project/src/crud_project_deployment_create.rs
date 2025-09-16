@@ -5,7 +5,8 @@ use smbcloud_model::{
     error_codes::ErrorResponse,
     project::{Deployment, DeploymentPayload},
 };
-use smbcloud_networking::{constants::SMB_USER_AGENT, environment::Environment, network::request};
+use smbcloud_network::{environment::Environment, network::request};
+use smbcloud_networking::constants::SMB_USER_AGENT;
 
 pub async fn create_deployment(
     env: Environment,

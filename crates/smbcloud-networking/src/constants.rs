@@ -11,6 +11,7 @@ pub const SMB_CLIENT_SECRET: &str = "secretttttttt";
 pub const SMB_USER_AGENT: &str = "smbcloud-cli";
 
 // Paths
+pub const PATH_USERS_CHECK_EMAIL: &str = "v1/check_email";
 pub const PATH_USERS_ME: &str = "v1/me";
 pub const PATH_USERS: &str = "v1/users";
 pub const PATH_USERS_PASSWORD: &str = "v1/users/password";

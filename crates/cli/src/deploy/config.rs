@@ -9,7 +9,7 @@ use smbcloud_model::{
     error_codes::{ErrorCode, ErrorResponse},
     project::Project,
 };
-use smbcloud_networking::environment::Environment;
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_read::get_project;
 use spinners::Spinner;
 use std::{fs, path::Path};

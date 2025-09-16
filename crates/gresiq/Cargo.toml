@@ -1,0 +1,22 @@
+[package]
+name = "gresiq"
+description = "GresIQ is a serverless PostgreSQL client on the smbCloud platform."
+version = "0.3.26"
+edition = "2024"
+readme = "README.md"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+license = "Apache-2.0"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://docs.smbcloud.xyz/cli"
+keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
+categories = [
+    "command-line-utilities",
+    "command-line-interface",
+    "cryptography::cryptocurrencies",
+    "development-tools",
+    "wasm",
+]
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+tokio-postgres = { workspace = true }

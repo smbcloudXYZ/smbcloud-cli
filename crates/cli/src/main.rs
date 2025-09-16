@@ -12,7 +12,7 @@ use smbcloud_cli::{
     cli::{Cli, Commands},
     deploy::process_deploy,
 };
-use smbcloud_networking::environment::Environment;
+use smbcloud_network::{environment::Environment, network::check_internet_connection};
 use std::{
     fs::{create_dir_all, OpenOptions},
     path::PathBuf,
@@ -78,7 +78,7 @@ async fn main() {
     match run().await {
         Ok(result) => {
             result.stop_and_persist();
-            std::process::exit(1);
+            std::process::exit(0);
         }
         Err(e) => {
             println!(
@@ -109,6 +109,25 @@ async fn run() -> Result<CommandResult> {
         setup_logging(cli.environment, Some(filter))?;
     } else {
         setup_logging(cli.environment, None)?;
+    }
+
+    // Check if the command requires internet connection
+    let needs_internet = match &cli.command {
+        Some(Commands::Me {})
+        | Some(Commands::Deploy {})
+        | Some(Commands::Login {})
+        | Some(Commands::Logout {})
+        | Some(Commands::Account { .. })
+        | Some(Commands::Project { .. })
+        | None => true,
+        Some(Commands::Init {}) => true,
+    };
+
+    // Check internet connectivity for commands that need it
+    if needs_internet && !check_internet_connection().await {
+        return Err(anyhow!(
+            "No internet connection. Please check your network settings and try again."
+        ));
     }
 
     match cli.command {

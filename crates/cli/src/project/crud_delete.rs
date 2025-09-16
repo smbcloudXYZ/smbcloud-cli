@@ -1,3 +1,4 @@
+use crate::token::get_smb_token;
 use crate::{
     account::lib::is_logged_in,
     cli::CommandResult,
@@ -5,7 +6,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
-use smbcloud_networking::{environment::Environment, get_smb_token};
+use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_delete::delete_project;
 use spinners::Spinner;
 

@@ -1,6 +1,7 @@
 use crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol};
-use anyhow::{Ok, Result};
+use anyhow::Result;
 use spinners::Spinner;
+use std::fs;
 use std::path::Path;
 
 pub(crate) enum Runner {
@@ -22,24 +23,44 @@ impl Runner {
     }
 }
 
+// Helper function to detect any next.config.* file
+fn next_config_exists() -> bool {
+    if let Ok(entries) = fs::read_dir(".") {
+        for entry in entries.flatten() {
+            let filename = entry.file_name();
+            let filename_str = filename.to_string_lossy();
+            if filename_str.starts_with("next.config.") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+// Helper function to detect any astro.config.* file
+fn astro_config_exists() -> bool {
+    if let Ok(entries) = fs::read_dir(".") {
+        for entry in entries.flatten() {
+            let filename = entry.file_name();
+            let filename_str = filename.to_string_lossy();
+            if filename_str.starts_with("astro.config.") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 pub(crate) async fn detect_runner() -> Result<Runner> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Checking runner"),
     );
 
-    if Path::new("package.json").exists()
-        && (Path::new("next.config.js").exists()
-            || Path::new("next.config.ts").exists()
-            || Path::new("next.config.mjs").exists()
-            || Path::new("astro.config.mjs").exists())
-    {
-        let app_string = if Path::new("next.config.js").exists()
-            || Path::new("next.config.ts").exists()
-            || Path::new("next.config.mjs").exists()
-        {
+    if Path::new("package.json").exists() && (next_config_exists() || astro_config_exists()) {
+        let app_string = if next_config_exists() {
             "Next.js app"
-        } else if Path::new("astro.config.mjs").exists() {
+        } else if astro_config_exists() {
             "Astro app"
         } else {
             panic!("Unsupported app.")

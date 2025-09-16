@@ -1,4 +1,5 @@
 use super::SignupMethod;
+use crate::token::smb_token_file_path;
 use crate::{
     account::lib::authorize_github,
     cli::CommandResult,
@@ -10,9 +11,8 @@ use log::debug;
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use smbcloud_model::signup::{SignupEmailParams, SignupResult, SignupUserEmail};
-use smbcloud_networking::{
-    constants::PATH_USERS, environment::Environment, smb_base_url_builder, smb_token_file_path,
-};
+use smbcloud_network::environment::Environment;
+use smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder};
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
@@ -53,7 +53,10 @@ pub async fn signup_with_email(env: Environment, email: Option<String>) -> Resul
             .interact()
             .unwrap()
     };
+    signup_input_password_step(env, email).await
+}
 
+async fn signup_input_password_step(env: Environment, email: String) -> Result<CommandResult> {
     let password = Password::with_theme(&ColorfulTheme::default())
         .with_prompt("Password")
         .validate_with(|input: &String| -> Result<(), &str> {

@@ -1,6 +1,6 @@
-name: Release to Crates.io
+name: Crates.io Release
 
-on: 
+on:
   workflow_dispatch:
 
 env:
