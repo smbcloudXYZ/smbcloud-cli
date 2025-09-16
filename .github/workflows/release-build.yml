@@ -3,6 +3,8 @@ on: [push]
 env:
   # The smbcloud-cli binary name
   PROJECT_NAME: smb
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ${{ matrix.runner }}
