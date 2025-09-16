@@ -63,3 +63,8 @@ jobs:
 
           mkdir -p "${DEST_DIR}"
           mv "${BIN_OUTPUT}" "${DEST_DIR}/${BIN_RELEASE}"
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        #if: github.ref_type == 'tag'
+        with:
+          files: release/*
