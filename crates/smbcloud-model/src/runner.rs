@@ -1,7 +1,11 @@
 use {
     crate::error_codes::{ErrorCode::UnsupportedRunner, ErrorResponse},
     serde::{Deserialize, Serialize},
-    std::{fs, path::PathBuf},
+    std::{
+        fmt::{self, Display, Formatter},
+        fs,
+        path::PathBuf,
+    },
 };
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -10,6 +14,12 @@ pub enum Runner {
     NodeJs,
     Ruby,
     Swift,
+}
+
+impl Display for Runner {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,11 +44,11 @@ pub enum SwiftFramework {
 impl Runner {
     pub fn from(repo_path: &PathBuf) -> Result<Runner, ErrorResponse> {
         if repo_path.join("package.json").exists()
-            && (next_config_exists() || astro_config_exists())
+            && (next_config_exists(repo_path) || astro_config_exists(repo_path))
         {
-            if next_config_exists() {
+            if next_config_exists(repo_path) {
                 return Ok(Runner::NodeJs);
-            } else if astro_config_exists() {
+            } else if astro_config_exists(repo_path) {
                 return Ok(Runner::NodeJs);
             } else {
                 return Err(ErrorResponse::Error {
@@ -62,8 +72,8 @@ impl Runner {
 }
 
 // Helper function to detect any next.config.* file
-fn next_config_exists() -> bool {
-    if let Ok(entries) = fs::read_dir(".") {
+fn next_config_exists(repo_path: &PathBuf) -> bool {
+    if let Ok(entries) = fs::read_dir(repo_path) {
         for entry in entries.flatten() {
             let filename = entry.file_name();
             let filename_str = filename.to_string_lossy();
@@ -76,8 +86,8 @@ fn next_config_exists() -> bool {
 }
 
 // Helper function to detect any astro.config.* file
-fn astro_config_exists() -> bool {
-    if let Ok(entries) = fs::read_dir(".") {
+fn astro_config_exists(repo_path: &PathBuf) -> bool {
+    if let Ok(entries) = fs::read_dir(repo_path) {
         for entry in entries.flatten() {
             let filename = entry.file_name();
             let filename_str = filename.to_string_lossy();
