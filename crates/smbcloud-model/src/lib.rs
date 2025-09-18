@@ -4,6 +4,8 @@ pub mod error_codes;
 pub mod forgot;
 pub mod login;
 pub mod project;
+pub mod repository;
+pub mod runner;
 pub mod signup;
 
 pub mod ar_date_format {

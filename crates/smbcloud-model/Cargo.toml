@@ -30,3 +30,4 @@ spinners = { workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
+tsync = { workspace = true }
