@@ -1,10 +1,12 @@
-use core::fmt;
-use log::debug;
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::fmt::{Display, Formatter};
-use strum_macros::{EnumIter, IntoStaticStr};
-use thiserror::Error;
+use {
+    core::fmt,
+    log::debug,
+    serde::{Deserialize, Serialize},
+    serde_repr::{Deserialize_repr, Serialize_repr},
+    std::fmt::{Display, Formatter},
+    strum_macros::{EnumIter, IntoStaticStr},
+    thiserror::Error,
+};
 
 #[derive(Error, Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -45,6 +47,8 @@ pub enum ErrorCode {
     // Projects
     #[error("Project not found.")]
     ProjectNotFound = 1000,
+    #[error("Runner not supported.")]
+    UnsupportedRunner = 1001,
 }
 
 impl ErrorCode {
@@ -81,6 +85,8 @@ impl ErrorCode {
             ErrorCode::InputError => "Input error.",
             ErrorCode::MissingConfig => "Missing config.",
             ErrorCode::Cancel => "Cancelled operation.",
+            // Projects
+            ErrorCode::UnsupportedRunner => "Unsupported runner.",
         }
     }
 
