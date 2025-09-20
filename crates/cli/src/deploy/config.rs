@@ -16,7 +16,10 @@ use {
     std::{fs, path::Path},
 };
 
-pub(crate) async fn check_config(env: Environment) -> Result<Config, ErrorResponse> {
+pub(crate) async fn check_config(
+    env: Environment,
+    access_token: Option<&str>,
+) -> Result<Config, ErrorResponse> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Checking config"),
@@ -28,7 +31,8 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ErrorRespon
     let config_path = Path::new(".smb/config.toml");
     if !config_path.exists() {
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Setting up deployment"));
-        setup_project(env).await?;
+        // Let's guide the user through the setup process
+        setup_project(env, access_token).await?;
         spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
             succeed_message("Checking config"),

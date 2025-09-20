@@ -14,7 +14,10 @@ use {
     std::{env, fs, path::Path},
 };
 
-pub async fn setup_project(env: Environment) -> Result<Config, ErrorResponse> {
+pub async fn setup_project(
+    env: Environment,
+    access_token: Option<&str>,
+) -> Result<Config, ErrorResponse> {
     let path = env::current_dir().ok();
     let path_str = path
         .as_ref()
@@ -36,13 +39,19 @@ pub async fn setup_project(env: Environment) -> Result<Config, ErrorResponse> {
         });
     }
 
-    let access_token = match get_smb_token(env).await {
-        Ok(token) => token,
-        Err(_) => {
-            return Err(ErrorResponse::Error {
-                error_code: ErrorCode::Unauthorized,
-                message: ErrorCode::Unauthorized.message(None).to_string(),
-            })
+    let access_token = match access_token {
+        Some(token) => token.to_string(),
+        None => {
+            let access_token = match get_smb_token(env).await {
+                Ok(token) => token,
+                Err(_) => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::Unauthorized,
+                        message: ErrorCode::Unauthorized.message(None).to_string(),
+                    })
+                }
+            };
+            access_token
         }
     };
 
@@ -110,14 +119,28 @@ async fn select_project(
     if !confirm {
         return create_new_project(env, path).await;
     }
-    let selection = Select::with_theme(&ColorfulTheme::default())
+    let selection = match Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Use space/enter to select. Press q or esc to create a new project.")
         .items(&projects)
         .default(0)
-        .interact()
+        .interact_opt()
         .map_err(|_| ErrorResponse::Error {
             error_code: ErrorCode::InputError,
             message: ErrorCode::InputError.message(None).to_string(),
-        })?;
+        }) {
+        Ok(selection) => match selection {
+            Some(selection) => selection,
+            None => {
+                return create_new_project(env, path).await;
+            }
+        },
+        _ => {
+            return Err(ErrorResponse::Error {
+                error_code: ErrorCode::InputError,
+                message: ErrorCode::InputError.message(None).to_string(),
+            })
+        }
+    };
 
     let project = projects[selection].clone();
 
