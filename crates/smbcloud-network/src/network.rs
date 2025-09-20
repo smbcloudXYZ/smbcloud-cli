@@ -1,7 +1,10 @@
-use log::{debug, error};
-use reqwest::{RequestBuilder, Response};
-use serde::de::DeserializeOwned;
-use smbcloud_model::error_codes::{ErrorCode, ErrorResponse};
+use {
+    log::{debug, error},
+    reqwest::{RequestBuilder, Response},
+    serde::de::DeserializeOwned,
+    smbcloud_model::error_codes::{ErrorCode, ErrorResponse},
+};
+
 //use std::time::Duration;
 #[cfg(debug_assertions)]
 const LOG_RESPONSE_BODY: bool = false; // You know what to do here.
