@@ -1,8 +1,12 @@
-use anyhow::{anyhow, Result};
-use dirs::home_dir;
-use log::debug;
-use smbcloud_network::environment::Environment;
-use std::path::{Path, PathBuf};
+use {
+    anyhow::{anyhow, Result},
+    dirs::home_dir,
+    log::debug,
+    smbcloud_network::environment::Environment,
+    std::path::{Path, PathBuf},
+};
+
+pub(crate) mod test_token_validity;
 
 pub async fn get_smb_token(env: Environment) -> Result<String> {
     if let Some(path) = smb_token_file_path(env) {
@@ -29,5 +33,16 @@ pub fn smb_token_file_path(env: Environment) -> Option<PathBuf> {
             debug!("Failed to get home directory.");
             None
         }
+    }
+}
+
+pub fn remove_smb_token(env: Environment) -> Result<()> {
+    if let Some(path) = smb_token_file_path(env) {
+        std::fs::remove_file(path).map_err(|e| {
+            debug!("Error while removing token: {}", &e);
+            anyhow!("Error while removing token. Are you logged in?")
+        })
+    } else {
+        Err(anyhow!("Failed to get home directory. Are you logged in?"))
     }
 }
