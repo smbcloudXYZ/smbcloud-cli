@@ -1,16 +1,18 @@
-use crate::token::get_smb_token;
-use crate::{deploy::config::Config, ui::highlight};
-use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
-use regex::Regex;
-use smbcloud_model::{
-    error_codes::{ErrorCode, ErrorResponse},
-    project::{Project, ProjectCreate},
+use {
+    crate::token::get_smb_token,
+    crate::{deploy::config::Config, ui::highlight},
+    dialoguer::{theme::ColorfulTheme, Confirm, Input, Select},
+    regex::Regex,
+    smbcloud_model::{
+        error_codes::{ErrorCode, ErrorResponse},
+        project::{Project, ProjectCreate},
+    },
+    smbcloud_network::environment::Environment,
+    smbcloud_networking_project::{
+        crud_project_create::create_project, crud_project_read::get_projects,
+    },
+    std::{env, fs, path::Path},
 };
-use smbcloud_network::environment::Environment;
-use smbcloud_networking_project::{
-    crud_project_create::create_project, crud_project_read::get_projects,
-};
-use std::{env, fs, path::Path};
 
 pub async fn setup_project(env: Environment) -> Result<Config, ErrorResponse> {
     let path = env::current_dir().ok();
