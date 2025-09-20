@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 use smbcloud_model::error_codes::{ErrorCode, ErrorResponse};
 //use std::time::Duration;
 #[cfg(debug_assertions)]
-const LOG_RESPONSE_BODY: bool = false; // You know what to do here.
+const LOG_RESPONSE_BODY: bool = true; // You know what to do here.
 #[cfg(not(debug_assertions))]
 const LOG_RESPONSE_BODY: bool = false;
 

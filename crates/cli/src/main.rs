@@ -132,7 +132,7 @@ async fn run() -> Result<CommandResult> {
         Some(Commands::Init {}) => process_project_init(cli.environment).await,
         Some(Commands::Deploy {}) => process_deploy(cli.environment).await,
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
-        Some(Commands::Login {}) => process_login(cli.environment).await,
+        Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
         None => process_deploy(cli.environment).await,

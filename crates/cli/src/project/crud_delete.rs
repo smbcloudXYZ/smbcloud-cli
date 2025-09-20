@@ -1,4 +1,4 @@
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use crate::{
     account::lib::is_logged_in,
     cli::CommandResult,
@@ -32,7 +32,7 @@ pub async fn process_project_delete(env: Environment, id: String) -> Result<Comm
             msg: succeed_message("Cancelled."),
         });
     }
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
     match delete_project(env, access_token, id).await {
         Ok(_) => Ok(CommandResult {
             spinner,

@@ -1,11 +1,13 @@
 use {
-    crate::account::signup::signup_with_email,
-    crate::account::{
-        lib::{authorize_github, is_logged_in, save_token},
-        signup::{do_signup, SignupMethod},
+    crate::{
+        account::{
+            lib::{authorize_github, save_token},
+            signup::{do_signup, signup_with_email, SignupMethod},
+        },
+        cli::CommandResult,
+        token::is_logged_in::is_logged_in as is_logged_in_async,
+        ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
-    crate::cli::CommandResult,
-    crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     anyhow::{anyhow, Result},
     console::style,
     dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
@@ -30,9 +32,17 @@ use {
     spinners::Spinner,
 };
 
-pub async fn process_login(env: Environment) -> Result<CommandResult> {
-    // Check if token file exists
-    if is_logged_in(env) {
+pub async fn process_login(env: Environment, is_logged_in: Option<bool>) -> Result<CommandResult> {
+    let should_continue = match is_logged_in {
+        Some(is_logged_id) => !is_logged_id,
+        None => {
+            // Check if logged in
+            let logged_in = is_logged_in_async(env).await?;
+            !logged_in
+        }
+    };
+
+    if !should_continue {
         return Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,

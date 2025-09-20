@@ -1,8 +1,10 @@
 pub mod constants;
 
-use constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET};
-use smbcloud_network::environment::Environment;
-use url_builder::URLBuilder;
+use {
+    constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET},
+    smbcloud_network::environment::Environment,
+    url_builder::URLBuilder,
+};
 
 pub fn smb_base_url_builder(env: Environment) -> URLBuilder {
     let mut url_builder = URLBuilder::new();

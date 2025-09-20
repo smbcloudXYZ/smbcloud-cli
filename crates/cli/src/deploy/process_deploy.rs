@@ -1,6 +1,6 @@
 use {
     crate::{
-        account::{lib::is_logged_in, login::process_login},
+        account::login::process_login,
         cli::CommandResult,
         deploy::{
             config::{check_config, check_project},
@@ -8,7 +8,7 @@ use {
             git::remote_deployment_setup,
             remote_messages::{build_next_app, start_server},
         },
-        token::get_smb_token,
+        token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in},
         ui::{fail_message, succeed_message, succeed_symbol},
     },
     anyhow::{anyhow, Result},
@@ -28,12 +28,14 @@ use {
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     // Check credentials.
-    if !is_logged_in(env) {
-        let _ = process_login(env).await;
+    let is_logged_in = is_logged_in(env).await?;
+
+    if !is_logged_in {
+        let _ = process_login(env, Some(is_logged_in)).await?;
     }
 
     // Get current token
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
 
     // Check config.
     let config = check_config(env).await?;

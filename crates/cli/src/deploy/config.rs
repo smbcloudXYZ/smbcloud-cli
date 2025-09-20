@@ -1,6 +1,6 @@
 use {
     crate::{
-        deploy::setup::setup_project,
+        deploy::setup_project::setup_project,
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
     git2::{Cred, CredentialType, Error},

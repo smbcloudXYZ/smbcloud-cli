@@ -15,7 +15,7 @@ use smbcloud_network::environment::Environment;
 pub async fn process_account(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
         Commands::Signup {} => process_signup(env).await,
-        Commands::Login {} => process_login(env).await,
+        Commands::Login {} => process_login(env, None).await,
         Commands::Logout {} => process_logout(env).await,
         Commands::Forgot {} => process_forgot(env).await,
     }
