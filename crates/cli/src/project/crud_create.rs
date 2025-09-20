@@ -53,7 +53,7 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
         style("Creating a project...").green().bold().to_string(),
     );
 
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
     match create_project(
         env,
         access_token,

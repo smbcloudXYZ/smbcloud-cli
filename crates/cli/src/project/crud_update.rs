@@ -22,7 +22,7 @@ pub async fn process_project_update_description(
         let _ = process_login(env).await;
     }
 
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
     let project = get_project(env, access_token.clone(), project_id.clone()).await?;
 
     if let Some(project_description) = project.description {

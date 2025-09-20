@@ -1,5 +1,4 @@
 pub mod constants;
-pub mod valid_token;
 
 use {
     constants::{SMB_CLIENT_ID, SMB_CLIENT_SECRET},

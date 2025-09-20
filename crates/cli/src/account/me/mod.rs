@@ -49,7 +49,7 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    let token = get_smb_token(env).await?;
+    let token = get_smb_token(env)?;
     match me(env, &token).await {
         Ok(user) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));

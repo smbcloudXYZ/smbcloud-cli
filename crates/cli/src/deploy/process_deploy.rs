@@ -33,7 +33,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     }
 
     // Get current token
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
 
     // Check config.
     let config = check_config(env).await?;

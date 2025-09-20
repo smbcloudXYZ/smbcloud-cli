@@ -1,25 +1,27 @@
-use crate::token::smb_token_file_path;
-use anyhow::{anyhow, Result};
-use console::style;
-use log::debug;
-use regex::Regex;
-use reqwest::{Client, Response, StatusCode};
-use smbcloud_model::account::SmbAuthorization;
-use smbcloud_network::environment::Environment;
-use smbcloud_networking::{
-    constants::{
-        GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
+use {
+    crate::token::smb_token_file_path,
+    anyhow::{anyhow, Result},
+    console::style,
+    log::debug,
+    regex::Regex,
+    reqwest::{Client, Response, StatusCode},
+    smbcloud_model::account::SmbAuthorization,
+    smbcloud_network::environment::Environment,
+    smbcloud_networking::{
+        constants::{
+            GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
+        },
+        smb_base_url_builder,
     },
-    smb_base_url_builder,
+    spinners::Spinner,
+    std::{
+        fs::{create_dir_all, OpenOptions},
+        io::{BufRead, BufReader, Write},
+        net::{TcpListener, TcpStream},
+        sync::mpsc::{self, Receiver, Sender},
+    },
+    url_builder::URLBuilder,
 };
-use spinners::Spinner;
-use std::{
-    fs::{create_dir_all, OpenOptions},
-    io::{BufRead, BufReader, Write},
-    net::{TcpListener, TcpStream},
-    sync::mpsc::{self, Receiver, Sender},
-};
-use url_builder::URLBuilder;
 
 pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
     // Spin up a simple localhost server to listen for the GitHub OAuth callback

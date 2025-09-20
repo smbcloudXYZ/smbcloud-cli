@@ -39,7 +39,7 @@ pub(crate) async fn setup_project(env: Environment) -> Result<Config, ErrorRespo
         });
     }
 
-    let access_token = match get_smb_token(env).await {
+    let access_token = match get_smb_token(env) {
         Ok(token) => token,
         Err(_) => {
             return Err(ErrorResponse::Error {

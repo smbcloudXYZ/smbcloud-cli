@@ -73,7 +73,7 @@ pub(crate) async fn create_new_project(
         }
     };
 
-    let access_token = match get_smb_token(env).await {
+    let access_token = match get_smb_token(env) {
         Ok(token) => token,
         Err(_) => {
             return Err(ErrorResponse::Error {

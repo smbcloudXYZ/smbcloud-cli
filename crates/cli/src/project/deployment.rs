@@ -20,7 +20,7 @@ pub(crate) async fn process_deployment(
     // Load project id from .smb/config.toml
     let config = check_config(env).await?;
 
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
 
     check_project(env, &access_token, config.project.id).await?;
 
@@ -33,7 +33,7 @@ pub(crate) async fn process_deployment(
         show_deployment_detail(&deployment);
     } else {
         // List all deployments for the project
-        let access_token = get_smb_token(env).await?;
+        let access_token = get_smb_token(env)?;
         let deployments = get_deployments(env, access_token, config.project.id).await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Load all deployments"));
         show_project_deployments(&deployments);

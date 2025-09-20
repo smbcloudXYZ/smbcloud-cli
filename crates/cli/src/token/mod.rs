@@ -6,9 +6,9 @@ use {
     std::path::{Path, PathBuf},
 };
 
-pub(crate) mod test_token_validity;
+//pub(crate) mod is_logged_in;
 
-pub async fn get_smb_token(env: Environment) -> Result<String> {
+pub fn get_smb_token(env: Environment) -> Result<String> {
     if let Some(path) = smb_token_file_path(env) {
         std::fs::read_to_string(path).map_err(|e| {
             debug!("Error while reading token: {}", &e);
@@ -33,16 +33,5 @@ pub fn smb_token_file_path(env: Environment) -> Option<PathBuf> {
             debug!("Failed to get home directory.");
             None
         }
-    }
-}
-
-pub fn remove_smb_token(env: Environment) -> Result<()> {
-    if let Some(path) = smb_token_file_path(env) {
-        std::fs::remove_file(path).map_err(|e| {
-            debug!("Error while removing token: {}", &e);
-            anyhow!("Error while removing token. Are you logged in?")
-        })
-    } else {
-        Err(anyhow!("Failed to get home directory. Are you logged in?"))
     }
 }
