@@ -1,26 +1,30 @@
-use crate::deploy::{
-    account::{lib::is_logged_in, login::process_login},
-    cli::CommandResult,
-    config::check_config,
-    deploy::config::check_project,
-    detect_runner::detect_runner,
-    git::remote_deployment_setup,
-    remote_messages::{build_next_app, start_server},
-    token::get_smb_token,
-    ui::{fail_message, succeed_message, succeed_symbol},
+use {
+    crate::{
+        account::{lib::is_logged_in, login::process_login},
+        cli::CommandResult,
+        deploy::{
+            config::{check_config, check_project},
+            detect_runner::detect_runner,
+            git::remote_deployment_setup,
+            remote_messages::{build_next_app, start_server},
+        },
+        token::get_smb_token,
+        ui::{fail_message, succeed_message, succeed_symbol},
+    },
+    anyhow::{anyhow, Result},
+    git2::{PushOptions, RemoteCallbacks, Repository},
+    smbcloud_model::project::{DeploymentPayload, DeploymentStatus},
+    smbcloud_network::environment::Environment,
+    smbcloud_networking_account::me::me,
+    smbcloud_networking_project::{
+        crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
+    },
+    spinners::Spinner,
+    std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
-use anyhow::{anyhow, Result};
-use git2::{PushOptions, RemoteCallbacks, Repository};
-use smbcloud_model::project::{DeploymentPayload, DeploymentStatus};
-use smbcloud_network::environment::Environment;
-use smbcloud_networking_account::me::me;
-use smbcloud_networking_project::{
-    crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
-};
-use spinners::Spinner;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 
 pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     // Check credentials.
