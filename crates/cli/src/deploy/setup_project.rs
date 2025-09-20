@@ -17,7 +17,10 @@ use {
     std::{env, fs, path::Path},
 };
 
-pub(crate) async fn setup_project(env: Environment) -> Result<Config, ErrorResponse> {
+pub(crate) async fn setup_project(
+    env: Environment,
+    access_token: Option<&str>,
+) -> Result<Config, ErrorResponse> {
     let path = env::current_dir().ok();
     let path_str = path
         .as_ref()
@@ -39,17 +42,20 @@ pub(crate) async fn setup_project(env: Environment) -> Result<Config, ErrorRespo
         });
     }
 
-    let access_token = match get_smb_token(env) {
-        Ok(token) => token,
-        Err(_) => {
-            return Err(ErrorResponse::Error {
-                error_code: ErrorCode::Unauthorized,
-                message: ErrorCode::Unauthorized.message(None).to_string(),
-            })
-        }
+    let access_token = match access_token {
+        Some(token) => token.to_string(),
+        None => match get_smb_token(env) {
+            Ok(token) => token,
+            Err(_) => {
+                return Err(ErrorResponse::Error {
+                    error_code: ErrorCode::Unauthorized,
+                    message: ErrorCode::Unauthorized.message(None).to_string(),
+                })
+            }
+        },
     };
 
-    let projects = get_projects(env, access_token).await?;
+    let projects = get_projects(env, access_token.to_string()).await?;
 
     let project: Project = if !projects.is_empty() {
         select_project(env, projects, &path_str).await?
