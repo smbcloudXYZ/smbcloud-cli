@@ -1,6 +1,6 @@
 use std::{fs::OpenOptions, io::Write};
 
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
@@ -46,7 +46,7 @@ pub async fn process_project_list(env: Environment) -> Result<CommandResult> {
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    let token = get_smb_token(env).await?;
+    let token = get_smb_token(env)?;
     match get_projects(env, token).await {
         Ok(projects) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
@@ -81,7 +81,7 @@ pub async fn process_project_show(env: Environment, id: String) -> Result<Comman
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
     match get_project(env, access_token, id).await {
         Ok(project) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
@@ -134,7 +134,7 @@ pub(crate) fn show_project_detail(project: &Project) {
 }
 
 pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<CommandResult> {
-    let access_token = get_smb_token(env).await?;
+    let access_token = get_smb_token(env)?;
     let project = get_project(env, access_token, id).await?;
 
     let config = Config {

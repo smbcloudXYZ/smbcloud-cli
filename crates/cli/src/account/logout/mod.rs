@@ -1,4 +1,4 @@
-use crate::token::{get_smb_token, smb_token_file_path};
+use crate::token::{get_smb_token::get_smb_token, smb_token_file_path::smb_token_file_path};
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use reqwest::{Client, StatusCode};
@@ -66,7 +66,7 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
 }
 
 async fn do_process_logout(env: Environment) -> Result<()> {
-    let token = get_smb_token(env).await?;
+    let token = get_smb_token(env)?;
 
     let response = Client::new()
         .delete(build_smb_logout_url(env))
