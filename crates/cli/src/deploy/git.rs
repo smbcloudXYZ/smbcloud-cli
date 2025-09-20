@@ -1,9 +1,9 @@
 use {
-    crate::project::runner::Runner,
     crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     anyhow::{anyhow, Result},
     console::style,
     git2::{Remote, Repository},
+    smbcloud_model::runner::Runner,
     spinners::Spinner,
 };
 
