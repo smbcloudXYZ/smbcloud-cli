@@ -1,22 +1,16 @@
-pub mod config;
-mod detect_runner;
-mod git;
-mod remote_messages;
-mod setup;
-
-use crate::deploy::detect_runner::detect_runner;
-use crate::token::get_smb_token;
-use crate::{
+use crate::deploy::{
     account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,
+    config::check_config,
     deploy::config::check_project,
+    detect_runner::detect_runner,
+    git::remote_deployment_setup,
+    remote_messages::{build_next_app, start_server},
+    token::get_smb_token,
     ui::{fail_message, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
-use config::check_config;
-use git::remote_deployment_setup;
 use git2::{PushOptions, RemoteCallbacks, Repository};
-use remote_messages::{build_next_app, start_server};
 use smbcloud_model::project::{DeploymentPayload, DeploymentStatus};
 use smbcloud_network::environment::Environment;
 use smbcloud_networking_account::me::me;
