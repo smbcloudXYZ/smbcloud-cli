@@ -1,4 +1,4 @@
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use crate::{
     account::{lib::is_logged_in, login::process_login},
     cli::CommandResult,

@@ -1,4 +1,4 @@
-use crate::token::{get_smb_token, smb_token_file_path};
+use crate::token::{get_smb_token::get_smb_token, smb_token_file_path::smb_token_file_path};
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Confirm};
 use reqwest::{Client, StatusCode};

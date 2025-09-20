@@ -1,6 +1,6 @@
 use std::{fs::OpenOptions, io::Write};
 
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},

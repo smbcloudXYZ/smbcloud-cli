@@ -8,7 +8,7 @@ use {
             git::remote_deployment_setup,
             remote_messages::{build_next_app, start_server},
         },
-        token::get_smb_token,
+        token::get_smb_token::get_smb_token,
         ui::{fail_message, succeed_message, succeed_symbol},
     },
     anyhow::{anyhow, Result},

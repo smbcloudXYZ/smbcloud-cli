@@ -1,5 +1,5 @@
 use super::SignupMethod;
-use crate::token::smb_token_file_path;
+use crate::token::smb_token_file_path::smb_token_file_path;
 use crate::{
     account::lib::authorize_github,
     cli::CommandResult,

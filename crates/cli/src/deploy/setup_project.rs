@@ -4,7 +4,7 @@ use {
             config::Config, setup_create_new_project::create_new_project,
             setup_select_project::select_project,
         },
-        token::get_smb_token,
+        token::get_smb_token::get_smb_token,
         ui::highlight,
     },
     dialoguer::{theme::ColorfulTheme, Confirm},

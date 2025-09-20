@@ -1,4 +1,4 @@
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_network::environment::Environment;

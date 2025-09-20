@@ -1,5 +1,5 @@
 use {
-    crate::token::smb_token_file_path,
+    crate::token::smb_token_file_path::smb_token_file_path,
     anyhow::{anyhow, Result},
     console::style,
     log::debug,

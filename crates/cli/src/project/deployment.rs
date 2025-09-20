@@ -1,4 +1,4 @@
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
     deploy::config::{check_config, check_project},

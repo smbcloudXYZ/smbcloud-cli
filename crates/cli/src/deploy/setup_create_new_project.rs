@@ -1,5 +1,5 @@
 use {
-    crate::token::get_smb_token,
+    crate::token::get_smb_token::get_smb_token,
     dialoguer::{theme::ColorfulTheme, Input},
     regex::Regex,
     smbcloud_model::{
