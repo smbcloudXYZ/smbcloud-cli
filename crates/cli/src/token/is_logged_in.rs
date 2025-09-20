@@ -1,12 +1,20 @@
-pub async fn is_logged_in(env: Environment) -> bool {
-    // Check if token file exists
-    if !smb_token_file_path(env).is_some() {
-        return false;
-    }
+use {
+    crate::token::get_smb_token::get_smb_token, smbcloud_model::error_codes::ErrorResponse,
+    smbcloud_network::environment::Environment, smbcloud_networking_account::me::me,
+    tracing::debug,
+};
+
+pub async fn is_logged_in(env: Environment) -> Result<bool, ErrorResponse> {
     // Check if token is valid
-    let access_token = get_smb_token(env)?;
-    match me(env, access_token).await {
-        Ok(_) => true,
-        Err(_) => false,
+    let access_token = match get_smb_token(env) {
+        Ok(token) => token,
+        Err(_) => return Ok(false),
+    };
+    match me(env, &access_token).await {
+        Ok(user) => {
+            debug!("Authorized as: {:?}", user.id);
+            Ok(true)
+        }
+        Err(_) => Ok(false),
     }
 }

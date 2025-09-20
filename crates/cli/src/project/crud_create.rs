@@ -1,6 +1,6 @@
-use crate::token::get_smb_token::get_smb_token;
+use crate::token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in};
 use crate::{
-    account::{lib::is_logged_in, login::process_login},
+    account::login::process_login,
     cli::CommandResult,
     ui::{fail_message, succeed_message, succeed_symbol},
 };
@@ -14,8 +14,9 @@ use smbcloud_networking_project::crud_project_create::create_project;
 use spinners::Spinner;
 
 pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
-    if !is_logged_in(env) {
-        let _ = process_login(env).await;
+    let is_logged_in = is_logged_in(env).await?;
+    if !is_logged_in {
+        let _ = process_login(env, Some(is_logged_in)).await;
     }
 
     let project_name = match Input::<String>::with_theme(&ColorfulTheme::default())

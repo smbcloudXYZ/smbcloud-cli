@@ -1,4 +1,4 @@
-use crate::token::get_smb_token::get_smb_token;
+use crate::token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in};
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_network::environment::Environment;
@@ -8,7 +8,7 @@ use smbcloud_networking_project::{
 use spinners::Spinner;
 
 use crate::{
-    account::{lib::is_logged_in, login::process_login},
+    account::login::process_login,
     cli::CommandResult,
     ui::{description, succeed_message, succeed_symbol},
 };
@@ -18,8 +18,9 @@ pub async fn process_project_update_description(
     project_id: String,
 ) -> Result<CommandResult> {
     // Check credentials.
-    if !is_logged_in(env) {
-        let _ = process_login(env).await;
+    let is_logged_in = is_logged_in(env).await?;
+    if !is_logged_in {
+        let _ = process_login(env, Some(is_logged_in)).await;
     }
 
     let access_token = get_smb_token(env)?;
