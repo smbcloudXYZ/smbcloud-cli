@@ -38,7 +38,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let access_token = get_smb_token(env)?;
 
     // Check config.
-    let config = check_config(env).await?;
+    let config = check_config(env, Some(&access_token)).await?;
 
     // Check runner.
     let runner = detect_runner().await?;
