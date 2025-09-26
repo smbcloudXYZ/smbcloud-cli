@@ -1,6 +1,9 @@
-use wasm_bindgen::prelude::wasm_bindgen;
+use {
+    serde::{Deserialize, Serialize},
+    wasm_bindgen::prelude::wasm_bindgen,
+};
 
-#[derive(clap::ValueEnum, Clone, Copy)]
+#[derive(clap::ValueEnum, Clone, Copy, Serialize, Deserialize)]
 #[wasm_bindgen]
 pub enum Environment {
     Dev,

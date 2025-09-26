@@ -81,6 +81,52 @@ pub async fn parse_error_response<T: DeserializeOwned>(
     Err(e)
 }
 
+pub async fn request_login(builder: RequestBuilder) -> Result<String, ErrorResponse> {
+    let response = builder.send().await;
+    let response = match response {
+        Ok(response) => response,
+        Err(e) => {
+            error!("Failed to get response: {:?}", e);
+            return Err(ErrorResponse::Error {
+                error_code: ErrorCode::NetworkError,
+                message: ErrorCode::NetworkError.message(None).to_string(),
+            });
+        }
+    };
+    let response = match response.status() {
+        reqwest::StatusCode::OK | reqwest::StatusCode::CREATED => response,
+        status => {
+            error!("Failed to get response: {:?}", status);
+            return Err(ErrorResponse::Error {
+                error_code: ErrorCode::NetworkError,
+                message: ErrorCode::NetworkError.message(None).to_string(),
+            });
+        }
+    };
+
+    match response.headers().get("Authorization") {
+        Some(token) => {
+            debug!("{:?}", token.to_str());
+            if let Ok(token_str) = token.to_str() {
+                return Ok(token_str.to_string());
+            } else {
+                error!("Failed to convert token to string");
+                return Err(ErrorResponse::Error {
+                    error_code: ErrorCode::NetworkError,
+                    message: ErrorCode::NetworkError.message(None).to_string(),
+                });
+            }
+        }
+        None => {
+            error!("Failed to get token. Probably a backend issue.");
+            Err(ErrorResponse::Error {
+                error_code: ErrorCode::NetworkError,
+                message: ErrorCode::NetworkError.message(None).to_string(),
+            })
+        }
+    }
+}
+
 pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, ErrorResponse> {
     // Check internet connection before making the request
     if !check_internet_connection().await {
