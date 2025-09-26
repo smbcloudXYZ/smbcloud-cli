@@ -97,6 +97,28 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
             });
         }
     };
+
+    let response = match response.status() {
+        reqwest::StatusCode::OK
+        | reqwest::StatusCode::NOT_FOUND
+        | reqwest::StatusCode::UNPROCESSABLE_ENTITY => response,
+        status => {
+            error!(
+                "Response are neither OK, NOT_FOUND, or UNPROCESSABLE_ENTITY: {:?}",
+                status
+            );
+            return parse_error_response(response).await;
+        }
+    };
+
+    if LOG_RESPONSE_BODY {
+        println!();
+        println!("Parse >>>>");
+        println!("{:?}", &response.status());
+        println!("Parse >>>>");
+        println!();
+    }
+
     match (response.status(), response.headers().get("Authorization")) {
         (StatusCode::OK, Some(token)) => {
             // Login successful, let's get the access token for real.

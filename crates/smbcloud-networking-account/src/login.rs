@@ -2,7 +2,7 @@ use {
     reqwest::Client,
     smbcloud_model::{
         error_codes::ErrorResponse,
-        login::{AccountStatus, LoginArgs},
+        login::{AccountStatus, LoginParams, UserParam},
     },
     smbcloud_network::{environment::Environment, network::request_login},
     smbcloud_networking::{
@@ -16,7 +16,12 @@ pub async fn login(
     username: String,
     password: String,
 ) -> Result<AccountStatus, ErrorResponse> {
-    let login_params = LoginArgs { username, password };
+    let login_params = LoginParams {
+        user: UserParam {
+            email: username,
+            password: password,
+        },
+    };
     let builder = Client::new()
         .post(build_smb_login_url(env))
         .json(&login_params)
