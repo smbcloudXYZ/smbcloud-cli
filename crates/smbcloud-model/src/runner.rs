@@ -46,16 +46,7 @@ impl Runner {
         if repo_path.join("package.json").exists()
             && (next_config_exists(repo_path) || astro_config_exists(repo_path))
         {
-            if next_config_exists(repo_path) {
-                return Ok(Runner::NodeJs);
-            } else if astro_config_exists(repo_path) {
-                return Ok(Runner::NodeJs);
-            } else {
-                return Err(ErrorResponse::Error {
-                    error_code: UnsupportedRunner,
-                    message: UnsupportedRunner.message(None).to_string(),
-                });
-            };
+            return Ok(Runner::NodeJs);
         }
 
         if repo_path.join("Gemfile").exists() {
@@ -64,10 +55,10 @@ impl Runner {
         if repo_path.join("Package.swift").exists() {
             return Ok(Runner::Swift);
         }
-        return Err(ErrorResponse::Error {
+        Err(ErrorResponse::Error {
             error_code: UnsupportedRunner,
             message: UnsupportedRunner.message(None).to_string(),
-        });
+        })
     }
 
     pub fn git_host(&self) -> String {
