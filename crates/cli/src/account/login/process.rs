@@ -1,7 +1,7 @@
 use {
     crate::{
         account::{
-            lib::{authorize_github, save_token},
+            lib::{authorize_github, store_token},
             signup::{do_signup, signup_with_email, SignupMethod},
         },
         cli::CommandResult,
@@ -14,12 +14,16 @@ use {
     log::debug,
     reqwest::{Client, StatusCode},
     smbcloud_model::{
-        account::{ErrorCode, GithubInfo, SmbAuthorization, User},
+        account::{
+            ErrorCode as AccountErrorCode, ErrorCode::EmailNotFound, ErrorCode::EmailUnverified,
+            ErrorCode::GithubNotLinked, ErrorCode::PasswordNotSet, GithubInfo, SmbAuthorization,
+            User,
+        },
         forgot::{Param, UserUpdatePassword},
-        login::{LoginArgs, LoginParams, UserParam},
+        login::{AccountStatus, LoginArgs, LoginParams, UserParam},
         signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
     },
-    smbcloud_network::environment::Environment,
+    smbcloud_network::{environment::Environment, network::request_login},
     smbcloud_networking::{
         constants::{
             PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
@@ -91,16 +95,14 @@ async fn process_authorization(env: Environment, auth: SmbAuthorization) -> Resu
     if let Some(error_code) = auth.error_code {
         debug!("{}", error_code);
         match error_code {
-            ErrorCode::EmailNotFound => {
-                return create_new_account(env, auth.user_email, auth.user_info).await
-            }
-            ErrorCode::EmailUnverified => return send_email_verification(env, auth.user).await,
-            ErrorCode::PasswordNotSet => {
+            EmailNotFound => return create_new_account(env, auth.user_email, auth.user_info).await,
+            EmailUnverified => return send_email_verification(env, auth.user).await,
+            PasswordNotSet => {
                 // Only for email and password login
                 let error = anyhow!("Password not set.");
                 return Err(error);
             }
-            ErrorCode::GithubNotLinked => return connect_github_account(env, auth).await,
+            GithubNotLinked => return connect_github_account(env, auth).await,
         }
     }
 
@@ -299,7 +301,7 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
     match check_email(env, &username).await {
         Ok(auth) => {
             // Only continue with password input if email is found and confirmed.
-            if let Some(_) = auth.error_code {
+            if auth.error_code.is_some() {
                 // Check if email is in the database, unconfirmed. Only presents password input if email is found and confirmed.
                 let spinner = Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
@@ -339,43 +341,28 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
         },
     };
 
-    let response = match Client::new()
+    let builder = Client::new()
         .post(build_smb_login_url(env))
-        .json(&login_params)
-        .send()
-        .await
-    {
+        .json(&login_params);
+
+    let account_status = match request_login(builder).await {
         Ok(response) => response,
         Err(_) => return Err(anyhow!(fail_message("Check your internet connection."))),
     };
 
-    match response.status() {
-        StatusCode::OK => {
-            // Login successful
-            save_token(env, &response).await?;
+    match account_status {
+        AccountStatus::Ready { access_token } => {
+            store_token(env, access_token).await?;
             Ok(CommandResult {
                 spinner,
                 symbol: succeed_symbol(),
                 msg: succeed_message("You are logged in!"),
             })
         }
-        StatusCode::NOT_FOUND => {
-            // Account not found and we show signup option
-            Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message("Account not found. Please signup!"),
-            })
+        AccountStatus::NotFound => Err(anyhow!(fail_message("Check your internet connection."))),
+        AccountStatus::Incomplete { status } => {
+            action_on_account_status(&env, spinner, status, None, None).await
         }
-        StatusCode::UNPROCESSABLE_ENTITY => {
-            // Account found but email not verified / password not set
-            let result: SmbAuthorization = response.json().await?;
-            // println!("Result: {:#?}", &result);
-            after_checking_email_step(&env, spinner, result, None).await
-        }
-        _ => Err(anyhow!(fail_message(
-            "Login failed. Check your username and password."
-        ))),
     }
 }
 
@@ -389,7 +376,7 @@ async fn after_checking_email_step(
         Some(error_code) => {
             debug!("{}", error_code);
             match error_code {
-                ErrorCode::EmailNotFound => {
+                EmailNotFound => {
                     spinner.stop_and_persist(
                         &succeed_symbol(),
                         succeed_message(
@@ -398,14 +385,14 @@ async fn after_checking_email_step(
                     );
                     signup_with_email(env.to_owned(), username).await
                 }
-                ErrorCode::EmailUnverified => {
+                EmailUnverified => {
                     spinner.stop_and_persist(
                         &succeed_symbol(),
                         succeed_message("Email not verified. Please verify your email."),
                     );
                     send_email_verification(*env, result.user).await
                 }
-                ErrorCode::PasswordNotSet => {
+                PasswordNotSet => {
                     spinner.stop_and_persist(
                         &succeed_symbol(),
                         succeed_message("Password not set. Please reset your password."),
@@ -419,6 +406,42 @@ async fn after_checking_email_step(
             }
         }
         None => Err(anyhow!("Shouldn't be here.")),
+    }
+}
+
+async fn action_on_account_status(
+    env: &Environment,
+    mut spinner: Spinner,
+    error_code: AccountErrorCode,
+    username: Option<String>,
+    user: Option<User>,
+) -> Result<CommandResult> {
+    match error_code {
+        EmailNotFound => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Account not found. Please continue with setting up your account."),
+            );
+            signup_with_email(env.to_owned(), username).await
+        }
+        EmailUnverified => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Email not verified. Please verify your email."),
+            );
+            send_email_verification(*env, user).await
+        }
+        PasswordNotSet => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Password not set. Please reset your password."),
+            );
+            send_reset_password(*env, user).await
+        }
+        _ => {
+            spinner.stop_and_persist(&fail_symbol(), fail_message("An error occurred."));
+            Err(anyhow!("Idk what happened."))
+        }
     }
 }
 

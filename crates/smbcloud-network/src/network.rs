@@ -1,8 +1,12 @@
 use {
     log::{debug, error},
-    reqwest::{RequestBuilder, Response},
+    reqwest::{RequestBuilder, Response, StatusCode},
     serde::de::DeserializeOwned,
-    smbcloud_model::error_codes::{ErrorCode, ErrorResponse},
+    smbcloud_model::{
+        account::SmbAuthorization,
+        error_codes::{ErrorCode, ErrorResponse},
+        login::AccountStatus,
+    },
 };
 
 //use std::time::Duration;
@@ -81,7 +85,7 @@ pub async fn parse_error_response<T: DeserializeOwned>(
     Err(e)
 }
 
-pub async fn request_login(builder: RequestBuilder) -> Result<String, ErrorResponse> {
+pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, ErrorResponse> {
     let response = builder.send().await;
     let response = match response {
         Ok(response) => response,
@@ -93,37 +97,51 @@ pub async fn request_login(builder: RequestBuilder) -> Result<String, ErrorRespo
             });
         }
     };
-    let response = match response.status() {
-        reqwest::StatusCode::OK | reqwest::StatusCode::CREATED => response,
-        status => {
-            error!("Failed to get response: {:?}", status);
-            return Err(ErrorResponse::Error {
-                error_code: ErrorCode::NetworkError,
-                message: ErrorCode::NetworkError.message(None).to_string(),
-            });
+    match (response.status(), response.headers().get("Authorization")) {
+        (StatusCode::OK, Some(token)) => {
+            // Login successful, let's get the access token for real.
+            let access_token = match token.to_str() {
+                Ok(token) => token.to_string(),
+                Err(_) => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message: ErrorCode::NetworkError.message(None).to_string(),
+                    });
+                }
+            };
+            Ok(AccountStatus::Ready { access_token })
         }
-    };
-
-    match response.headers().get("Authorization") {
-        Some(token) => {
-            debug!("{:?}", token.to_str());
-            if let Ok(token_str) = token.to_str() {
-                return Ok(token_str.to_string());
-            } else {
-                error!("Failed to convert token to string");
-                return Err(ErrorResponse::Error {
-                    error_code: ErrorCode::NetworkError,
-                    message: ErrorCode::NetworkError.message(None).to_string(),
-                });
-            }
+        (StatusCode::NOT_FOUND, _) => {
+            // Account not found
+            Ok(AccountStatus::NotFound)
         }
-        None => {
-            error!("Failed to get token. Probably a backend issue.");
-            Err(ErrorResponse::Error {
-                error_code: ErrorCode::NetworkError,
-                message: ErrorCode::NetworkError.message(None).to_string(),
-            })
+        (StatusCode::UNPROCESSABLE_ENTITY, _) => {
+            // Account found but email not verified / password not set.
+            let result: SmbAuthorization = match response.json().await {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message: ErrorCode::NetworkError.message(None).to_string(),
+                    });
+                }
+            };
+            // println!("Result: {:#?}", &result);
+            let error_code = match result.error_code {
+                Some(code) => code,
+                None => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message: ErrorCode::NetworkError.message(None).to_string(),
+                    });
+                }
+            };
+            Ok(AccountStatus::Incomplete { status: error_code })
         }
+        _ => Err(ErrorResponse::Error {
+            error_code: ErrorCode::NetworkError,
+            message: ErrorCode::NetworkError.message(None).to_string(),
+        }),
     }
 }
 

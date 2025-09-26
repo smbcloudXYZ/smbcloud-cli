@@ -32,7 +32,8 @@ pub struct Data {
     created_at: String,
 }
 
-// This is smb authorization model.
+/// This is smbCloud authorization model
+/// that is currently tightly coupled with GitHub OAuth model.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SmbAuthorization {
     pub message: String,
