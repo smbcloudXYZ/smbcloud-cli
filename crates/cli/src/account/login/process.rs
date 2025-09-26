@@ -15,23 +15,25 @@ use {
     reqwest::{Client, StatusCode},
     smbcloud_model::{
         account::{
-            ErrorCode as AccountErrorCode, ErrorCode::EmailNotFound, ErrorCode::EmailUnverified,
-            ErrorCode::GithubNotLinked, ErrorCode::PasswordNotSet, GithubInfo, SmbAuthorization,
-            User,
+            ErrorCode::{
+                self as AccountErrorCode, EmailNotFound, EmailUnverified, GithubNotLinked,
+                PasswordNotSet,
+            },
+            GithubInfo, SmbAuthorization, User,
         },
         forgot::{Param, UserUpdatePassword},
-        login::{AccountStatus, LoginArgs, LoginParams, UserParam},
+        login::{AccountStatus, LoginArgs},
         signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
     },
-    smbcloud_network::{environment::Environment, network::request_login},
+    smbcloud_network::environment::Environment,
     smbcloud_networking::{
         constants::{
             PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
-            PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
+            PATH_USERS_PASSWORD,
         },
         smb_base_url_builder,
     },
-    smbcloud_networking_account::signup::check_email,
+    smbcloud_networking_account::{login::login, signup::check_email},
     smbcloud_utils::email_validation,
     spinners::Spinner,
 };
@@ -333,19 +335,7 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-
-    let login_params = LoginParams {
-        user: UserParam {
-            email: args.username,
-            password: args.password,
-        },
-    };
-
-    let builder = Client::new()
-        .post(build_smb_login_url(env))
-        .json(&login_params);
-
-    let account_status = match request_login(builder).await {
+    let account_status = match login(env, args.username, args.password).await {
         Ok(response) => response,
         Err(_) => return Err(anyhow!(fail_message("Check your internet connection."))),
     };
@@ -560,12 +550,6 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
         }),
         _ => Err(anyhow!(fail_message("Failed to reset password."))),
     }
-}
-
-fn build_smb_login_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
-    url_builder.add_route(PATH_USERS_SIGN_IN);
-    url_builder.build()
 }
 
 fn build_smb_resend_email_verification_url(env: Environment) -> String {
