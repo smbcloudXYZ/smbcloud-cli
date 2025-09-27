@@ -1,11 +1,15 @@
-use crate::signup::GithubEmail;
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use std::fmt::{Display, Formatter};
+use {
+    crate::signup::GithubEmail,
+    chrono::{DateTime, Utc},
+    serde::{Deserialize, Serialize},
+    serde_repr::{Deserialize_repr, Serialize_repr},
+    std::fmt::{Display, Formatter},
+    tsync::tsync,
+};
 
 // smbcloud Users.
 #[derive(Debug, Serialize, Deserialize)]
+#[tsync]
 pub struct User {
     pub id: i32,
     pub email: String,
