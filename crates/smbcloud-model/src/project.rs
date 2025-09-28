@@ -1,9 +1,11 @@
-use std::fmt::Display;
-
-use crate::{app_auth::AuthApp, ar_date_format};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
+use {
+    crate::{app_auth::AuthApp, ar_date_format},
+    chrono::{DateTime, Utc},
+    serde::{Deserialize, Serialize},
+    serde_repr::{Deserialize_repr, Serialize_repr},
+    std::fmt::Display,
+    tsync::tsync,
+};
 
 #[derive(Deserialize, Debug, Serialize)]
 pub struct Config {
@@ -12,6 +14,7 @@ pub struct Config {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+#[tsync]
 pub struct Project {
     pub id: i32,
     pub name: String,

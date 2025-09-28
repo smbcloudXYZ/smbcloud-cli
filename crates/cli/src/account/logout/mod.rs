@@ -6,10 +6,8 @@ use {
     },
     anyhow::{anyhow, Result},
     dialoguer::{theme::ColorfulTheme, Confirm},
-    reqwest::{Client, StatusCode},
     smbcloud_network::environment::Environment,
-    smbcloud_networking::{constants::PATH_USERS_SIGN_OUT, smb_base_url_builder},
-    smbcloud_networking_account::logout::{self, logout},
+    smbcloud_networking_account::logout::logout,
     spinners::Spinner,
     std::fs,
 };
@@ -69,12 +67,8 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
 
 async fn do_process_logout(env: Environment) -> Result<()> {
     let token = get_smb_token(env)?;
-
-    logout(env, token).await?
-}
-
-fn build_smb_logout_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
-    url_builder.add_route(PATH_USERS_SIGN_OUT);
-    url_builder.build()
+    match logout(env, token).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(anyhow!("{e}")),
+    }
 }

@@ -30,6 +30,7 @@ pub struct Status {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[tsync]
 pub struct Data {
     id: i32,
     email: String,
@@ -49,6 +50,7 @@ pub struct SmbAuthorization {
 
 #[derive(Debug, Serialize_repr, Deserialize_repr, PartialEq)]
 #[repr(u32)]
+#[tsync]
 pub enum ErrorCode {
     EmailNotFound = 1000,
     EmailUnverified = 1001,

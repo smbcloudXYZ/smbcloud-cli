@@ -33,7 +33,7 @@ use {
         },
         smb_base_url_builder,
     },
-    smbcloud_networking_account::{login::login, signup::check_email},
+    smbcloud_networking_account::{check_email::check_email, login::login},
     smbcloud_utils::email_validation,
     spinners::Spinner,
 };
@@ -300,6 +300,7 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
             return Err(error);
         }
     };
+
     match check_email(env, &username).await {
         Ok(auth) => {
             // Only continue with password input if email is found and confirmed.
