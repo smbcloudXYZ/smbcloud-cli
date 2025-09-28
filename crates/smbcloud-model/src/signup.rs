@@ -1,5 +1,5 @@
 use {
-    crate::account::{Data, Status},
+    crate::account::Data,
     serde::{Deserialize, Serialize},
     std::fmt::{Display, Formatter},
     tsync::tsync,

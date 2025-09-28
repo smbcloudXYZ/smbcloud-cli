@@ -2,12 +2,18 @@ use {
     reqwest::{Client, StatusCode},
     smbcloud_model::error_codes::{ErrorCode, ErrorResponse},
     smbcloud_network::environment::Environment,
-    smbcloud_networking::{constants::PATH_USERS_SIGN_OUT, smb_base_url_builder},
+    smbcloud_networking::{
+        constants::PATH_USERS_SIGN_OUT, smb_base_url_builder, smb_client::SmbClient,
+    },
 };
 
-pub async fn logout(env: Environment, access_token: String) -> Result<(), ErrorResponse> {
+pub async fn logout(
+    env: Environment,
+    client: SmbClient,
+    access_token: String,
+) -> Result<(), ErrorResponse> {
     let response = match Client::new()
-        .delete(build_smb_logout_url(env))
+        .delete(build_smb_logout_url(env, &client))
         .header("Authorization", access_token)
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -32,8 +38,8 @@ pub async fn logout(env: Environment, access_token: String) -> Result<(), ErrorR
     }
 }
 
-fn build_smb_logout_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+fn build_smb_logout_url(env: Environment, client: &SmbClient) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS_SIGN_OUT);
     url_builder.build()
 }
