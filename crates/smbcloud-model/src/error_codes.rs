@@ -44,6 +44,8 @@ pub enum ErrorCode {
     // Account
     #[error("Unauthorized access.")]
     Unauthorized = 100,
+    #[error("Email already exists.")]
+    EmailAlreadyExist = 1005,
     // Projects
     #[error("Project not found.")]
     ProjectNotFound = 1000,
@@ -58,6 +60,7 @@ impl ErrorCode {
         match value {
             // Account
             100 => ErrorCode::Unauthorized,
+            1005 => ErrorCode::EmailAlreadyExist,
             // Projects
             1000 => ErrorCode::ProjectNotFound,
             // Generic errors
@@ -81,7 +84,10 @@ impl ErrorCode {
             ErrorCode::NetworkError => {
                 "Network error. Please check your internet connection and try again."
             }
+            // Accounts
             ErrorCode::Unauthorized => "Unauthorized access.",
+            ErrorCode::EmailAlreadyExist => "Email already exists.",
+
             ErrorCode::InputError => "Input error.",
             ErrorCode::MissingConfig => "Missing config.",
             ErrorCode::Cancel => "Cancelled operation.",

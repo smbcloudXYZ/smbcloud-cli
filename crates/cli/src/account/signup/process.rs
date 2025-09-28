@@ -1,20 +1,26 @@
-use super::SignupMethod;
-use crate::token::smb_token_file_path::smb_token_file_path;
-use crate::{
-    account::lib::authorize_github,
-    cli::CommandResult,
-    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+use {
+    super::SignupMethod,
+    crate::{
+        account::lib::authorize_github,
+        cli::CommandResult,
+        token::smb_token_file_path::smb_token_file_path,
+        ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    },
+    anyhow::{anyhow, Result},
+    dialoguer::{console::Term, theme::ColorfulTheme, Input, Password, Select},
+    log::debug,
+    reqwest::{Client, StatusCode},
+    serde::Serialize,
+    smbcloud_model::signup::SignupResult,
+    smbcloud_network::environment::Environment,
+    smbcloud_networking::{
+        constants::{PATH_USERS, SMB_USER_AGENT},
+        smb_base_url_builder,
+    },
+    smbcloud_networking_account::signup::signup,
+    smbcloud_utils::email_validation,
+    spinners::Spinner,
 };
-use anyhow::{anyhow, Result};
-use dialoguer::{console::Term, theme::ColorfulTheme, Input, Password, Select};
-use log::debug;
-use reqwest::{Client, StatusCode};
-use serde::Serialize;
-use smbcloud_model::signup::{SignupEmailParams, SignupResult, SignupUserEmail};
-use smbcloud_network::environment::Environment;
-use smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder};
-use smbcloud_utils::email_validation;
-use spinners::Spinner;
 
 pub async fn process_signup(env: Environment) -> Result<CommandResult> {
     // Check if token file exists
@@ -75,11 +81,7 @@ async fn signup_input_password_step(env: Environment, email: String) -> Result<C
         succeed_message("Signing up"),
     );
 
-    let params = SignupEmailParams {
-        user: SignupUserEmail { email, password },
-    };
-
-    match do_signup(env, &params).await {
+    match do_signup_email(env, email, password).await {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
@@ -135,7 +137,7 @@ pub async fn do_signup<T: Serialize + ?Sized>(env: Environment, args: &T) -> Res
         }),
         StatusCode::UNPROCESSABLE_ENTITY => {
             let result: SignupResult = response.json().await?;
-            let error = anyhow!("Failed to signup: {}", result.status.message);
+            let error = anyhow!("Unprocessable entity: {}", result.message);
             Err(error)
         }
         _ => {
@@ -149,4 +151,29 @@ fn build_smb_signup_url(env: Environment) -> String {
     let mut url_builder = smb_base_url_builder(env);
     url_builder.add_route(PATH_USERS);
     url_builder.build()
+}
+
+pub async fn do_signup_email(
+    env: Environment,
+    email: String,
+    password: String,
+) -> Result<CommandResult> {
+    let spinner = Spinner::new(
+        spinners::Spinners::BouncingBall,
+        succeed_message("Signing you up"),
+    );
+
+    match signup(env, SMB_USER_AGENT.to_string(), email, password).await {
+        Ok(_) => Ok(CommandResult {
+            spinner,
+            symbol: succeed_symbol(),
+            msg: succeed_message(
+                "Your account has been created. Check email for verification link.",
+            ),
+        }),
+        Err(e) => {
+            let error = anyhow!("{}", e);
+            Err(error)
+        }
+    }
 }
