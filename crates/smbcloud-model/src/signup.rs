@@ -43,7 +43,8 @@ pub struct SignupUserEmail {
 #[derive(Debug, Serialize, Deserialize)]
 #[tsync]
 pub struct SignupResult {
-    pub status: Status,
+    pub code: Option<i32>,
+    pub message: String,
     pub data: Option<Data>,
 }
 

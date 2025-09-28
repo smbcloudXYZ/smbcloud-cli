@@ -137,7 +137,7 @@ pub async fn do_signup<T: Serialize + ?Sized>(env: Environment, args: &T) -> Res
         }),
         StatusCode::UNPROCESSABLE_ENTITY => {
             let result: SignupResult = response.json().await?;
-            let error = anyhow!("Failed to signup: {}", result.status.message);
+            let error = anyhow!("Unprocessable entity: {}", result.message);
             Err(error)
         }
         _ => {
