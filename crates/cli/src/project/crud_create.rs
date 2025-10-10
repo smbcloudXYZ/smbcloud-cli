@@ -13,7 +13,10 @@ use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_create::create_project;
 use spinners::Spinner;
 
-pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
+pub async fn process_project_init(
+    env: Environment,
+    should_init_project: bool,
+) -> Result<CommandResult> {
     let is_logged_in = is_logged_in(env).await?;
     if !is_logged_in {
         let _ = process_login(env, Some(is_logged_in)).await;
@@ -47,7 +50,9 @@ pub async fn process_project_init(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    setup_smb_folder(&project_name, &description).await?;
+    if should_init_project {
+        setup_smb_folder(&project_name, &description).await?;
+    }
 
     let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
