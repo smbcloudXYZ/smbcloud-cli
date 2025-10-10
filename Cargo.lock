@@ -2122,6 +2122,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smbcloud-model",
+ "toml",
 ]
 
 [[package]]

@@ -7,8 +7,11 @@ use crate::{
 use anyhow::{anyhow, Result};
 use chrono::Utc;
 use console::style;
+use dialoguer::console::Term;
+use dialoguer::Select;
 use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_model::project::ProjectCreate;
+use smbcloud_model::runner::Runner;
 use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_create::create_project;
 use spinners::Spinner;
@@ -31,6 +34,15 @@ pub async fn process_project_init(
             return Err(anyhow!(fail_message("Invalid project name.")));
         }
     };
+
+    let runners = vec![Runner::NodeJs, Runner::Swift, Runner::Ruby];
+    let runner = Select::with_theme(&ColorfulTheme::default())
+        .items(&runners)
+        .default(0)
+        .interact_on_opt(&Term::stderr())
+        .map(|i| runners[i.unwrap()])
+        .unwrap();
+
     let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Repository name")
         .interact()
@@ -65,6 +77,7 @@ pub async fn process_project_init(
         access_token,
         ProjectCreate {
             name: project_name.clone(),
+            runner,
             repository,
             description: description.clone(),
         },

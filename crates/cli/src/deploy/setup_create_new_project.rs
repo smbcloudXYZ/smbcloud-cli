@@ -1,10 +1,11 @@
 use {
     crate::token::get_smb_token::get_smb_token,
-    dialoguer::{theme::ColorfulTheme, Input},
+    dialoguer::{console::Term, theme::ColorfulTheme, Input, Select},
     regex::Regex,
     smbcloud_model::{
         error_codes::{ErrorCode, ErrorResponse},
         project::{Project, ProjectCreate},
+        runner::Runner,
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::crud_project_create::create_project,
@@ -73,6 +74,14 @@ pub(crate) async fn create_new_project(
         }
     };
 
+    let runners = vec![Runner::NodeJs, Runner::Swift, Runner::Ruby];
+    let runner = Select::with_theme(&ColorfulTheme::default())
+        .items(&runners)
+        .default(0)
+        .interact_on_opt(&Term::stderr())
+        .map(|i| runners[i.unwrap()])
+        .unwrap();
+
     let access_token = match get_smb_token(env) {
         Ok(token) => token,
         Err(_) => {
@@ -88,6 +97,7 @@ pub(crate) async fn create_new_project(
         access_token,
         ProjectCreate {
             name,
+            runner,
             repository,
             description,
         },

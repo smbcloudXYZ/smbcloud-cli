@@ -26,3 +26,4 @@ regex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 smbcloud-model = { workspace = true }
+toml = { workspace = true }
