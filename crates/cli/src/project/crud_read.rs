@@ -19,6 +19,8 @@ struct ProjectRow {
     id: i32,
     #[tabled(rename = "Name")]
     name: String,
+    #[tabled(rename = "Runner")]
+    runner: String,
     #[tabled(rename = "Repository")]
     repository: String,
     #[tabled(rename = "Description")]
@@ -112,6 +114,7 @@ pub(crate) fn show_projects(projects: Vec<Project>) {
         .map(|p| ProjectRow {
             id: p.id,
             name: p.name,
+            runner: p.runner.to_string(),
             repository: p.repository.unwrap_or("-".to_string()),
             description: p.description.unwrap_or("-".to_owned()),
         })

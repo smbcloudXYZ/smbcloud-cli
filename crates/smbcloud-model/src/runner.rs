@@ -1,6 +1,7 @@
 use {
     crate::error_codes::{ErrorCode::UnsupportedRunner, ErrorResponse},
     serde::{Deserialize, Serialize},
+    serde_repr::{Deserialize_repr, Serialize_repr},
     std::{
         fmt::{self, Display, Formatter},
         fs,
@@ -8,7 +9,8 @@ use {
     },
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Deserialize_repr, Serialize_repr, Clone, Copy)]
+#[repr(u8)]
 #[tsync::tsync]
 pub enum Runner {
     NodeJs,

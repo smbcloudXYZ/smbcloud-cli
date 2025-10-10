@@ -36,6 +36,7 @@ pub struct ProjectCreate {
     pub name: String,
     pub repository: String,
     pub description: String,
+    pub runner: Runner,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -86,11 +87,13 @@ mod tests {
             name: "test".to_owned(),
             repository: "test".to_owned(),
             description: "test".to_owned(),
+            runner: Runner::NodeJs,
         };
         let json = json!({
             "name": "test",
             "repository": "test", // Corrected: repository should be included as per struct
             "description": "test",
+            "runner": 0
         });
         assert_eq!(serde_json::to_value(project_create).unwrap(), json);
     }
