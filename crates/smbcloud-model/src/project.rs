@@ -1,5 +1,5 @@
 use {
-    crate::{app_auth::AuthApp, ar_date_format},
+    crate::{app_auth::AuthApp, ar_date_format, runner::Runner},
     chrono::{DateTime, Utc},
     serde::{Deserialize, Serialize},
     serde_repr::{Deserialize_repr, Serialize_repr},
@@ -18,6 +18,7 @@ pub struct Config {
 pub struct Project {
     pub id: i32,
     pub name: String,
+    pub runner: Runner,
     pub repository: Option<String>,
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -29,7 +30,8 @@ impl Display for Project {
         write!(f, "ID: {}, Name: {}", self.id, self.name,)
     }
 }
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Deserialize, Clone)]
+#[tsync]
 pub struct ProjectCreate {
     pub name: String,
     pub repository: String,

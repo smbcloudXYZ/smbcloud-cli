@@ -7,6 +7,7 @@ use {
 };
 
 pub mod config;
+pub mod write_config;
 
 pub fn email_validation(input: &str) -> Result<(), &'static str> {
     let email_regex = Regex::new(

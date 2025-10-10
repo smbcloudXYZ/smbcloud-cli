@@ -8,7 +8,7 @@ use {
     },
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[tsync::tsync]
 pub enum Runner {
     NodeJs,

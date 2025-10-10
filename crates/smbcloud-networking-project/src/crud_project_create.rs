@@ -1,3 +1,4 @@
+use crate::url_builder::build_project_url;
 use anyhow::Result;
 use reqwest::Client;
 use smbcloud_model::{
@@ -6,8 +7,6 @@ use smbcloud_model::{
 };
 use smbcloud_network::{environment::Environment, network::request};
 use smbcloud_networking::constants::SMB_USER_AGENT;
-
-use crate::url_builder::build_project_url;
 
 pub async fn create_project(
     env: Environment,
