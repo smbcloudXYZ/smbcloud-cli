@@ -37,6 +37,7 @@ pub struct ProjectCreate {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+#[tsync]
 pub struct Deployment {
     pub id: i32,
     pub project_id: i32,
@@ -56,6 +57,7 @@ pub struct DeploymentPayload {
 
 #[derive(Deserialize_repr, Serialize_repr, Debug, Clone, Copy)] // Added Clone, Copy
 #[repr(u8)]
+#[tsync]
 pub enum DeploymentStatus {
     Started = 0,
     Failed,

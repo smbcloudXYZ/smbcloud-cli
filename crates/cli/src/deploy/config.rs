@@ -4,14 +4,13 @@ use {
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
     git2::{Cred, CredentialType, Error},
-    serde::{Deserialize, Serialize},
     smbcloud_model::{
         account::User,
         error_codes::{ErrorCode, ErrorResponse},
-        project::Project,
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::crud_project_read::get_project,
+    smbcloud_utils::config::Config,
     spinners::Spinner,
     std::{fs, path::Path},
 };
@@ -90,29 +89,11 @@ pub(crate) async fn check_project(
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct Config {
-    pub name: String,
-    pub description: Option<String>,
-    pub project: Project,
-}
-
-impl Config {
-    pub fn credentials(
-        &self,
-        user: User,
-    ) -> impl FnMut(&str, Option<&str>, CredentialType) -> Result<Cred, Error> + '_ {
-        move |_url, _username_from_url, _allowed_types| {
-            Cred::ssh_key("git", None, Path::new(&self.ssh_key_path(user.id)), None)
-        }
-    }
-
-    fn ssh_key_path(&self, user_id: i32) -> String {
-        // Use the dirs crate to get the home directory
-        let home = dirs::home_dir().expect("Could not determine home directory");
-        let key_path = home.join(".ssh").join(format!("id_{}@smbcloud", user_id));
-        let key_path_str = key_path.to_string_lossy().to_string();
-        println!("Use key path: {}", key_path_str);
-        key_path_str
+pub fn credentials(
+    config: &Config,
+    user: User,
+) -> impl FnMut(&str, Option<&str>, CredentialType) -> Result<Cred, Error> + '_ {
+    move |_url, _username_from_url, _allowed_types| {
+        Cred::ssh_key("git", None, Path::new(&config.ssh_key_path(user.id)), None)
     }
 }
