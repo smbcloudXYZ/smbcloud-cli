@@ -14,7 +14,7 @@ use smbcloud_network::environment::Environment;
 
 pub async fn process_project(env: Environment, commands: Commands) -> Result<CommandResult> {
     match commands {
-        Commands::New {} => process_project_init(env).await,
+        Commands::New { init } => process_project_init(env, init).await,
         Commands::List {} => process_project_list(env).await,
         Commands::Show { id } => process_project_show(env, id).await,
         Commands::Delete { id } => process_project_delete(env, id).await,

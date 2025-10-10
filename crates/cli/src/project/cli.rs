@@ -3,7 +3,11 @@ use clap::Subcommand;
 #[derive(Subcommand)]
 pub enum Commands {
     #[clap(about = "Add new project.")]
-    New {},
+    New {
+        /// No init project by default. If this flag exist, we'll init the project.
+        #[clap(short, long, required = false)]
+        init: bool,
+    },
 
     #[clap(about = "List all your projects.")]
     List {},
