@@ -18,7 +18,9 @@ categories = [
 readme = "README.md"
 
 [dependencies]
+log = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
+serde_json = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }

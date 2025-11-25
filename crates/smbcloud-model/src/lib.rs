@@ -3,6 +3,7 @@ pub mod app_auth;
 pub mod error_codes;
 pub mod forgot;
 pub mod login;
+pub mod oauth;
 pub mod project;
 pub mod repository;
 pub mod runner;
