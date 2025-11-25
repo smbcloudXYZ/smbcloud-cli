@@ -164,7 +164,7 @@ pub async fn do_signup_email(
             ),
         }),
         Err(e) => {
-            let error = anyhow!("Failed to signup: {}", e);
+            let error = anyhow!("{}", e);
             Err(error)
         }
     }

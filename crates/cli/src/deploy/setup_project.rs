@@ -1,8 +1,7 @@
 use {
     crate::{
         deploy::{
-            config::Config, setup_create_new_project::create_new_project,
-            setup_select_project::select_project,
+            setup_create_new_project::create_new_project, setup_select_project::select_project,
         },
         token::get_smb_token::get_smb_token,
         ui::highlight,
@@ -14,6 +13,7 @@ use {
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::crud_project_read::get_projects,
+    smbcloud_utils::config::Config,
     std::{env, fs, path::Path},
 };
 

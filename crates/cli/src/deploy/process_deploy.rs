@@ -3,7 +3,7 @@ use {
         account::login::process_login,
         cli::CommandResult,
         deploy::{
-            config::{check_config, check_project},
+            config::{check_config, check_project, credentials},
             detect_runner::detect_runner,
             git::remote_deployment_setup,
             remote_messages::{build_next_app, start_server},
@@ -118,7 +118,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let update_deployment_id = created_deployment.id;
 
     // Set the credentials
-    callbacks.credentials(config.credentials(user));
+    callbacks.credentials(credentials(&config, user));
     callbacks.sideband_progress(|data| {
         // Convert bytes to string, print line by line
         if let Ok(text) = std::str::from_utf8(data) {

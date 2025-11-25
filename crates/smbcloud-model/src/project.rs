@@ -1,5 +1,5 @@
 use {
-    crate::{app_auth::AuthApp, ar_date_format},
+    crate::{app_auth::AuthApp, ar_date_format, runner::Runner},
     chrono::{DateTime, Utc},
     serde::{Deserialize, Serialize},
     serde_repr::{Deserialize_repr, Serialize_repr},
@@ -18,6 +18,7 @@ pub struct Config {
 pub struct Project {
     pub id: i32,
     pub name: String,
+    pub runner: Runner,
     pub repository: Option<String>,
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -29,14 +30,17 @@ impl Display for Project {
         write!(f, "ID: {}, Name: {}", self.id, self.name,)
     }
 }
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Deserialize, Clone)]
+#[tsync]
 pub struct ProjectCreate {
     pub name: String,
     pub repository: String,
     pub description: String,
+    pub runner: Runner,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
+#[tsync]
 pub struct Deployment {
     pub id: i32,
     pub project_id: i32,
@@ -56,6 +60,7 @@ pub struct DeploymentPayload {
 
 #[derive(Deserialize_repr, Serialize_repr, Debug, Clone, Copy)] // Added Clone, Copy
 #[repr(u8)]
+#[tsync]
 pub enum DeploymentStatus {
     Started = 0,
     Failed,
@@ -82,11 +87,13 @@ mod tests {
             name: "test".to_owned(),
             repository: "test".to_owned(),
             description: "test".to_owned(),
+            runner: Runner::NodeJs,
         };
         let json = json!({
             "name": "test",
             "repository": "test", // Corrected: repository should be included as per struct
             "description": "test",
+            "runner": 0
         });
         assert_eq!(serde_json::to_value(project_create).unwrap(), json);
     }
