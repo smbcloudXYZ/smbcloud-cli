@@ -17,8 +17,8 @@ pub struct TokenResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[tsync]
 pub struct OauthRedirect {
-    pub code: String,
-    pub scope: String,
+    pub code: Option<String>,
+    pub scope: Option<String>,
     pub authuser: i32,
     pub prompt: String,
 }
