@@ -171,7 +171,7 @@ pub async fn do_signup_email(
 }
 
 fn build_smb_signup_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_USERS);
     url_builder.build()
 }

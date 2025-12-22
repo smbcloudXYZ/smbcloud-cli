@@ -12,6 +12,7 @@ use {
         project::Project,
     },
     smbcloud_network::environment::Environment,
+    smbcloud_networking::smb_client::SmbClient,
     smbcloud_networking_project::crud_project_read::get_projects,
     smbcloud_utils::config::Config,
     std::{env, fs, path::Path},
@@ -55,7 +56,7 @@ pub(crate) async fn setup_project(
         },
     };
 
-    let projects = get_projects(env, access_token.to_string()).await?;
+    let projects = get_projects(env, SmbClient::Cli, access_token.to_string()).await?;
 
     let project: Project = if !projects.is_empty() {
         select_project(env, projects, &path_str).await?

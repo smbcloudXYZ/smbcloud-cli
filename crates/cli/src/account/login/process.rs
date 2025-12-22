@@ -32,6 +32,7 @@ use {
             PATH_USERS_PASSWORD,
         },
         smb_base_url_builder,
+        smb_client::SmbClient,
     },
     smbcloud_networking_account::{check_email::check_email, login::login},
     smbcloud_utils::email_validation,
@@ -301,7 +302,7 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
         }
     };
 
-    match check_email(env, &username).await {
+    match check_email(env, SmbClient::Cli, &username).await {
         Ok(auth) => {
             // Only continue with password input if email is found and confirmed.
             if auth.error_code.is_some() {
@@ -336,7 +337,7 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    let account_status = match login(env, args.username, args.password).await {
+    let account_status = match login(env, SmbClient::Cli, args.username, args.password).await {
         Ok(response) => response,
         Err(_) => return Err(anyhow!(fail_message("Check your internet connection."))),
     };
@@ -554,25 +555,25 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
 }
 
 fn build_smb_resend_email_verification_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_RESEND_CONFIRMATION);
     url_builder.build()
 }
 
 fn build_smb_resend_reset_password_instructions_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_RESET_PASSWORD_INSTRUCTIONS);
     url_builder.build()
 }
 
 fn build_smb_reset_password_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_USERS_PASSWORD);
     url_builder.build()
 }
 
 fn build_smb_connect_github_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_LINK_GITHUB_ACCOUNT);
     url_builder.build()
 }

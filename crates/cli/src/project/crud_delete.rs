@@ -7,6 +7,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_network::environment::Environment;
+use smbcloud_networking::smb_client::SmbClient;
 use smbcloud_networking_project::crud_project_delete::delete_project;
 use spinners::Spinner;
 
@@ -33,7 +34,7 @@ pub async fn process_project_delete(env: Environment, id: String) -> Result<Comm
         });
     }
     let access_token = get_smb_token(env)?;
-    match delete_project(env, access_token, id).await {
+    match delete_project(env, SmbClient::Cli, access_token, id).await {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),

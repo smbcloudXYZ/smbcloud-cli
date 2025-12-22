@@ -7,6 +7,7 @@ use {
     anyhow::{anyhow, Result},
     dialoguer::{theme::ColorfulTheme, Confirm},
     smbcloud_network::environment::Environment,
+    smbcloud_networking::smb_client::SmbClient,
     smbcloud_networking_account::logout::logout,
     spinners::Spinner,
     std::fs,
@@ -67,7 +68,7 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
 
 async fn do_process_logout(env: Environment) -> Result<()> {
     let token = get_smb_token(env)?;
-    match logout(env, token).await {
+    match logout(env, SmbClient::Cli, token).await {
         Ok(_) => Ok(()),
         Err(e) => Err(anyhow!("{e}")),
     }

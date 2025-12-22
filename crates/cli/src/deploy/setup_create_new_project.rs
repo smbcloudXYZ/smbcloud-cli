@@ -8,6 +8,7 @@ use {
         runner::Runner,
     },
     smbcloud_network::environment::Environment,
+    smbcloud_networking::smb_client::SmbClient,
     smbcloud_networking_project::crud_project_create::create_project,
     std::path::Path,
 };
@@ -94,6 +95,7 @@ pub(crate) async fn create_new_project(
 
     match create_project(
         env,
+        SmbClient::Cli,
         access_token,
         ProjectCreate {
             name,
