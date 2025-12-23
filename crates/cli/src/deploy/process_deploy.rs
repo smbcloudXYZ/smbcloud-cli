@@ -15,6 +15,7 @@ use {
     git2::{PushOptions, RemoteCallbacks, Repository},
     smbcloud_model::project::{DeploymentPayload, DeploymentStatus},
     smbcloud_network::environment::Environment,
+    smbcloud_networking::smb_client::SmbClient,
     smbcloud_networking_account::me::me,
     smbcloud_networking_project::{
         crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
@@ -103,9 +104,15 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         status: DeploymentStatus::Started,
     };
 
-    let created_deployment =
-        create_deployment(env, &access_token, config.project.id, payload).await?;
-    let user = me(env, &access_token).await?;
+    let created_deployment = create_deployment(
+        env,
+        SmbClient::Cli,
+        &access_token,
+        config.project.id,
+        payload,
+    )
+    .await?;
+    let user = me(env, SmbClient::Cli, &access_token).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
@@ -158,6 +165,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                     let result = handle.block_on(async {
                         update(
                             update_env, // Env is Copy
+                            SmbClient::Cli,
                             access_token_for_update_cb.clone(),
                             project_id_for_update_cb,
                             deployment_id_for_update_cb,
@@ -193,6 +201,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             };
             let result = update(
                 env,
+                SmbClient::Cli,
                 access_token.clone(),
                 config.project.id,
                 created_deployment.id,

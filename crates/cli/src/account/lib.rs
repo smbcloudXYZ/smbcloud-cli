@@ -12,6 +12,7 @@ use {
             GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
         },
         smb_base_url_builder,
+        smb_client::SmbClient,
     },
     spinners::Spinner,
     std::{
@@ -192,7 +193,7 @@ pub async fn process_connect_github(env: Environment, code: String) -> Result<Sm
 }
 
 fn build_authorize_smb_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_AUTHORIZE);
     url_builder.build()
 }

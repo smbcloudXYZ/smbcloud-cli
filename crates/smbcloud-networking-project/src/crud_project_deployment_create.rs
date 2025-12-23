@@ -6,16 +6,21 @@ use smbcloud_model::{
     project::{Deployment, DeploymentPayload},
 };
 use smbcloud_network::{environment::Environment, network::request};
-use smbcloud_networking::constants::SMB_USER_AGENT;
+use smbcloud_networking::{constants::SMB_USER_AGENT, smb_client::SmbClient};
 
 pub async fn create_deployment(
     env: Environment,
+    client: SmbClient,
     access_token: &str,
     project_id: i32,
     payload: DeploymentPayload,
 ) -> Result<Deployment, ErrorResponse> {
     let builder = Client::new()
-        .post(build_project_deployment_index(env, project_id.to_string()))
+        .post(build_project_deployment_index(
+            env,
+            &client,
+            project_id.to_string(),
+        ))
         .json(&payload)
         .header("Authorization", access_token)
         .header("User-agent", SMB_USER_AGENT);

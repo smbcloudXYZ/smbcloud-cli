@@ -7,6 +7,7 @@ use crate::{
 use anyhow::Result;
 use smbcloud_model::account::User;
 use smbcloud_network::environment::Environment;
+use smbcloud_networking::smb_client::SmbClient;
 use smbcloud_networking_account::me::me;
 use spinners::Spinner;
 use tabled::{Table, Tabled};
@@ -50,7 +51,7 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
         succeed_message("Loading"),
     );
     let token = get_smb_token(env)?;
-    match me(env, &token).await {
+    match me(env, SmbClient::Cli, &token).await {
         Ok(user) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             show_user(&user);

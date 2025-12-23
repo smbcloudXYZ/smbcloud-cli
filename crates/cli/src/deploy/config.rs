@@ -9,6 +9,7 @@ use {
         error_codes::{ErrorCode, ErrorResponse},
     },
     smbcloud_network::environment::Environment,
+    smbcloud_networking::smb_client::SmbClient,
     smbcloud_networking_project::crud_project_read::get_project,
     smbcloud_utils::config::Config,
     spinners::Spinner,
@@ -74,7 +75,14 @@ pub(crate) async fn check_project(
         spinners::Spinners::Hamburger,
         succeed_message("Validate project"),
     );
-    match get_project(env, access_token.to_string(), id.to_string()).await {
+    match get_project(
+        env,
+        SmbClient::Cli,
+        access_token.to_string(),
+        id.to_string(),
+    )
+    .await
+    {
         Ok(_) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid project"));
             Ok(())

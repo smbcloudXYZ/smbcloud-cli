@@ -2142,6 +2142,7 @@ version = "0.3.25"
 dependencies = [
  "serde-wasm-bindgen",
  "smbcloud-network",
+ "smbcloud-networking",
  "smbcloud-networking-account",
  "wasm-bindgen",
  "wasm-bindgen-futures",
