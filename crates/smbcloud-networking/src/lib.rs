@@ -6,6 +6,9 @@ use {
     url_builder::URLBuilder,
 };
 
+#[macro_use]
+extern crate dotenv_codegen;
+
 pub fn smb_base_url_builder(env: Environment, client: &SmbClient) -> URLBuilder {
     let mut url_builder = URLBuilder::new();
     url_builder
