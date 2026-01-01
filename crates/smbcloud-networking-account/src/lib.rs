@@ -6,4 +6,5 @@ pub mod oauth;
 pub mod remove;
 pub mod resend_email_verification;
 pub mod resend_reset_password_instruction;
+pub mod reset_password;
 pub mod signup;

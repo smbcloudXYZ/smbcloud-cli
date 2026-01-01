@@ -12,7 +12,7 @@ use {
     console::style,
     dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
     log::debug,
-    reqwest::{Client, StatusCode},
+    reqwest::Client,
     smbcloud_model::{
         account::{
             ErrorCode::{
@@ -21,20 +21,18 @@ use {
             },
             GithubInfo, SmbAuthorization, User,
         },
-        forgot::{Param, UserUpdatePassword},
         login::{AccountStatus, LoginArgs},
         signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking::{
-        constants::{PATH_LINK_GITHUB_ACCOUNT, PATH_USERS_PASSWORD},
-        smb_base_url_builder,
-        smb_client::SmbClient,
+        constants::PATH_LINK_GITHUB_ACCOUNT, smb_base_url_builder, smb_client::SmbClient,
     },
     smbcloud_networking_account::{
         check_email::check_email, login::login,
         resend_email_verification::resend_email_verification as account_resend_email_verification,
         resend_reset_password_instruction::resend_reset_password_instruction as account_resend_reset_password_instruction,
+        reset_password::reset_password as account_reset_password,
     },
     smbcloud_utils::email_validation,
     spinners::Spinner,
@@ -511,38 +509,14 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
         style("Resetting password...").green().bold().to_string(),
     );
 
-    let password_confirmation = password.clone();
-
-    let params = Param {
-        user: UserUpdatePassword {
-            reset_password_token: token,
-            password,
-            password_confirmation,
-        },
-    };
-
-    let response = Client::new()
-        .put(build_smb_reset_password_url(env))
-        .json(&params)
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .send()
-        .await?;
-
-    match response.status() {
-        StatusCode::OK => Ok(CommandResult {
+    match account_reset_password(env, SmbClient::Cli, token, password).await {
+        Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
             msg: succeed_message("Password reset!"),
         }),
         _ => Err(anyhow!(fail_message("Failed to reset password."))),
     }
-}
-
-fn build_smb_reset_password_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
-    url_builder.add_route(PATH_USERS_PASSWORD);
-    url_builder.build()
 }
 
 fn build_smb_connect_github_url(env: Environment) -> String {
