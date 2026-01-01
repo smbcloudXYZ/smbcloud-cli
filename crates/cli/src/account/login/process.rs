@@ -216,7 +216,7 @@ async fn resend_email_verification(env: Environment, user: User) -> Result<Comma
             .bold()
             .to_string(),
     );
-    match account_resend_email_verification(env, SmbClient::Cli, user.id).await {
+    match account_resend_email_verification(env, SmbClient::Cli, user.email).await {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
@@ -468,7 +468,7 @@ async fn resend_reset_password_instruction(env: Environment, user: User) -> Resu
         succeed_message("Sending reset password instruction..."),
     );
 
-    match account_resend_reset_password_instruction(env, SmbClient::Cli, user.id).await {
+    match account_resend_reset_password_instruction(env, SmbClient::Cli, user.email).await {
         Ok(_) => {
             spinner.stop_and_persist(
                 "✅",

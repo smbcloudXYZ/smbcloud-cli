@@ -10,11 +10,11 @@ use {
 pub async fn resend_email_verification(
     env: Environment,
     client: SmbClient,
-    user_id: i32,
+    email: String,
 ) -> Result<SmbAuthorization, ErrorResponse> {
     let builder = Client::new()
         .post(build_smb_resend_email_verification_url(env, &client))
-        .body(format!("id={}", user_id))
+        .body(format!("email={}", email))
         .header("User-agent", client.id())
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded");
