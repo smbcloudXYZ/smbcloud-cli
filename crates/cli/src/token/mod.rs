@@ -1,33 +1,3 @@
-use anyhow::{anyhow, Result};
-use dirs::home_dir;
-use log::debug;
-use smbcloud_network::environment::Environment;
-use std::path::{Path, PathBuf};
-
-pub async fn get_smb_token(env: Environment) -> Result<String> {
-    if let Some(path) = smb_token_file_path(env) {
-        std::fs::read_to_string(path).map_err(|e| {
-            debug!("Error while reading token: {}", &e);
-            anyhow!("Error while reading token. Are you logged in?")
-        })
-    } else {
-        Err(anyhow!("Failed to get home directory. Are you logged in?"))
-    }
-}
-
-pub fn smb_token_file_path(env: Environment) -> Option<PathBuf> {
-    match home_dir() {
-        Some(home_path) => {
-            let token_path = [&env.smb_dir(), "/token"].join("");
-            let token_file = home_path.join(Path::new(&token_path));
-            if token_file.exists() && token_file.is_file() {
-                return Some(token_file);
-            }
-            None
-        }
-        None => {
-            debug!("Failed to get home directory.");
-            None
-        }
-    }
-}
+pub(crate) mod get_smb_token;
+pub(crate) mod is_logged_in;
+pub(crate) mod smb_token_file_path;

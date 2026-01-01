@@ -1,26 +1,23 @@
-use anyhow::{anyhow, Result};
-use clap::Parser;
-use console::style;
-use smbcloud_cli::account::login::process_login;
-use smbcloud_cli::account::logout::process_logout;
-use smbcloud_cli::account::me::process_me;
-use smbcloud_cli::cli::CommandResult;
-use smbcloud_cli::project::crud_create::process_project_init;
-use smbcloud_cli::project::process::process_project;
-use smbcloud_cli::{
-    account::process_account,
-    cli::{Cli, Commands},
-    deploy::process_deploy,
+use {
+    anyhow::{anyhow, Result},
+    clap::Parser,
+    console::style,
+    smbcloud_cli::{
+        account::{login::process_login, logout::process_logout, me::process_me, process_account},
+        cli::{Cli, CommandResult, Commands},
+        deploy::process_deploy::process_deploy,
+        project::{crud_create::process_project_init, process::process_project},
+    },
+    smbcloud_network::{environment::Environment, network::check_internet_connection},
+    std::{
+        fs::{create_dir_all, OpenOptions},
+        path::PathBuf,
+        str::FromStr,
+    },
+    tracing::subscriber::set_global_default,
+    tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer},
+    tracing_subscriber::{filter::LevelFilter, prelude::*, EnvFilter},
 };
-use smbcloud_network::{environment::Environment, network::check_internet_connection};
-use std::{
-    fs::{create_dir_all, OpenOptions},
-    path::PathBuf,
-    str::FromStr,
-};
-use tracing::subscriber::set_global_default;
-use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
-use tracing_subscriber::{filter::LevelFilter, prelude::*, EnvFilter};
 
 fn setup_logging(env: Environment, level: Option<EnvFilter>) -> Result<()> {
     // Log in the current directory
@@ -132,10 +129,10 @@ async fn run() -> Result<CommandResult> {
 
     match cli.command {
         Some(Commands::Me {}) => process_me(cli.environment).await,
-        Some(Commands::Init {}) => process_project_init(cli.environment).await,
+        Some(Commands::Init {}) => process_project_init(cli.environment, true).await,
         Some(Commands::Deploy {}) => process_deploy(cli.environment).await,
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
-        Some(Commands::Login {}) => process_login(cli.environment).await,
+        Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
         None => process_deploy(cli.environment).await,

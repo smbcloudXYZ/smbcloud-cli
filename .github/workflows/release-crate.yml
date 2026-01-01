@@ -25,6 +25,17 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Create .env file
+        run: |
+          touch .env
+          echo CLI_CLIENT_ID=${{ secrets.CLI_CLIENT_ID }} >> .env
+          echo SIGIT_CLIENT_ID=${{ secrets.SIGIT_CLIENT_ID }} >> .env
+          echo WEB_CONSOLE_CLIENT_ID=${{ secrets.WEB_CONSOLE_CLIENT_ID }} >> .env
+          echo CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }} >> .env
+          echo SIGIT_CLIENT_SECRET=${{ secrets.SIGIT_CLIENT_SECRET }} >> .env
+          echo WEB_CONSOLE_CLIENT_SECRET=${{ secrets.WEB_CONSOLE_CLIENT_SECRET }} >> .env
+          cat .env
+
       - name: Publish to crates.io
         uses: katyo/publish-crates@v2
         with:

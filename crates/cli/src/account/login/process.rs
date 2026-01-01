@@ -1,38 +1,55 @@
 use {
-    crate::account::signup::signup_with_email,
-    crate::account::{
-        lib::{authorize_github, is_logged_in, save_token},
-        signup::{do_signup, SignupMethod},
+    crate::{
+        account::{
+            lib::{authorize_github, store_token},
+            signup::{do_signup, signup_with_email, SignupMethod},
+        },
+        cli::CommandResult,
+        token::is_logged_in::is_logged_in as is_logged_in_async,
+        ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
-    crate::cli::CommandResult,
-    crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     anyhow::{anyhow, Result},
     console::style,
     dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
     log::debug,
     reqwest::{Client, StatusCode},
     smbcloud_model::{
-        account::{ErrorCode, GithubInfo, SmbAuthorization, User},
+        account::{
+            ErrorCode::{
+                self as AccountErrorCode, EmailNotFound, EmailUnverified, GithubNotLinked,
+                PasswordNotSet,
+            },
+            GithubInfo, SmbAuthorization, User,
+        },
         forgot::{Param, UserUpdatePassword},
-        login::{LoginArgs, LoginParams, UserParam},
+        login::{AccountStatus, LoginArgs},
         signup::{GithubEmail, Provider, SignupGithubParams, SignupUserGithub},
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking::{
         constants::{
             PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
-            PATH_USERS_PASSWORD, PATH_USERS_SIGN_IN,
+            PATH_USERS_PASSWORD,
         },
         smb_base_url_builder,
+        smb_client::SmbClient,
     },
-    smbcloud_networking_account::signup::check_email,
+    smbcloud_networking_account::{check_email::check_email, login::login},
     smbcloud_utils::email_validation,
     spinners::Spinner,
 };
 
-pub async fn process_login(env: Environment) -> Result<CommandResult> {
-    // Check if token file exists
-    if is_logged_in(env) {
+pub async fn process_login(env: Environment, is_logged_in: Option<bool>) -> Result<CommandResult> {
+    let should_continue = match is_logged_in {
+        Some(is_logged_id) => !is_logged_id,
+        None => {
+            // Check if logged in
+            let logged_in = is_logged_in_async(env).await?;
+            !logged_in
+        }
+    };
+
+    if !should_continue {
         return Ok(CommandResult {
             spinner: Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
@@ -81,16 +98,14 @@ async fn process_authorization(env: Environment, auth: SmbAuthorization) -> Resu
     if let Some(error_code) = auth.error_code {
         debug!("{}", error_code);
         match error_code {
-            ErrorCode::EmailNotFound => {
-                return create_new_account(env, auth.user_email, auth.user_info).await
-            }
-            ErrorCode::EmailUnverified => return send_email_verification(env, auth.user).await,
-            ErrorCode::PasswordNotSet => {
+            EmailNotFound => return create_new_account(env, auth.user_email, auth.user_info).await,
+            EmailUnverified => return send_email_verification(env, auth.user).await,
+            PasswordNotSet => {
                 // Only for email and password login
                 let error = anyhow!("Password not set.");
                 return Err(error);
             }
-            ErrorCode::GithubNotLinked => return connect_github_account(env, auth).await,
+            GithubNotLinked => return connect_github_account(env, auth).await,
         }
     }
 
@@ -286,10 +301,11 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
             return Err(error);
         }
     };
-    match check_email(env, &username).await {
+
+    match check_email(env, SmbClient::Cli, &username).await {
         Ok(auth) => {
             // Only continue with password input if email is found and confirmed.
-            if let Some(_) = auth.error_code {
+            if auth.error_code.is_some() {
                 // Check if email is in the database, unconfirmed. Only presents password input if email is found and confirmed.
                 let spinner = Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
@@ -321,51 +337,24 @@ async fn do_process_login(env: Environment, args: LoginArgs) -> Result<CommandRe
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-
-    let login_params = LoginParams {
-        user: UserParam {
-            email: args.username,
-            password: args.password,
-        },
-    };
-
-    let response = match Client::new()
-        .post(build_smb_login_url(env))
-        .json(&login_params)
-        .send()
-        .await
-    {
+    let account_status = match login(env, SmbClient::Cli, args.username, args.password).await {
         Ok(response) => response,
         Err(_) => return Err(anyhow!(fail_message("Check your internet connection."))),
     };
 
-    match response.status() {
-        StatusCode::OK => {
-            // Login successful
-            save_token(env, &response).await?;
+    match account_status {
+        AccountStatus::Ready { access_token } => {
+            store_token(env, access_token).await?;
             Ok(CommandResult {
                 spinner,
                 symbol: succeed_symbol(),
                 msg: succeed_message("You are logged in!"),
             })
         }
-        StatusCode::NOT_FOUND => {
-            // Account not found and we show signup option
-            Ok(CommandResult {
-                spinner,
-                symbol: fail_symbol(),
-                msg: fail_message("Account not found. Please signup!"),
-            })
+        AccountStatus::NotFound => Err(anyhow!(fail_message("Check your internet connection."))),
+        AccountStatus::Incomplete { status } => {
+            action_on_account_status(&env, spinner, status, None, None).await
         }
-        StatusCode::UNPROCESSABLE_ENTITY => {
-            // Account found but email not verified / password not set
-            let result: SmbAuthorization = response.json().await?;
-            // println!("Result: {:#?}", &result);
-            after_checking_email_step(&env, spinner, result, None).await
-        }
-        _ => Err(anyhow!(fail_message(
-            "Login failed. Check your username and password."
-        ))),
     }
 }
 
@@ -379,7 +368,7 @@ async fn after_checking_email_step(
         Some(error_code) => {
             debug!("{}", error_code);
             match error_code {
-                ErrorCode::EmailNotFound => {
+                EmailNotFound => {
                     spinner.stop_and_persist(
                         &succeed_symbol(),
                         succeed_message(
@@ -388,14 +377,14 @@ async fn after_checking_email_step(
                     );
                     signup_with_email(env.to_owned(), username).await
                 }
-                ErrorCode::EmailUnverified => {
+                EmailUnverified => {
                     spinner.stop_and_persist(
                         &succeed_symbol(),
                         succeed_message("Email not verified. Please verify your email."),
                     );
                     send_email_verification(*env, result.user).await
                 }
-                ErrorCode::PasswordNotSet => {
+                PasswordNotSet => {
                     spinner.stop_and_persist(
                         &succeed_symbol(),
                         succeed_message("Password not set. Please reset your password."),
@@ -409,6 +398,42 @@ async fn after_checking_email_step(
             }
         }
         None => Err(anyhow!("Shouldn't be here.")),
+    }
+}
+
+async fn action_on_account_status(
+    env: &Environment,
+    mut spinner: Spinner,
+    error_code: AccountErrorCode,
+    username: Option<String>,
+    user: Option<User>,
+) -> Result<CommandResult> {
+    match error_code {
+        EmailNotFound => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Account not found. Please continue with setting up your account."),
+            );
+            signup_with_email(env.to_owned(), username).await
+        }
+        EmailUnverified => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Email not verified. Please verify your email."),
+            );
+            send_email_verification(*env, user).await
+        }
+        PasswordNotSet => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Password not set. Please reset your password."),
+            );
+            send_reset_password(*env, user).await
+        }
+        _ => {
+            spinner.stop_and_persist(&fail_symbol(), fail_message("An error occurred."));
+            Err(anyhow!("Idk what happened."))
+        }
     }
 }
 
@@ -529,32 +554,26 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
     }
 }
 
-fn build_smb_login_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
-    url_builder.add_route(PATH_USERS_SIGN_IN);
-    url_builder.build()
-}
-
 fn build_smb_resend_email_verification_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_RESEND_CONFIRMATION);
     url_builder.build()
 }
 
 fn build_smb_resend_reset_password_instructions_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_RESET_PASSWORD_INSTRUCTIONS);
     url_builder.build()
 }
 
 fn build_smb_reset_password_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_USERS_PASSWORD);
     url_builder.build()
 }
 
 fn build_smb_connect_github_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_LINK_GITHUB_ACCOUNT);
     url_builder.build()
 }

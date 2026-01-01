@@ -1,6 +1,6 @@
 use std::{fs::OpenOptions, io::Write};
 
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
@@ -9,6 +9,7 @@ use anyhow::{anyhow, Result};
 use log::debug;
 use smbcloud_model::project::{Config, Project};
 use smbcloud_network::environment::Environment;
+use smbcloud_networking::smb_client::SmbClient;
 use smbcloud_networking_project::crud_project_read::{get_project, get_projects};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
@@ -19,6 +20,8 @@ struct ProjectRow {
     id: i32,
     #[tabled(rename = "Name")]
     name: String,
+    #[tabled(rename = "Runner")]
+    runner: String,
     #[tabled(rename = "Repository")]
     repository: String,
     #[tabled(rename = "Description")]
@@ -46,8 +49,8 @@ pub async fn process_project_list(env: Environment) -> Result<CommandResult> {
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    let token = get_smb_token(env).await?;
-    match get_projects(env, token).await {
+    let token = get_smb_token(env)?;
+    match get_projects(env, SmbClient::Cli, token).await {
         Ok(projects) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             let msg = if projects.is_empty() {
@@ -81,8 +84,8 @@ pub async fn process_project_show(env: Environment, id: String) -> Result<Comman
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    let access_token = get_smb_token(env).await?;
-    match get_project(env, access_token, id).await {
+    let access_token = get_smb_token(env)?;
+    match get_project(env, SmbClient::Cli, access_token, id).await {
         Ok(project) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             let message = succeed_message(&format!("Showing project {}.", &project.name));
@@ -112,6 +115,7 @@ pub(crate) fn show_projects(projects: Vec<Project>) {
         .map(|p| ProjectRow {
             id: p.id,
             name: p.name,
+            runner: p.runner.to_string(),
             repository: p.repository.unwrap_or("-".to_string()),
             description: p.description.unwrap_or("-".to_owned()),
         })
@@ -134,8 +138,8 @@ pub(crate) fn show_project_detail(project: &Project) {
 }
 
 pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<CommandResult> {
-    let access_token = get_smb_token(env).await?;
-    let project = get_project(env, access_token, id).await?;
+    let access_token = get_smb_token(env)?;
+    let project = get_project(env, SmbClient::Cli, access_token, id).await?;
 
     let config = Config {
         current_project: Some(project),

@@ -1,5 +1,8 @@
-use crate::account::{Data, Status};
-use serde::{Deserialize, Serialize};
+use {
+    crate::account::{Data, ErrorCode, Status},
+    serde::{Deserialize, Serialize},
+    tsync::tsync,
+};
 
 #[derive(Debug, Serialize)]
 pub struct LoginArgs {
@@ -22,6 +25,15 @@ pub struct UserParam {
 pub struct LoginResult {
     pub status: Status,
     pub data: Data,
+}
+
+/// Login endpoint result.
+#[derive(Debug, Serialize, Deserialize)]
+#[tsync]
+pub enum AccountStatus {
+    NotFound,
+    Ready { access_token: String },
+    Incomplete { status: ErrorCode },
 }
 
 #[cfg(test)]

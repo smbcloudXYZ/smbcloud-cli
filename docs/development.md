@@ -15,6 +15,7 @@ $ cargo workspaces publish --publish-as-is
 ```
 
 It will ask whether should bump the vesions of the packages or not. To update version separately:
+
 ```bash
 $ cargo workspaces version
 ```

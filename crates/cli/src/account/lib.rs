@@ -1,25 +1,28 @@
-use crate::token::smb_token_file_path;
-use anyhow::{anyhow, Result};
-use console::style;
-use log::debug;
-use regex::Regex;
-use reqwest::{Client, Response, StatusCode};
-use smbcloud_model::account::SmbAuthorization;
-use smbcloud_network::environment::Environment;
-use smbcloud_networking::{
-    constants::{
-        GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
+use {
+    crate::token::smb_token_file_path::smb_token_file_path,
+    anyhow::{anyhow, Result},
+    console::style,
+    log::debug,
+    regex::Regex,
+    reqwest::{Client, Response, StatusCode},
+    smbcloud_model::account::SmbAuthorization,
+    smbcloud_network::environment::Environment,
+    smbcloud_networking::{
+        constants::{
+            GH_OAUTH_CLIENT_ID, GH_OAUTH_REDIRECT_HOST, GH_OAUTH_REDIRECT_PORT, PATH_AUTHORIZE,
+        },
+        smb_base_url_builder,
+        smb_client::SmbClient,
     },
-    smb_base_url_builder,
+    spinners::Spinner,
+    std::{
+        fs::{create_dir_all, OpenOptions},
+        io::{BufRead, BufReader, Write},
+        net::{TcpListener, TcpStream},
+        sync::mpsc::{self, Receiver, Sender},
+    },
+    url_builder::URLBuilder,
 };
-use spinners::Spinner;
-use std::{
-    fs::{create_dir_all, OpenOptions},
-    io::{BufRead, BufReader, Write},
-    net::{TcpListener, TcpStream},
-    sync::mpsc::{self, Receiver, Sender},
-};
-use url_builder::URLBuilder;
 
 pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
     // Spin up a simple localhost server to listen for the GitHub OAuth callback
@@ -190,7 +193,7 @@ pub async fn process_connect_github(env: Environment, code: String) -> Result<Sm
 }
 
 fn build_authorize_smb_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_AUTHORIZE);
     url_builder.build()
 }
@@ -222,22 +225,26 @@ pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
     match headers.get("Authorization") {
         Some(token) => {
             debug!("{}", token.to_str()?);
-            match home::home_dir() {
-                Some(path) => {
-                    debug!("{}", path.to_str().unwrap());
-                    create_dir_all(path.join(env.smb_dir()))?;
-                    let mut file = OpenOptions::new()
-                        .create(true)
-                        .truncate(true)
-                        .write(true)
-                        .open([path.to_str().unwrap(), "/", &env.smb_dir(), "/token"].join(""))?;
-                    file.write_all(token.to_str()?.as_bytes())?;
-                    Ok(())
-                }
-                None => Err(anyhow!("Failed to get home directory.")),
-            }
+            store_token(env, token.to_str()?.to_string()).await
         }
         None => Err(anyhow!("Failed to get token. Probably a backend issue.")),
+    }
+}
+
+pub async fn store_token(env: Environment, token: String) -> Result<()> {
+    match home::home_dir() {
+        Some(path) => {
+            debug!("{}", path.to_str().unwrap());
+            create_dir_all(path.join(env.smb_dir()))?;
+            let mut file = OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open([path.to_str().unwrap(), "/", &env.smb_dir(), "/token"].join(""))?;
+            file.write_all(token.as_bytes())?;
+            Ok(())
+        }
+        None => Err(anyhow!("Failed to get home directory.")),
     }
 }
 

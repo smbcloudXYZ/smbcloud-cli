@@ -1,6 +1,9 @@
-use crate::account::{Data, Status};
-use serde::{Deserialize, Serialize};
-use std::fmt::{Display, Formatter};
+use {
+    crate::account::Data,
+    serde::{Deserialize, Serialize},
+    std::fmt::{Display, Formatter},
+    tsync::tsync,
+};
 
 pub struct SignupArgs {
     pub email: String,
@@ -38,8 +41,10 @@ pub struct SignupUserEmail {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[tsync]
 pub struct SignupResult {
-    pub status: Status,
+    pub code: Option<i32>,
+    pub message: String,
     pub data: Option<Data>,
 }
 

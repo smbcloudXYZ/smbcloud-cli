@@ -1,2 +1,8 @@
 /target
 *.log
+
+# Editor
+.zed
+
+# Secrets
+.env

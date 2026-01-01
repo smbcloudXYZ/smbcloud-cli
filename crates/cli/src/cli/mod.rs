@@ -1,7 +1,9 @@
-use crate::{account, project};
-use clap::{Parser, Subcommand};
-use smbcloud_network::environment::Environment;
-use spinners::Spinner;
+use {
+    crate::{account, project},
+    clap::{Parser, Subcommand},
+    smbcloud_network::environment::Environment,
+    spinners::Spinner,
+};
 
 pub struct CommandResult {
     pub spinner: Spinner,

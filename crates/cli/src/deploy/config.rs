@@ -1,20 +1,25 @@
-use crate::{
-    deploy::setup::setup_project,
-    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+use {
+    crate::{
+        deploy::setup_project::setup_project,
+        ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    },
+    git2::{Cred, CredentialType, Error},
+    smbcloud_model::{
+        account::User,
+        error_codes::{ErrorCode, ErrorResponse},
+    },
+    smbcloud_network::environment::Environment,
+    smbcloud_networking::smb_client::SmbClient,
+    smbcloud_networking_project::crud_project_read::get_project,
+    smbcloud_utils::config::Config,
+    spinners::Spinner,
+    std::{fs, path::Path},
 };
-use git2::{Cred, CredentialType, Error};
-use serde::{Deserialize, Serialize};
-use smbcloud_model::{
-    account::User,
-    error_codes::{ErrorCode, ErrorResponse},
-    project::Project,
-};
-use smbcloud_network::environment::Environment;
-use smbcloud_networking_project::crud_project_read::get_project;
-use spinners::Spinner;
-use std::{fs, path::Path};
 
-pub(crate) async fn check_config(env: Environment) -> Result<Config, ErrorResponse> {
+pub(crate) async fn check_config(
+    env: Environment,
+    access_token: Option<&str>,
+) -> Result<Config, ErrorResponse> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Checking config"),
@@ -26,7 +31,8 @@ pub(crate) async fn check_config(env: Environment) -> Result<Config, ErrorRespon
     let config_path = Path::new(".smb/config.toml");
     if !config_path.exists() {
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Setting up deployment"));
-        setup_project(env).await?;
+        // Let's guide the user through the setup process
+        setup_project(env, access_token).await?;
         spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
             succeed_message("Checking config"),
@@ -69,7 +75,14 @@ pub(crate) async fn check_project(
         spinners::Spinners::Hamburger,
         succeed_message("Validate project"),
     );
-    match get_project(env, access_token.to_string(), id.to_string()).await {
+    match get_project(
+        env,
+        SmbClient::Cli,
+        access_token.to_string(),
+        id.to_string(),
+    )
+    .await
+    {
         Ok(_) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid project"));
             Ok(())
@@ -84,29 +97,11 @@ pub(crate) async fn check_project(
     }
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct Config {
-    pub name: String,
-    pub description: Option<String>,
-    pub project: Project,
-}
-
-impl Config {
-    pub fn credentials(
-        &self,
-        user: User,
-    ) -> impl FnMut(&str, Option<&str>, CredentialType) -> Result<Cred, Error> + '_ {
-        move |_url, _username_from_url, _allowed_types| {
-            Cred::ssh_key("git", None, Path::new(&self.ssh_key_path(user.id)), None)
-        }
-    }
-
-    fn ssh_key_path(&self, user_id: i32) -> String {
-        // Use the dirs crate to get the home directory
-        let home = dirs::home_dir().expect("Could not determine home directory");
-        let key_path = home.join(".ssh").join(format!("id_{}@smbcloud", user_id));
-        let key_path_str = key_path.to_string_lossy().to_string();
-        println!("Use key path: {}", key_path_str);
-        key_path_str
+pub fn credentials(
+    config: &Config,
+    user: User,
+) -> impl FnMut(&str, Option<&str>, CredentialType) -> Result<Cred, Error> + '_ {
+    move |_url, _username_from_url, _allowed_types| {
+        Cred::ssh_key("git", None, Path::new(&config.ssh_key_path(user.id)), None)
     }
 }

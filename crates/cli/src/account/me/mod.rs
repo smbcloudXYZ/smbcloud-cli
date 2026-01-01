@@ -1,5 +1,5 @@
 use crate::account::lib::is_logged_in;
-use crate::token::get_smb_token;
+use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
@@ -7,6 +7,7 @@ use crate::{
 use anyhow::Result;
 use smbcloud_model::account::User;
 use smbcloud_network::environment::Environment;
+use smbcloud_networking::smb_client::SmbClient;
 use smbcloud_networking_account::me::me;
 use spinners::Spinner;
 use tabled::{Table, Tabled};
@@ -49,8 +50,8 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    let token = get_smb_token(env).await?;
-    match me(env, &token).await {
+    let token = get_smb_token(env)?;
+    match me(env, SmbClient::Cli, &token).await {
         Ok(user) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             show_user(&user);

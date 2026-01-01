@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-networking-account"
-version = "0.3.26"
+version = "0.3.27"
 edition = "2024"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Command line tool for deploying NextJS app on the smbCloud platform."
@@ -18,7 +18,10 @@ categories = [
 readme = "README.md"
 
 [dependencies]
-reqwest = { workspace = true, features = ["json"] }
+log = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
+openssl = { version = "0.10", features = ["vendored"] }
+serde_json = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }

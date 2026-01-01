@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-networking"
-version = "0.3.26"
+version = "0.3.27"
 edition = "2021"
 readme = "README.md"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
@@ -23,3 +23,4 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 smbcloud-network = { workspace = true }
 url-builder = { workspace = true }
+dotenv_codegen = "0.15"

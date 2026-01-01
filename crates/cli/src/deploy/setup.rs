@@ -1,18 +1,23 @@
-use crate::token::get_smb_token;
-use crate::{deploy::config::Config, ui::highlight};
-use dialoguer::{theme::ColorfulTheme, Confirm, Input, Select};
-use regex::Regex;
-use smbcloud_model::{
-    error_codes::{ErrorCode, ErrorResponse},
-    project::{Project, ProjectCreate},
+use {
+    crate::token::get_smb_token,
+    crate::{deploy::config::Config, ui::highlight},
+    dialoguer::{theme::ColorfulTheme, Confirm, Input, Select},
+    regex::Regex,
+    smbcloud_model::{
+        error_codes::{ErrorCode, ErrorResponse},
+        project::{Project, ProjectCreate},
+    },
+    smbcloud_network::environment::Environment,
+    smbcloud_networking_project::{
+        crud_project_create::create_project, crud_project_read::get_projects,
+    },
+    std::{env, fs, path::Path},
 };
-use smbcloud_network::environment::Environment;
-use smbcloud_networking_project::{
-    crud_project_create::create_project, crud_project_read::get_projects,
-};
-use std::{env, fs, path::Path};
 
-pub async fn setup_project(env: Environment) -> Result<Config, ErrorResponse> {
+pub async fn setup_project(
+    env: Environment,
+    access_token: Option<&str>,
+) -> Result<Config, ErrorResponse> {
     let path = env::current_dir().ok();
     let path_str = path
         .as_ref()
@@ -34,13 +39,19 @@ pub async fn setup_project(env: Environment) -> Result<Config, ErrorResponse> {
         });
     }
 
-    let access_token = match get_smb_token(env).await {
-        Ok(token) => token,
-        Err(_) => {
-            return Err(ErrorResponse::Error {
-                error_code: ErrorCode::Unauthorized,
-                message: ErrorCode::Unauthorized.message(None).to_string(),
-            })
+    let access_token = match access_token {
+        Some(token) => token.to_string(),
+        None => {
+            let access_token = match get_smb_token(env).await {
+                Ok(token) => token,
+                Err(_) => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::Unauthorized,
+                        message: ErrorCode::Unauthorized.message(None).to_string(),
+                    })
+                }
+            };
+            access_token
         }
     };
 
@@ -108,14 +119,28 @@ async fn select_project(
     if !confirm {
         return create_new_project(env, path).await;
     }
-    let selection = Select::with_theme(&ColorfulTheme::default())
+    let selection = match Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Use space/enter to select. Press q or esc to create a new project.")
         .items(&projects)
         .default(0)
-        .interact()
+        .interact_opt()
         .map_err(|_| ErrorResponse::Error {
             error_code: ErrorCode::InputError,
             message: ErrorCode::InputError.message(None).to_string(),
-        })?;
+        }) {
+        Ok(selection) => match selection {
+            Some(selection) => selection,
+            None => {
+                return create_new_project(env, path).await;
+            }
+        },
+        _ => {
+            return Err(ErrorResponse::Error {
+                error_code: ErrorCode::InputError,
+                message: ErrorCode::InputError.message(None).to_string(),
+            })
+        }
+    };
 
     let project = projects[selection].clone();
 

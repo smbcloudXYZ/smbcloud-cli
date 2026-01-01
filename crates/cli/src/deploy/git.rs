@@ -1,9 +1,11 @@
-use crate::project::runner::Runner;
-use crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol};
-use anyhow::{anyhow, Result};
-use console::style;
-use git2::{Remote, Repository};
-use spinners::Spinner;
+use {
+    crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    anyhow::{anyhow, Result},
+    console::style,
+    git2::{Remote, Repository},
+    smbcloud_model::runner::Runner,
+    spinners::Spinner,
+};
 
 pub async fn remote_deployment_setup<'a>(
     runner: &Runner,

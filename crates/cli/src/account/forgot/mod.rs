@@ -5,10 +5,11 @@ use crate::{
 use anyhow::Result;
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
 use smbcloud_model::forgot::{Args, Email, Param, UserUpdatePassword};
 use smbcloud_network::environment::Environment;
-use smbcloud_networking::{constants::PATH_USERS_PASSWORD, smb_base_url_builder};
+use smbcloud_networking::{
+    constants::PATH_USERS_PASSWORD, smb_base_url_builder, smb_client::SmbClient,
+};
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
@@ -96,12 +97,6 @@ async fn input_code(env: Environment) -> Result<CommandResult> {
         .send()
         .await?;
 
-    #[derive(Debug, Serialize, Deserialize)]
-    struct Response {
-        status: i32,
-        email: Option<String>,
-    }
-
     match response.status() {
         StatusCode::OK => Ok(CommandResult {
             spinner,
@@ -122,7 +117,7 @@ async fn input_code(env: Environment) -> Result<CommandResult> {
 }
 
 fn build_smb_forgot_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
     url_builder.add_route(PATH_USERS_PASSWORD);
     url_builder.build()
 }

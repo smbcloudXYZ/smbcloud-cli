@@ -1,9 +1,13 @@
-use std::{fs::OpenOptions, io::Write};
+use {
+    anyhow::{anyhow, Result},
+    log::debug,
+    regex::Regex,
+    smbcloud_model::project::Config,
+    std::{fs::OpenOptions, io::Write},
+};
 
-use anyhow::{anyhow, Result};
-use log::debug;
-use regex::Regex;
-use smbcloud_model::project::Config;
+pub mod config;
+pub mod write_config;
 
 pub fn email_validation(input: &str) -> Result<(), &'static str> {
     let email_regex = Regex::new(
