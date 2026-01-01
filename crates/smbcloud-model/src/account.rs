@@ -48,6 +48,7 @@ pub struct SmbAuthorization {
     pub error_code: Option<ErrorCode>,
 }
 
+/// TODO: Move to ErrorResponse
 #[derive(Debug, Serialize_repr, Deserialize_repr, PartialEq)]
 #[repr(u32)]
 #[tsync]
