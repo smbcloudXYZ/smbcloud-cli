@@ -28,13 +28,15 @@ use {
     smbcloud_network::environment::Environment,
     smbcloud_networking::{
         constants::{
-            PATH_LINK_GITHUB_ACCOUNT, PATH_RESEND_CONFIRMATION, PATH_RESET_PASSWORD_INSTRUCTIONS,
-            PATH_USERS_PASSWORD,
+            PATH_LINK_GITHUB_ACCOUNT, PATH_RESET_PASSWORD_INSTRUCTIONS, PATH_USERS_PASSWORD,
         },
         smb_base_url_builder,
         smb_client::SmbClient,
     },
-    smbcloud_networking_account::{check_email::check_email, login::login},
+    smbcloud_networking_account::{
+        check_email::check_email, login::login,
+        resend_email_verification::resend_email_verification as account_resend_email_verification,
+    },
     smbcloud_utils::email_validation,
     spinners::Spinner,
 };
@@ -215,17 +217,8 @@ async fn resend_email_verification(env: Environment, user: User) -> Result<Comma
             .bold()
             .to_string(),
     );
-
-    let response = Client::new()
-        .post(build_smb_resend_email_verification_url(env))
-        .body(format!("id={}", user.id))
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .send()
-        .await?;
-
-    match response.status() {
-        reqwest::StatusCode::OK => Ok(CommandResult {
+    match account_resend_email_verification(env, SmbClient::Cli, user.id).await {
+        Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
             msg: succeed_message("Verification email sent!"),
@@ -552,12 +545,6 @@ async fn input_reset_password_token(env: Environment) -> Result<CommandResult> {
         }),
         _ => Err(anyhow!(fail_message("Failed to reset password."))),
     }
-}
-
-fn build_smb_resend_email_verification_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
-    url_builder.add_route(PATH_RESEND_CONFIRMATION);
-    url_builder.build()
 }
 
 fn build_smb_resend_reset_password_instructions_url(env: Environment) -> String {
