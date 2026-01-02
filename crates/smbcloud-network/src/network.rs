@@ -52,7 +52,7 @@ pub async fn check_internet_connection() -> bool {
 pub async fn parse_error_response<T: DeserializeOwned>(
     response: Response,
 ) -> Result<T, ErrorResponse> {
-    let response_body = match response.text().await {
+    let error_response_body = match response.text().await {
         Ok(body) => body,
         Err(e) => {
             error!("Failed to get response body: {:?}", e);
@@ -66,13 +66,13 @@ pub async fn parse_error_response<T: DeserializeOwned>(
     if LOG_RESPONSE_BODY {
         println!();
         println!("Parse Error >>>>");
-        println!("{:?}", serde_json::to_string_pretty(&response_body));
+        println!("{:?}", serde_json::to_string_pretty(&error_response_body));
         println!("Parse Error >>>>");
         println!();
     }
 
-    let e = match serde_json::from_str::<ErrorResponse>(&response_body) {
-        Ok(json) => json,
+    let error_response = match serde_json::from_str(&error_response_body) {
+        Ok(error_response) => error_response,
         Err(e) => {
             error!("Failed to parse error response: {:?}", e);
             return Err(ErrorResponse::Error {
@@ -81,8 +81,9 @@ pub async fn parse_error_response<T: DeserializeOwned>(
             });
         }
     };
-    error!("Error response: {:?}", e);
-    Err(e)
+    // The parsing itself is succeed.
+    // Why is this an ErrorResponse.
+    Err(error_response)
 }
 
 pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, ErrorResponse> {
@@ -90,7 +91,7 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
     let response = match response {
         Ok(response) => response,
         Err(e) => {
-            error!("Failed to get response: {:?}", e);
+            error!("request_login: Failed to get response: {:?}", e);
             return Err(ErrorResponse::Error {
                 error_code: ErrorCode::NetworkError,
                 message: ErrorCode::NetworkError.message(None).to_string(),
@@ -98,24 +99,11 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
         }
     };
 
-    let response = match response.status() {
-        reqwest::StatusCode::OK
-        | reqwest::StatusCode::NOT_FOUND
-        | reqwest::StatusCode::UNPROCESSABLE_ENTITY => response,
-        status => {
-            error!(
-                "Response are neither OK, NOT_FOUND, or UNPROCESSABLE_ENTITY: {:?}",
-                status
-            );
-            return parse_error_response(response).await;
-        }
-    };
-
     if LOG_RESPONSE_BODY {
         println!();
-        println!("Parse >>>>");
+        println!("request_login: Parse >>>>");
         println!("{:?}", &response.status());
-        println!("Parse >>>>");
+        println!("request_login: Parse >>>>");
         println!();
     }
 
@@ -132,6 +120,30 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
                 }
             };
             Ok(AccountStatus::Ready { access_token })
+        }
+        (StatusCode::OK, None) => {
+            // Silent login from oauth. Need improvement.
+            let error_response = match parse_error_response::<ErrorResponse>(response).await {
+                Ok(error) => error,
+                Err(_) => return Ok(AccountStatus::NotFound),
+            };
+            match error_response {
+                ErrorResponse::Error {
+                    error_code,
+                    message,
+                } => match error_code {
+                    ErrorCode::EmailNotVerified => Ok(AccountStatus::Incomplete {
+                        status: smbcloud_model::account::ErrorCode::EmailUnverified,
+                    }),
+                    ErrorCode::PasswordNotSet => Ok(AccountStatus::Incomplete {
+                        status: smbcloud_model::account::ErrorCode::PasswordNotSet,
+                    }),
+                    ErrorCode::Unknown => Ok(AccountStatus::Ready {
+                        access_token: "tokenization".to_string(),
+                    }),
+                    _ => Ok(AccountStatus::NotFound),
+                },
+            }
         }
         (StatusCode::NOT_FOUND, _) => {
             // Account not found
@@ -193,6 +205,7 @@ pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, 
         reqwest::StatusCode::OK | reqwest::StatusCode::CREATED => response,
         status => {
             error!("Failed to get response: {:?}", status);
+            // This should handle parsing the error response.
             return parse_error_response(response).await;
         }
     };

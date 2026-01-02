@@ -21,7 +21,7 @@ pub async fn login(
     let login_params = LoginParams {
         user: UserParam {
             email: username,
-            password: password,
+            password,
         },
     };
     let builder = Client::new()

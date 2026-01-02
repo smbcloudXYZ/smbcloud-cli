@@ -6,6 +6,7 @@ pub mod login;
 pub mod oauth;
 pub mod project;
 pub mod repository;
+pub mod reset_password_response;
 pub mod runner;
 pub mod signup;
 

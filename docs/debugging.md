@@ -11,13 +11,13 @@ $ cargo debugger --package smbcloud-cli -- account signup
 Default environment is production. To run against dev environemt:
 
 ```bash
-$ cargo run -- -e dev account login
+$ cargo run -p smbcloud-cli -- -e dev account login
 ```
 
 Example debug the dev environment:
 
 ```bash
-$ cargo debugger --package cli -- -e dev account login
+$ cargo debugger --package smbcloud-cli -- -e dev account login
 ```
 
 ## Run from different directory
