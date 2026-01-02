@@ -7,7 +7,7 @@ use {
 
 pub async fn remove(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     user_agent: String,
     access_token: &str,
 ) -> Result<(), ErrorResponse> {
@@ -18,8 +18,8 @@ pub async fn remove(
     request(builder).await
 }
 
-fn build_smb_signup_url(env: Environment, client: SmbClient) -> String {
-    let mut url_builder = smb_base_url_builder(env, &client);
+fn build_smb_signup_url(env: Environment, client: (&SmbClient, &str)) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS);
     url_builder.build()
 }

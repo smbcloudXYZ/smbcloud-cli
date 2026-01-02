@@ -1,5 +1,6 @@
 use crate::{
     cli::CommandResult,
+    client,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::Result;
@@ -7,9 +8,7 @@ use dialoguer::{theme::ColorfulTheme, Input, Password};
 use reqwest::{Client, StatusCode};
 use smbcloud_model::forgot::{Args, Email, Param, UserUpdatePassword};
 use smbcloud_network::environment::Environment;
-use smbcloud_networking::{
-    constants::PATH_USERS_PASSWORD, smb_base_url_builder, smb_client::SmbClient,
-};
+use smbcloud_networking::{constants::PATH_USERS_PASSWORD, smb_base_url_builder};
 use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
@@ -117,7 +116,7 @@ async fn input_code(env: Environment) -> Result<CommandResult> {
 }
 
 fn build_smb_forgot_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
+    let mut url_builder = smb_base_url_builder(env, client());
     url_builder.add_route(PATH_USERS_PASSWORD);
     url_builder.build()
 }

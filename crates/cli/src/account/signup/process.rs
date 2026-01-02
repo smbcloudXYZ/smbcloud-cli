@@ -3,6 +3,7 @@ use {
     crate::{
         account::lib::authorize_github,
         cli::CommandResult,
+        client,
         token::smb_token_file_path::smb_token_file_path,
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
@@ -13,7 +14,7 @@ use {
     serde::Serialize,
     smbcloud_model::signup::SignupResult,
     smbcloud_network::environment::Environment,
-    smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder, smb_client::SmbClient},
+    smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder},
     smbcloud_networking_account::signup::signup,
     smbcloud_utils::email_validation,
     spinners::Spinner,
@@ -155,7 +156,7 @@ pub async fn do_signup_email(
         succeed_message("Signing you up"),
     );
 
-    match signup(env, SmbClient::Cli, email, password).await {
+    match signup(env, client(), email, password).await {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
@@ -171,7 +172,7 @@ pub async fn do_signup_email(
 }
 
 fn build_smb_signup_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
+    let mut url_builder = smb_base_url_builder(env, client());
     url_builder.add_route(PATH_USERS);
     url_builder.build()
 }

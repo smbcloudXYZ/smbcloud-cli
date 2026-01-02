@@ -10,7 +10,7 @@ use {
 
 pub async fn signup(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     email: String,
     password: String,
 ) -> Result<SignupResult, ErrorResponse> {
@@ -18,13 +18,13 @@ pub async fn signup(
         user: SignupUserEmail { email, password },
     };
     let builder = Client::new()
-        .post(build_smb_signup_url(env, &client))
+        .post(build_smb_signup_url(env, client))
         .json(&params)
-        .header("User-agent", client.id());
+        .header("User-agent", client.0.id());
     request(builder).await
 }
 
-fn build_smb_signup_url(env: Environment, client: &SmbClient) -> String {
+fn build_smb_signup_url(env: Environment, client: (&SmbClient, &str)) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS);
     url_builder.build()

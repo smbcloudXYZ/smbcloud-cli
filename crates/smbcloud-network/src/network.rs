@@ -130,7 +130,7 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
             match error_response {
                 ErrorResponse::Error {
                     error_code,
-                    message,
+                    message: _,
                 } => match error_code {
                     ErrorCode::EmailNotVerified => Ok(AccountStatus::Incomplete {
                         status: smbcloud_model::account::ErrorCode::EmailUnverified,

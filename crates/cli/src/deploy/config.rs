@@ -77,7 +77,7 @@ pub(crate) async fn check_project(
     );
     match get_project(
         env,
-        SmbClient::Cli,
+        (&SmbClient::Cli, ""),
         access_token.to_string(),
         id.to_string(),
     )

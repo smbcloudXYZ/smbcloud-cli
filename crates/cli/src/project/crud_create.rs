@@ -1,3 +1,4 @@
+use crate::client;
 use crate::token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in};
 use crate::{
     account::login::process_login,
@@ -13,7 +14,6 @@ use dialoguer::{theme::ColorfulTheme, Input};
 use smbcloud_model::project::ProjectCreate;
 use smbcloud_model::runner::Runner;
 use smbcloud_network::environment::Environment;
-use smbcloud_networking::smb_client::SmbClient;
 use smbcloud_networking_project::crud_project_create::create_project;
 use spinners::Spinner;
 
@@ -75,7 +75,7 @@ pub async fn process_project_init(
     let access_token = get_smb_token(env)?;
     match create_project(
         env,
-        SmbClient::Cli,
+        client(),
         access_token,
         ProjectCreate {
             name: project_name.clone(),

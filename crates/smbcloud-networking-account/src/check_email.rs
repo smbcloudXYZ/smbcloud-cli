@@ -9,17 +9,17 @@ use {
 
 pub async fn check_email(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     email: &str,
 ) -> Result<SmbAuthorization, ErrorResponse> {
     let builder = Client::new()
-        .get(build_url(env, &client, email))
+        .get(build_url(env, client, email))
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded");
     request(builder).await
 }
 
-fn build_url(env: Environment, client: &SmbClient, email: &str) -> String {
+fn build_url(env: Environment, client: (&SmbClient, &str), email: &str) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS_CHECK_EMAIL);
     url_builder.add_param("email", email);
