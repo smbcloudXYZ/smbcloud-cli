@@ -71,7 +71,7 @@ pub async fn parse_error_response<T: DeserializeOwned>(
         println!();
     }
 
-    let error_response = match serde_json::from_str::<T>(&error_response_body) {
+    let error_response = match serde_json::from_str(&error_response_body) {
         Ok(error_response) => error_response,
         Err(e) => {
             error!("Failed to parse error response: {:?}", e);
@@ -82,7 +82,8 @@ pub async fn parse_error_response<T: DeserializeOwned>(
         }
     };
     // The parsing itself is succeed.
-    Ok(error_response)
+    // Why is this an ErrorResponse.
+    Err(error_response)
 }
 
 pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, ErrorResponse> {
