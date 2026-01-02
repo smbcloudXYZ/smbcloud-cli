@@ -29,6 +29,7 @@ clap_mangen = { workspace = true }
 console = { workspace = true }
 dialoguer = { workspace = true }
 dirs = { workspace = true }
+dotenv_codegen = { workspace = true }
 git2 = { workspace = true }
 home = { workspace = true }
 indicatif = { workspace = true }

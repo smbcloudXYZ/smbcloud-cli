@@ -193,7 +193,8 @@ pub async fn process_connect_github(env: Environment, code: String) -> Result<Sm
 }
 
 fn build_authorize_smb_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
+    let secret = "secret";
+    let mut url_builder = smb_base_url_builder(env, (&SmbClient::Cli, secret));
     url_builder.add_route(PATH_AUTHORIZE);
     url_builder.build()
 }

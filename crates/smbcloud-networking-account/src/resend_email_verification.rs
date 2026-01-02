@@ -9,20 +9,20 @@ use {
 
 pub async fn resend_email_verification(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     email: String,
 ) -> Result<SmbAuthorization, ErrorResponse> {
     let builder = Client::new()
-        .post(build_smb_resend_email_verification_url(env, &client))
+        .post(build_smb_resend_email_verification_url(env, client))
         .body(format!("email={}", email))
-        .header("User-agent", client.id())
+        .header("User-agent", client.0.id())
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded");
 
     request(builder).await
 }
 
-fn build_smb_resend_email_verification_url(env: Environment, client: &SmbClient) -> String {
+fn build_smb_resend_email_verification_url(env: Environment, client: (&SmbClient, &str)) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_RESEND_CONFIRMATION);
     url_builder.build()

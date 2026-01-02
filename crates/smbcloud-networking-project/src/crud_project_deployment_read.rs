@@ -7,14 +7,14 @@ use smbcloud_networking::{constants::SMB_USER_AGENT, smb_client::SmbClient};
 
 pub async fn get_deployments(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     access_token: String,
     project_id: i32,
 ) -> Result<Vec<Deployment>, ErrorResponse> {
     let builder = Client::new()
         .get(build_project_deployment_index(
             env,
-            &client,
+            client,
             project_id.to_string(),
         ))
         .header("Authorization", access_token)
@@ -24,7 +24,7 @@ pub async fn get_deployments(
 
 pub async fn get_deployment(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     access_token: String,
     project_id: i32,
     deployment_id: i32,
@@ -32,7 +32,7 @@ pub async fn get_deployment(
     let builder = Client::new()
         .get(build_project_deployment(
             env,
-            &client,
+            client,
             project_id.to_string(),
             deployment_id.to_string(),
         ))

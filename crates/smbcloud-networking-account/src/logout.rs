@@ -9,11 +9,11 @@ use {
 
 pub async fn logout(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     access_token: String,
 ) -> Result<(), ErrorResponse> {
     let response = match Client::new()
-        .delete(build_smb_logout_url(env, &client))
+        .delete(build_smb_logout_url(env, client))
         .header("Authorization", access_token)
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded")
@@ -38,7 +38,7 @@ pub async fn logout(
     }
 }
 
-fn build_smb_logout_url(env: Environment, client: &SmbClient) -> String {
+fn build_smb_logout_url(env: Environment, client: (&SmbClient, &str)) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS_SIGN_OUT);
     url_builder.build()

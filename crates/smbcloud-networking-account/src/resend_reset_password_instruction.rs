@@ -9,15 +9,15 @@ use {
 
 pub async fn resend_reset_password_instruction(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     email: String,
 ) -> Result<SmbAuthorization, ErrorResponse> {
     let builder = Client::new()
         .post(build_smb_resend_reset_password_instructions_url(
-            env, &client,
+            env, client,
         ))
         .body(format!("email={}", email))
-        .header("User-agent", client.id())
+        .header("User-agent", client.0.id())
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded");
 
@@ -26,7 +26,7 @@ pub async fn resend_reset_password_instruction(
 
 fn build_smb_resend_reset_password_instructions_url(
     env: Environment,
-    client: &SmbClient,
+    client: (&SmbClient, &str),
 ) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_RESET_PASSWORD_INSTRUCTIONS);

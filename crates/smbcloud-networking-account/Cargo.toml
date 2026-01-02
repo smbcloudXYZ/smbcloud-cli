@@ -19,8 +19,8 @@ readme = "README.md"
 
 [dependencies]
 log = { workspace = true }
-reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
 openssl = { version = "0.10", features = ["vendored"] }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
 serde_json = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }

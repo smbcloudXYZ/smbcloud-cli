@@ -9,7 +9,15 @@ pub async fn login(
     username: String,
     password: String,
 ) -> Result<JsValue, JsValue> {
-    match smbcloud_networking_account::login::login(env, SmbClient::Cli, username, password).await {
+    let secret = "wasm-secret";
+    match smbcloud_networking_account::login::login(
+        env,
+        (&SmbClient::Cli, secret),
+        username,
+        password,
+    )
+    .await
+    {
         Ok(response) => Ok(serde_wasm_bindgen::to_value(&response)?),
         Err(error) => Err(serde_wasm_bindgen::to_value(&error)?),
     }

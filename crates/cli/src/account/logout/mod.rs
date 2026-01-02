@@ -1,13 +1,13 @@
 use {
     crate::{
         cli::CommandResult,
+        client,
         token::{get_smb_token::get_smb_token, smb_token_file_path::smb_token_file_path},
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
     anyhow::{anyhow, Result},
     dialoguer::{theme::ColorfulTheme, Confirm},
     smbcloud_network::environment::Environment,
-    smbcloud_networking::smb_client::SmbClient,
     smbcloud_networking_account::logout::logout,
     spinners::Spinner,
     std::fs,
@@ -68,7 +68,7 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
 
 async fn do_process_logout(env: Environment) -> Result<()> {
     let token = get_smb_token(env)?;
-    match logout(env, SmbClient::Cli, token).await {
+    match logout(env, client(), token).await {
         Ok(_) => Ok(()),
         Err(e) => Err(anyhow!("{e}")),
     }

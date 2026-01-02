@@ -23,4 +23,3 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 smbcloud-network = { workspace = true }
 url-builder = { workspace = true }
-dotenv_codegen = "0.15"

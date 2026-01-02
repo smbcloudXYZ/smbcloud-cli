@@ -5,7 +5,7 @@ use {
 
 // Private functions
 
-pub(crate) fn build_project_url(env: Environment, client: &SmbClient) -> String {
+pub(crate) fn build_project_url(env: Environment, client: (&SmbClient, &str)) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route("v1/projects");
     url_builder.build()
@@ -13,7 +13,7 @@ pub(crate) fn build_project_url(env: Environment, client: &SmbClient) -> String 
 
 pub(crate) fn build_project_url_with_id(
     env: Environment,
-    client: &SmbClient,
+    client: (&SmbClient, &str),
     id: String,
 ) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
@@ -24,7 +24,7 @@ pub(crate) fn build_project_url_with_id(
 
 pub(crate) fn build_project_deployment_index(
     env: Environment,
-    client: &SmbClient,
+    client: (&SmbClient, &str),
     project_id: String,
 ) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
@@ -36,7 +36,7 @@ pub(crate) fn build_project_deployment_index(
 
 pub(crate) fn build_project_deployment(
     env: Environment,
-    client: &SmbClient,
+    client: (&SmbClient, &str),
     project_id: String,
     id: String,
 ) -> String {

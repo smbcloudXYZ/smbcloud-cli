@@ -13,7 +13,7 @@ use {
 
 pub async fn reset_password(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     token: String,
     password: String,
 ) -> Result<ResetPasswordResponse, ErrorResponse> {
@@ -27,17 +27,16 @@ pub async fn reset_password(
     };
 
     let builder = Client::new()
-        .put(build_smb_reset_password_url(env))
+        .put(build_smb_reset_password_url(env, client))
         .json(&params)
-        .header("User-agent", client.id())
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded");
 
     request(builder).await
 }
 
-fn build_smb_reset_password_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env, &SmbClient::Cli);
+fn build_smb_reset_password_url(env: Environment, client: (&SmbClient, &str)) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS_PASSWORD);
     url_builder.build()
 }

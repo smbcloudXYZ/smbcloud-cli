@@ -2094,6 +2094,7 @@ dependencies = [
  "console 0.16.1",
  "dialoguer",
  "dirs",
+ "dotenv_codegen",
  "git2",
  "home",
  "indicatif",
@@ -2154,7 +2155,6 @@ dependencies = [
 name = "smbcloud-networking"
 version = "0.3.28"
 dependencies = [
- "dotenv_codegen",
  "smbcloud-network",
  "url-builder",
 ]
