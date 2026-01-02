@@ -2085,7 +2085,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.28"
+version = "0.3.29"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2140,7 +2140,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-network"
-version = "0.3.28"
+version = "0.3.29"
 dependencies = [
  "clap 4.5.51",
  "log",
@@ -2153,7 +2153,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking"
-version = "0.3.28"
+version = "0.3.29"
 dependencies = [
  "smbcloud-network",
  "url-builder",
@@ -2161,7 +2161,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account"
-version = "0.3.28"
+version = "0.3.29"
 dependencies = [
  "log",
  "openssl",
@@ -2174,7 +2174,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account-wasm"
-version = "0.3.28"
+version = "0.3.29"
 dependencies = [
  "serde-wasm-bindgen",
  "smbcloud-network",
@@ -2186,7 +2186,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-project"
-version = "0.3.28"
+version = "0.3.29"
 dependencies = [
  "anyhow",
  "async-trait",
