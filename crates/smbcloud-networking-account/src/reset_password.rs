@@ -3,6 +3,7 @@ use {
     smbcloud_model::{
         error_codes::ErrorResponse,
         forgot::{Param, UserUpdatePassword},
+        reset_password_response::ResetPasswordResponse,
     },
     smbcloud_network::{environment::Environment, network::request},
     smbcloud_networking::{
@@ -15,7 +16,7 @@ pub async fn reset_password(
     client: SmbClient,
     token: String,
     password: String,
-) -> Result<(), ErrorResponse> {
+) -> Result<ResetPasswordResponse, ErrorResponse> {
     let password_confirmation = password.clone();
     let params = Param {
         user: UserUpdatePassword {
