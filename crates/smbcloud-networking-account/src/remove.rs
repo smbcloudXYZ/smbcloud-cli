@@ -8,13 +8,12 @@ use {
 pub async fn remove(
     env: Environment,
     client: (&SmbClient, &str),
-    user_agent: String,
     access_token: &str,
 ) -> Result<(), ErrorResponse> {
     let builder = Client::new()
         .delete(build_smb_signup_url(env, client))
         .header("Authorization", access_token)
-        .header("User-agent", user_agent);
+        .header("User-agent", client.0.id());
     request(builder).await
 }
 
