@@ -15,7 +15,7 @@ pub async fn get_token(
     client_secret: String,
 ) -> Result<TokenResponse, ErrorResponse> {
     let base_url = "https://oauth2.googleapis.com/token".to_string();
-    debug!("Exchange code with token: {}", oauth_redirect.code);
+    debug!("Exchange code with token: {:?}", oauth_redirect.code);
     let paylod = json!({
         "client_id": client_id,
         "client_secret": client_secret,

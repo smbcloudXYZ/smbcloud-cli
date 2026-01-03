@@ -25,3 +25,4 @@ serde_json = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }
+uuid = { version = "1", features = ["v4"] }
