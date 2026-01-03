@@ -1,3 +1,4 @@
+use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
@@ -27,14 +28,20 @@ pub(crate) async fn process_deployment(
     if let Some(deployment_id) = id {
         // Show detail for a specific deployment
         let deployment_id: i32 = deployment_id.parse()?;
-        let deployment =
-            get_deployment(env, access_token, config.project.id, deployment_id).await?;
+        let deployment = get_deployment(
+            env,
+            client(),
+            access_token,
+            config.project.id,
+            deployment_id,
+        )
+        .await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded"));
         show_deployment_detail(&deployment);
     } else {
         // List all deployments for the project
         let access_token = get_smb_token(env)?;
-        let deployments = get_deployments(env, access_token, config.project.id).await?;
+        let deployments = get_deployments(env, client(), access_token, config.project.id).await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Load all deployments"));
         show_project_deployments(&deployments);
     };

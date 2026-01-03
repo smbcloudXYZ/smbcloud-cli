@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative "lib/model/version"
+require_relative 'lib/model/version'
 
 Gem::Specification.new do |spec|
-  spec.name = "smbcloud-model"
+  spec.name = 'smbcloud-model'
   spec.version = Model::VERSION
   spec.authors = ["paydii"]
   spec.email = ["hej@setoelkahfi.se"]

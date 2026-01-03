@@ -1,3 +1,4 @@
+use crate::client;
 use crate::token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in};
 use crate::{
     account::login::process_login,
@@ -74,6 +75,7 @@ pub async fn process_project_init(
     let access_token = get_smb_token(env)?;
     match create_project(
         env,
+        client(),
         access_token,
         ProjectCreate {
             name: project_name.clone(),

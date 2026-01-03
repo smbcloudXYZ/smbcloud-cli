@@ -1,5 +1,5 @@
 use {
-    crate::token::get_smb_token::get_smb_token,
+    crate::{client, token::get_smb_token::get_smb_token},
     dialoguer::{console::Term, theme::ColorfulTheme, Input, Select},
     regex::Regex,
     smbcloud_model::{
@@ -94,6 +94,7 @@ pub(crate) async fn create_new_project(
 
     match create_project(
         env,
+        client(),
         access_token,
         ProjectCreate {
             name,

@@ -1,4 +1,7 @@
-use crate::token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in};
+use crate::{
+    client,
+    token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in},
+};
 use anyhow::{anyhow, Result};
 use dialoguer::{console::Term, theme::ColorfulTheme, Input, Select};
 use smbcloud_model::runner::Runner;
@@ -22,7 +25,7 @@ pub async fn process_project_update(env: Environment, project_id: String) -> Res
     }
 
     let access_token = get_smb_token(env)?;
-    let project = get_project(env, access_token.clone(), project_id.clone()).await?;
+    let project = get_project(env, client(), access_token.clone(), project_id.clone()).await?;
 
     if let Some(project_description) = project.description {
         println!("Description: {}", description(&project_description));
@@ -50,7 +53,15 @@ pub async fn process_project_update(env: Environment, project_id: String) -> Res
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    update_project(env, access_token, project_id, &new_description, runner).await?;
+    update_project(
+        env,
+        client(),
+        access_token,
+        project_id,
+        &new_description,
+        runner,
+    )
+    .await?;
     Ok(CommandResult {
         spinner,
         symbol: succeed_symbol(),

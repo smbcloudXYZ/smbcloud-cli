@@ -3,6 +3,7 @@ use {
     crate::{
         account::lib::authorize_github,
         cli::CommandResult,
+        client,
         token::smb_token_file_path::smb_token_file_path,
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
@@ -13,10 +14,7 @@ use {
     serde::Serialize,
     smbcloud_model::signup::SignupResult,
     smbcloud_network::environment::Environment,
-    smbcloud_networking::{
-        constants::{PATH_USERS, SMB_USER_AGENT},
-        smb_base_url_builder,
-    },
+    smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder},
     smbcloud_networking_account::signup::signup,
     smbcloud_utils::email_validation,
     spinners::Spinner,
@@ -115,6 +113,7 @@ async fn signup_with_github(env: Environment) -> Result<CommandResult> {
     }
 }
 
+/// Signup with GitHub account.
 pub async fn do_signup<T: Serialize + ?Sized>(env: Environment, args: &T) -> Result<CommandResult> {
     let spinner = Spinner::new(
         spinners::Spinners::BouncingBall,
@@ -147,12 +146,6 @@ pub async fn do_signup<T: Serialize + ?Sized>(env: Environment, args: &T) -> Res
     }
 }
 
-fn build_smb_signup_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
-    url_builder.add_route(PATH_USERS);
-    url_builder.build()
-}
-
 pub async fn do_signup_email(
     env: Environment,
     email: String,
@@ -163,7 +156,7 @@ pub async fn do_signup_email(
         succeed_message("Signing you up"),
     );
 
-    match signup(env, SMB_USER_AGENT.to_string(), email, password).await {
+    match signup(env, client(), email, password).await {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
@@ -176,4 +169,10 @@ pub async fn do_signup_email(
             Err(error)
         }
     }
+}
+
+fn build_smb_signup_url(env: Environment) -> String {
+    let mut url_builder = smb_base_url_builder(env, client());
+    url_builder.add_route(PATH_USERS);
+    url_builder.build()
 }

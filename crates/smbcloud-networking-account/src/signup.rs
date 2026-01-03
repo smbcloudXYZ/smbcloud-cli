@@ -5,12 +5,12 @@ use {
         signup::{SignupEmailParams, SignupResult, SignupUserEmail},
     },
     smbcloud_network::{environment::Environment, network::request},
-    smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder},
+    smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder, smb_client::SmbClient},
 };
 
 pub async fn signup(
     env: Environment,
-    user_agent: String,
+    client: (&SmbClient, &str),
     email: String,
     password: String,
 ) -> Result<SignupResult, ErrorResponse> {
@@ -18,14 +18,14 @@ pub async fn signup(
         user: SignupUserEmail { email, password },
     };
     let builder = Client::new()
-        .post(build_smb_signup_url(env))
+        .post(build_smb_signup_url(env, client))
         .json(&params)
-        .header("User-agent", user_agent);
+        .header("User-agent", client.0.id());
     request(builder).await
 }
 
-fn build_smb_signup_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+fn build_smb_signup_url(env: Environment, client: (&SmbClient, &str)) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS);
     url_builder.build()
 }

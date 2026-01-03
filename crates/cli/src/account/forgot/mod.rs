@@ -1,5 +1,6 @@
 use crate::{
     cli::CommandResult,
+    client,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
 use anyhow::Result;
@@ -115,7 +116,7 @@ async fn input_code(env: Environment) -> Result<CommandResult> {
 }
 
 fn build_smb_forgot_url(env: Environment) -> String {
-    let mut url_builder = smb_base_url_builder(env);
+    let mut url_builder = smb_base_url_builder(env, client());
     url_builder.add_route(PATH_USERS_PASSWORD);
     url_builder.build()
 }

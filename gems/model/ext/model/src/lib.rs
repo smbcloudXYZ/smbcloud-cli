@@ -1,6 +1,8 @@
-use magnus::{function, prelude::*, Error, Ruby};
-use smbcloud_model::error_codes::ErrorCode;
-use strum::IntoEnumIterator;
+use {
+    magnus::{function, prelude::*, Error, Ruby},
+    smbcloud_model::error_codes::ErrorCode,
+    strum::IntoEnumIterator,
+};
 
 fn t(e: i32, l: Option<String>) -> String {
     ErrorCode::from_i32(e).message(l).to_string()

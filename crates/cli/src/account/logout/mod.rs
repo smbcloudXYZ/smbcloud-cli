@@ -1,6 +1,7 @@
 use {
     crate::{
         cli::CommandResult,
+        client,
         token::{get_smb_token::get_smb_token, smb_token_file_path::smb_token_file_path},
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
@@ -67,7 +68,7 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
 
 async fn do_process_logout(env: Environment) -> Result<()> {
     let token = get_smb_token(env)?;
-    match logout(env, token).await {
+    match logout(env, client(), token).await {
         Ok(_) => Ok(()),
         Err(e) => Err(anyhow!("{e}")),
     }

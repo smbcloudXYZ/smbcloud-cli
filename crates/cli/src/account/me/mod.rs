@@ -1,4 +1,5 @@
 use crate::account::lib::is_logged_in;
+use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
@@ -50,7 +51,7 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
         succeed_message("Loading"),
     );
     let token = get_smb_token(env)?;
-    match me(env, &token).await {
+    match me(env, client(), &token).await {
         Ok(user) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             show_user(&user);

@@ -1,3 +1,4 @@
+use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     account::lib::is_logged_in,
@@ -33,7 +34,7 @@ pub async fn process_project_delete(env: Environment, id: String) -> Result<Comm
         });
     }
     let access_token = get_smb_token(env)?;
-    match delete_project(env, access_token, id).await {
+    match delete_project(env, client(), access_token, id).await {
         Ok(_) => Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),

@@ -1,5 +1,6 @@
 use {
     crate::{
+        client,
         deploy::{
             setup_create_new_project::create_new_project, setup_select_project::select_project,
         },
@@ -55,7 +56,7 @@ pub(crate) async fn setup_project(
         },
     };
 
-    let projects = get_projects(env, access_token.to_string()).await?;
+    let projects = get_projects(env, client(), access_token.to_string()).await?;
 
     let project: Project = if !projects.is_empty() {
         select_project(env, projects, &path_str).await?

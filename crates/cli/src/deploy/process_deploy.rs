@@ -2,6 +2,7 @@ use {
     crate::{
         account::login::process_login,
         cli::CommandResult,
+        client,
         deploy::{
             config::{check_config, check_project, credentials},
             detect_runner::detect_runner,
@@ -104,8 +105,8 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     };
 
     let created_deployment =
-        create_deployment(env, &access_token, config.project.id, payload).await?;
-    let user = me(env, &access_token).await?;
+        create_deployment(env, client(), &access_token, config.project.id, payload).await?;
+    let user = me(env, client(), &access_token).await?;
 
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
@@ -158,6 +159,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
                     let result = handle.block_on(async {
                         update(
                             update_env, // Env is Copy
+                            client(),
                             access_token_for_update_cb.clone(),
                             project_id_for_update_cb,
                             deployment_id_for_update_cb,
@@ -193,6 +195,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
             };
             let result = update(
                 env,
+                client(),
                 access_token.clone(),
                 config.project.id,
                 created_deployment.id,
