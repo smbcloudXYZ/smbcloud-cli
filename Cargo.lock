@@ -2139,7 +2139,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-model"
-version = "0.3.28"
+version = "0.3.30"
 dependencies = [
  "chrono",
  "log",
@@ -2176,7 +2176,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account"
-version = "0.3.29"
+version = "0.3.30"
 dependencies = [
  "log",
  "openssl",
