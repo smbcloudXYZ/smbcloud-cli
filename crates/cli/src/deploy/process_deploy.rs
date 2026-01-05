@@ -4,7 +4,7 @@ use {
         cli::CommandResult,
         client,
         deploy::{
-            config::{check_config, check_project, credentials},
+            config::{check_project, credentials, get_config},
             detect_runner::detect_runner,
             git::remote_deployment_setup,
             remote_messages::{build_next_app, start_server},
@@ -39,7 +39,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let access_token = get_smb_token(env)?;
 
     // Check config.
-    let config = check_config(env, Some(&access_token)).await?;
+    let config = get_config(env, Some(&access_token)).await?;
 
     // Check runner.
     let runner = detect_runner().await?;
