@@ -16,7 +16,7 @@ use {
     std::{fs, path::Path},
 };
 
-pub(crate) async fn check_config(
+pub(crate) async fn get_config(
     env: Environment,
     access_token: Option<&str>,
 ) -> Result<Config, ErrorResponse> {

@@ -2,7 +2,7 @@ use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
-    deploy::config::{check_config, check_project},
+    deploy::config::{check_project, get_config},
     ui::{succeed_message, succeed_symbol},
 };
 use anyhow::Result;
@@ -19,7 +19,7 @@ pub(crate) async fn process_deployment(
     let mut spinner: Spinner =
         Spinner::new(spinners::Spinners::Hamburger, succeed_message("Loading"));
     // Load project id from .smb/config.toml
-    let config = check_config(env, None).await?;
+    let config = get_config(env, None).await?;
 
     let access_token = get_smb_token(env)?;
 
