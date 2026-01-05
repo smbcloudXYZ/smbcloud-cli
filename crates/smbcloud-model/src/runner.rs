@@ -16,6 +16,7 @@ pub enum Runner {
     NodeJs,
     Ruby,
     Swift,
+    Monorepo = 255,
 }
 
 impl Display for Runner {
@@ -45,6 +46,7 @@ pub enum SwiftFramework {
 
 impl Runner {
     pub fn from(repo_path: &PathBuf) -> Result<Runner, ErrorResponse> {
+        // See if we have a framework-based config.
         if repo_path.join("package.json").exists()
             && (next_config_exists(repo_path) || astro_config_exists(repo_path))
         {
@@ -57,10 +59,8 @@ impl Runner {
         if repo_path.join("Package.swift").exists() {
             return Ok(Runner::Swift);
         }
-        Err(ErrorResponse::Error {
-            error_code: UnsupportedRunner,
-            message: UnsupportedRunner.message(None).to_string(),
-        })
+        // See if we have a monorepo setup.
+        non_framework_runner()
     }
 
     pub fn git_host(&self) -> String {
@@ -69,10 +69,18 @@ impl Runner {
 
     fn api(&self) -> &str {
         match self {
+            Runner::Monorepo => "monorepo",
             Runner::NodeJs => "api",
             Runner::Ruby | Runner::Swift => "api-1",
         }
     }
+}
+
+fn non_framework_runner() -> Result<Runner, ErrorResponse> {
+    Err(ErrorResponse::Error {
+        error_code: UnsupportedRunner,
+        message: UnsupportedRunner.message(None).to_string(),
+    })
 }
 
 // Helper function to detect any next.config.* file

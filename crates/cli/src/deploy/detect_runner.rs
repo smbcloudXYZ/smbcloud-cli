@@ -17,9 +17,7 @@ pub(crate) async fn detect_runner() -> Result<Runner> {
         Err(_) => {
             spinner.stop_and_persist(
                 &fail_symbol(),
-                fail_message(
-                    "Could not detect project runner: no package.json, Gemfile, or Package.swift found",
-                ),
+                fail_message("Could not get the current path."),
             );
             anyhow::bail!(
                 "Could not detect project runner: no package.json, Gemfile, or Package.swift found"
@@ -42,6 +40,12 @@ pub(crate) async fn detect_runner() -> Result<Runner> {
     };
 
     match runner {
+        Runner::Monorepo => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Monorepo universal runner"),
+            );
+        }
         Runner::NodeJs => {
             spinner.stop_and_persist(
                 &succeed_symbol(),
