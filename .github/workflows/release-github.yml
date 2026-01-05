@@ -4,12 +4,15 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 env:
   # The smbcloud-cli binary name
   PROJECT_NAME: smb
+
 permissions:
   contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.runner }}
@@ -37,7 +40,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.87
+          toolchain: 1.92
           targets: "${{ matrix.target }}"
 
       #- name: Install OpenSSL
@@ -50,12 +53,7 @@ jobs:
       - name: Create .env file
         run: |
           touch .env
-          echo CLI_CLIENT_ID=${{ secrets.CLI_CLIENT_ID }} >> .env
-          echo SIGIT_CLIENT_ID=${{ secrets.SIGIT_CLIENT_ID }} >> .env
-          echo WEB_CONSOLE_CLIENT_ID=${{ secrets.WEB_CONSOLE_CLIENT_ID }} >> .env
           echo CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }} >> .env
-          echo SIGIT_CLIENT_SECRET=${{ secrets.SIGIT_CLIENT_SECRET }} >> .env
-          echo WEB_CONSOLE_CLIENT_SECRET=${{ secrets.WEB_CONSOLE_CLIENT_SECRET }} >> .env
           cat .env
 
       - name: Build Binary
@@ -81,6 +79,7 @@ jobs:
 
           mkdir -p "${DEST_DIR}"
           mv "${BIN_OUTPUT}" "${DEST_DIR}/${BIN_RELEASE}"
+
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
