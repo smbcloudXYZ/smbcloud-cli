@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 env:
   SMB_CLIENT_ID: ${{ secrets.SMB_CLIENT_ID }}
@@ -26,7 +27,7 @@ jobs:
           - {
               NAME: linux-x64-glibc,
               OS: ubuntu-20.04,
-              TOOLCHAIN: 1.87,
+              TOOLCHAIN: 1.92,
               TARGET: x86_64-unknown-linux-gnu,
             }
           # Cannot cross-compile for now
@@ -39,25 +40,25 @@ jobs:
           - {
               NAME: win32-x64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: 1.87,
+              TOOLCHAIN: 1.92,
               TARGET: x86_64-pc-windows-msvc,
             }
           - {
               NAME: win32-arm64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: 1.87,
+              TOOLCHAIN: 1.92,
               TARGET: aarch64-pc-windows-msvc,
             }
           - {
               NAME: darwin-x64,
               OS: macos-11,
-              TOOLCHAIN: 1.87,
+              TOOLCHAIN: 1.92,
               TARGET: x86_64-apple-darwin,
             }
           - {
               NAME: darwin-arm64,
               OS: macos-11,
-              TOOLCHAIN: 1.87,
+              TOOLCHAIN: 1.92,
               TARGET: aarch64-apple-darwin,
             }
     steps:
@@ -77,12 +78,7 @@ jobs:
       - name: Create .env file
         run: |
           touch .env
-          echo CLI_CLIENT_ID=${{ secrets.CLI_CLIENT_ID }} >> .env
-          echo SIGIT_CLIENT_ID=${{ secrets.SIGIT_CLIENT_ID }} >> .env
-          echo WEB_CONSOLE_CLIENT_ID=${{ secrets.WEB_CONSOLE_CLIENT_ID }} >> .env
           echo CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }} >> .env
-          echo SIGIT_CLIENT_SECRET=${{ secrets.SIGIT_CLIENT_SECRET }} >> .env
-          echo WEB_CONSOLE_CLIENT_SECRET=${{ secrets.WEB_CONSOLE_CLIENT_SECRET }} >> .env
           cat .env
 
       - name: Build
@@ -95,9 +91,9 @@ jobs:
           cargo build --release --locked --target ${{ matrix.build.TARGET }}
 
       - name: Install node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: "18"
+          node-version-file: .nvmrc
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish to NPM
@@ -158,9 +154,9 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF:11}" >> $GITHUB_ENV
 
       - name: Install node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v6
         with:
-          node-version: "18"
+          node-version-file: .nvmrc
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish the package
