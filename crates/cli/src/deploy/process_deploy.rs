@@ -42,7 +42,7 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
     let config = get_config(env, Some(&access_token)).await?;
 
     // Check runner.
-    let runner = detect_runner().await?;
+    let runner = detect_runner(&config).await?;
 
     // Validate config with project.
     check_project(env, &access_token, config.project.id).await?;

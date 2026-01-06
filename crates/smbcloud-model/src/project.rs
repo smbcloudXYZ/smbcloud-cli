@@ -19,6 +19,7 @@ pub struct Project {
     pub id: i32,
     pub name: String,
     pub runner: Runner,
+    pub path: Option<String>,
     pub repository: Option<String>,
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,

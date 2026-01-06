@@ -9,7 +9,7 @@ use {
     },
 };
 
-#[derive(Debug, Deserialize_repr, Serialize_repr, Clone, Copy)]
+#[derive(Debug, Deserialize_repr, Serialize_repr, Clone, Copy, PartialEq)]
 #[repr(u8)]
 #[tsync::tsync]
 pub enum Runner {
