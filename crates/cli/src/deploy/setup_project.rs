@@ -72,6 +72,7 @@ pub(crate) async fn setup_project(
         project,
         name,
         description,
+        projects: None,
     };
 
     // Ensure .smb directory exists

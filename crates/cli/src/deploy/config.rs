@@ -49,7 +49,7 @@ pub(crate) async fn get_config(
     let config: Config = match toml::from_str(&config_content) {
         Ok(value) => value,
         Err(e) => {
-            println!("{}", e);
+            println!("Error parsing config: {}", e);
             spinner.stop_and_persist(&fail_symbol(), fail_message("Config unsync."));
             handle_config_error()?
         }

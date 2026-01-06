@@ -2,11 +2,12 @@ use {
     crate::ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     anyhow::Result,
     smbcloud_model::runner::Runner,
+    smbcloud_utils::config::Config,
     spinners::Spinner,
     std::{env::current_dir, path::Path},
 };
 
-pub(crate) async fn detect_runner() -> Result<Runner> {
+pub(crate) async fn detect_runner(config: &Config) -> Result<Runner> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Checking runner"),
@@ -24,6 +25,11 @@ pub(crate) async fn detect_runner() -> Result<Runner> {
             );
         }
     };
+
+    // See if we have a monorepo setup.
+    if config.project.runner == Runner::Monorepo && config.projects.is_some() {
+        return Ok(Runner::Monorepo);
+    }
     let runner = match Runner::from(&path) {
         Ok(runner) => runner,
         Err(_) => {
