@@ -1,15 +1,17 @@
 pub enum SmbClient {
     Cli,
     Sigit,
+    Moovibe,
     WebConsole,
 }
 
 impl SmbClient {
     pub fn id(&self) -> &str {
         match self {
-            SmbClient::Cli => "cli",
-            SmbClient::Sigit => "sigit-app",
-            SmbClient::WebConsole => "web",
+            Self::Cli => "cli",
+            Self::Sigit => "sigit-app",
+            Self::Moovibe => "moovibe-app",
+            Self::WebConsole => "web",
         }
     }
 }
