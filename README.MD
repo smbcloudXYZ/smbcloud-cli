@@ -5,7 +5,6 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    Check if the device is an Android TV device.
     <br />
     <a href="#about">About</a>
     ·
