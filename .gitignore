@@ -3,6 +3,7 @@
 
 # Editor
 .zed
+.vscode
 
 # Secrets
 .env
