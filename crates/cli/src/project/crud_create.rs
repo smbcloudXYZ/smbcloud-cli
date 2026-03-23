@@ -36,7 +36,7 @@ pub async fn process_project_init(
         }
     };
 
-    let runners = vec![Runner::NodeJs, Runner::Swift, Runner::Ruby];
+    let runners = vec![Runner::NodeJs, Runner::Static, Runner::Ruby, Runner::Swift];
     let runner = Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)
@@ -82,6 +82,7 @@ pub async fn process_project_init(
             runner,
             repository,
             description: description.clone(),
+            deployment_method: Default::default(),
         },
     )
     .await
@@ -113,6 +114,8 @@ description = "{description}"
 [project]
 id = 1
 name = "{repository_name}"
+runner = 0
+deployment_method = 0
 repository = "{repository_name}"
 description = "{description}"
 created_at = "{now}"

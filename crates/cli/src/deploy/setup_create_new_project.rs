@@ -74,7 +74,7 @@ pub(crate) async fn create_new_project(
         }
     };
 
-    let runners = vec![Runner::NodeJs, Runner::Swift, Runner::Ruby];
+    let runners = vec![Runner::NodeJs, Runner::Static, Runner::Ruby, Runner::Swift];
     let runner = Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)
@@ -101,6 +101,7 @@ pub(crate) async fn create_new_project(
             runner,
             repository,
             description,
+            deployment_method: Default::default(),
         },
     )
     .await
