@@ -8,6 +8,7 @@ use {
             detect_runner::detect_runner,
             git::remote_deployment_setup,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
+            process_deploy_rails::process_deploy_rails,
             process_deploy_vite_spa::process_deploy_vite_spa,
             remote_messages::{build_next_app, start_server},
             rsync_deploy::rsync_deploy,
@@ -127,6 +128,11 @@ pub async fn process_deploy(
     // Route Next.js SSR projects: pnpm install + build, rsync 8 items, SSH pm2 restart.
     if config.project.kind.as_deref() == Some("nextjs-ssr") {
         return process_deploy_nextjs_ssr(env, config).await;
+    }
+
+    // Route Rails projects: rsync shared lib, SSH compile native gem, git force-push sub-project.
+    if config.project.kind.as_deref() == Some("rails") {
+        return process_deploy_rails(env, config).await;
     }
 
     match config.project.deployment_method {
