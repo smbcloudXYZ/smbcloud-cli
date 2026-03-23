@@ -29,6 +29,7 @@ clap_mangen = { workspace = true }
 console = { workspace = true }
 dialoguer = { workspace = true }
 dirs = { workspace = true }
+
 dotenv_codegen = { workspace = true }
 git2 = { workspace = true }
 home = { workspace = true }
@@ -48,6 +49,7 @@ smbcloud-networking-project = { workspace = true }
 smbcloud-utils = { workspace = true }
 spinners = { workspace = true }
 tabled = { workspace = true }
+tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 toml = { workspace = true }

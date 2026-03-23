@@ -6,6 +6,7 @@ use {
     smbcloud_model::{
         error_codes::{ErrorCode, ErrorResponse},
         project::{Project, ProjectCreate},
+        runner::Runner,
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::{
@@ -223,6 +224,8 @@ async fn create_new_project(env: Environment, path: &str) -> Result<Project, Err
             name,
             repository,
             description,
+            runner: Runner::NodeJs,
+            deployment_method: Default::default(),
         },
     )
     .await

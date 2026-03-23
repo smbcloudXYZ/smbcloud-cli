@@ -58,6 +58,12 @@ pub(crate) async fn detect_runner(config: &Config) -> Result<Runner> {
                 succeed_message("NodeJs 🟩 runner detected"),
             );
         }
+        Runner::Static => {
+            spinner.stop_and_persist(
+                &succeed_symbol(),
+                succeed_message("Static 🌐 site — no build step required"),
+            );
+        }
         Runner::Ruby => {
             if Path::new("Gemfile").exists() {
                 spinner.stop_and_persist(

@@ -9,19 +9,29 @@ use {
     },
 };
 
-#[derive(Debug, Deserialize_repr, Serialize_repr, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize_repr, Serialize_repr, Clone, Copy, PartialEq, Default)]
 #[repr(u8)]
 #[tsync::tsync]
 pub enum Runner {
-    NodeJs,
-    Ruby,
-    Swift,
+    #[default]
+    NodeJs = 0,
+    /// A pure static site: no app process on the server, nginx serves files
+    /// directly. Always deployed via rsync — git push has no build step to run.
+    Static = 1,
+    Ruby = 2,
+    Swift = 3,
     Monorepo = 255,
 }
 
 impl Display for Runner {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Runner::NodeJs => write!(f, "NodeJs"),
+            Runner::Static => write!(f, "Static"),
+            Runner::Ruby => write!(f, "Ruby"),
+            Runner::Swift => write!(f, "Swift"),
+            Runner::Monorepo => write!(f, "Monorepo"),
+        }
     }
 }
 
@@ -67,10 +77,17 @@ impl Runner {
         format!("git@{}.smbcloud.xyz", self.api())
     }
 
+    /// Returns the explicit hostname used for rsync SSH connections.
+    /// e.g. `api.smbcloud.xyz` or `api-1.smbcloud.xyz`
+    pub fn rsync_host(&self) -> String {
+        format!("{}.smbcloud.xyz", self.api())
+    }
+
     fn api(&self) -> &str {
         match self {
             Runner::Monorepo => "monorepo",
-            Runner::NodeJs => "api",
+            // Static sites and NodeJs projects share the same lightweight tier
+            Runner::NodeJs | Runner::Static => "api",
             Runner::Ruby | Runner::Swift => "api-1",
         }
     }
