@@ -40,7 +40,12 @@ pub enum Commands {
         about = "Deploy project. This is smb main command. Requires an smbCloud account.",
         display_order = 0
     )]
-    Deploy {},
+    Deploy {
+        /// Name of the sub-project to deploy (for monorepo configs with [[projects]]).
+        /// Matches the `name` field in .smb/config.toml. Omit to deploy the root project.
+        #[arg(short, long)]
+        project: Option<String>,
+    },
     #[clap(
         about = "Initialize project. Requires an smbCloud account.",
         display_order = 1

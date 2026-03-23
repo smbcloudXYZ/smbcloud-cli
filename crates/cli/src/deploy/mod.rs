@@ -3,6 +3,8 @@ mod detect_runner;
 mod git;
 mod known_hosts;
 pub mod process_deploy;
+pub mod process_deploy_nextjs_ssr;
+pub mod process_deploy_vite_spa;
 mod remote_messages;
 pub(crate) mod rsync_deploy;
 pub(crate) mod setup_create_new_project;

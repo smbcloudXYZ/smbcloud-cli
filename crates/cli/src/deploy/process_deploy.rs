@@ -7,6 +7,8 @@ use {
             config::{check_project, credentials, get_config},
             detect_runner::detect_runner,
             git::remote_deployment_setup,
+            process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
+            process_deploy_vite_spa::process_deploy_vite_spa,
             remote_messages::{build_next_app, start_server},
             rsync_deploy::rsync_deploy,
         },
@@ -14,13 +16,18 @@ use {
         ui::{fail_message, succeed_message, succeed_symbol},
     },
     anyhow::{anyhow, Result},
+    dialoguer::{console::Term, theme::ColorfulTheme, Select},
     git2::{PushOptions, RemoteCallbacks, Repository},
-    smbcloud_model::project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
+    smbcloud_model::{
+        project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
+        runner::Runner,
+    },
     smbcloud_network::environment::Environment,
     smbcloud_networking_account::me::me,
     smbcloud_networking_project::{
         crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
     },
+    smbcloud_utils::config::Config,
     spinners::Spinner,
     std::sync::{
         atomic::{AtomicBool, Ordering},
@@ -28,7 +35,59 @@ use {
     },
 };
 
-pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
+/// Interactively prompt the user to pick one of the [[projects]] entries.
+fn prompt_select_project(config: &Config) -> Result<String> {
+    let projects = config.projects.as_ref().ok_or_else(|| {
+        anyhow!(fail_message(
+            "No [[projects]] entries found in .smb/config.toml."
+        ))
+    })?;
+
+    let labels: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
+
+    let index = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Select project to deploy")
+        .items(&labels)
+        .default(0)
+        .interact_on(&Term::stderr())
+        .map_err(|_| anyhow!(fail_message("No project selected.")))?;
+
+    Ok(labels[index].to_owned())
+}
+
+/// Swap `config.project` for the named entry in `config.projects`, preserving
+/// the rest of the config unchanged so auth, SSH keys, etc. still resolve.
+fn resolve_sub_project(mut config: Config, name: &str) -> Result<Config> {
+    let projects = config.projects.as_ref().ok_or_else(|| {
+        anyhow!(fail_message(
+            "No [[projects]] entries found in .smb/config.toml."
+        ))
+    })?;
+
+    let sub_project = projects
+        .iter()
+        .find(|project| project.name == name)
+        .ok_or_else(|| {
+            anyhow!(fail_message(&format!(
+                "Sub-project '{}' not found in [[projects]]. Available: {}",
+                name,
+                projects
+                    .iter()
+                    .map(|project| project.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )))
+        })?
+        .clone();
+
+    config.project = sub_project;
+    Ok(config)
+}
+
+pub async fn process_deploy(
+    env: Environment,
+    project_name: Option<String>,
+) -> Result<CommandResult> {
     // Check credentials.
     let is_logged_in = is_logged_in(env).await?;
 
@@ -36,14 +95,39 @@ pub async fn process_deploy(env: Environment) -> Result<CommandResult> {
         let _ = process_login(env, Some(is_logged_in)).await?;
     }
 
-    // Get current token
+    // Get current token.
     let access_token = get_smb_token(env)?;
 
     // Check config.
-    let config = get_config(env, Some(&access_token)).await?;
+    let mut config = get_config(env, Some(&access_token)).await?;
 
-    // Validate config with project.
+    // When a sub-project name is given (monorepo), swap config.project to that
+    // entry from [[projects]] so all downstream logic operates on the right one.
+    // When omitted and the root project is a monorepo, prompt the user to pick.
+    let resolved_name = match project_name {
+        Some(name) => Some(name),
+        None if config.project.runner == Runner::Monorepo => Some(prompt_select_project(&config)?),
+        None => None,
+    };
+
+    if let Some(ref name) = resolved_name {
+        config = resolve_sub_project(config, name)?;
+    }
+
+    // Validate that the logged-in user has access to this project before doing
+    // any work — applies to every deployment path including vite-spa.
     check_project(env, &access_token, config.project.id).await?;
+
+    // Route Vite SPA projects to a dedicated local-build + rsync deploy path.
+    // The kind field in config.toml drives this: kind = "vite-spa".
+    if config.project.kind.as_deref() == Some("vite-spa") {
+        return process_deploy_vite_spa(env, config).await;
+    }
+
+    // Route Next.js SSR projects: pnpm install + build, rsync 8 items, SSH pm2 restart.
+    if config.project.kind.as_deref() == Some("nextjs-ssr") {
+        return process_deploy_nextjs_ssr(env, config).await;
+    }
 
     match config.project.deployment_method {
         DeploymentMethod::Rsync => {
@@ -75,7 +159,7 @@ async fn git_deploy(
         }
     };
 
-    // Get the current branch
+    // Get the current branch.
     let head = match repo.head() {
         Ok(head) => head,
         Err(_) => {
@@ -85,7 +169,7 @@ async fn git_deploy(
         }
     };
 
-    // Check if we're on the main branch
+    // Check if we're on the main branch.
     let branch_name = match head.shorthand() {
         Some(name) => name,
         None => {
@@ -131,17 +215,16 @@ async fn git_deploy(
     let mut push_opts = PushOptions::new();
     let mut callbacks = RemoteCallbacks::new();
 
-    // For updating status to failed
+    // For updating status to failed.
     let deployment_failed_flag = Arc::new(AtomicBool::new(false));
     let update_env = env; // Env is Copy
     let update_access_token = access_token.to_owned();
     let update_project_id = config.project.id;
     let update_deployment_id = created_deployment.id;
 
-    // Set the credentials
+    // Set the credentials.
     callbacks.credentials(credentials(&config, user));
     callbacks.sideband_progress(|data| {
-        // Convert bytes to string, print line by line
         if let Ok(text) = std::str::from_utf8(data) {
             for line in text.lines() {
                 if line.contains(&build_next_app()) {
@@ -208,7 +291,7 @@ async fn git_deploy(
 
     match origin.push(&["refs/heads/main:refs/heads/main"], Some(&mut push_opts)) {
         Ok(_) => {
-            // Update deployment status to Done
+            // Update deployment status to Done.
             let update_payload = DeploymentPayload {
                 commit_hash: commit_hash.to_string(),
                 status: DeploymentStatus::Done,

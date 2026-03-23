@@ -51,6 +51,19 @@ pub struct Project {
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Deployment kind, e.g. "vite-spa". Absent for server-side runners.
+    pub kind: Option<String>,
+    /// Local source directory to build from, e.g. "frontend/connected-devices".
+    /// Used by vite-spa deploys as the working directory for the build step.
+    /// Distinct from `path`, which is the remote destination on the server.
+    pub source: Option<String>,
+    /// Build output directory relative to `source`, e.g. "dist".
+    pub output: Option<String>,
+    /// Package manager to use for the build step, e.g. "pnpm".
+    pub package_manager: Option<String>,
+    /// PM2 process name to restart after a nextjs-ssr deploy, e.g. "my-app".
+    /// Matches the name passed to `pm2 start` on the server.
+    pub pm2_app: Option<String>,
 }
 
 impl Display for Project {
