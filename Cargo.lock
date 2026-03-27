@@ -2169,13 +2169,16 @@ dependencies = [
 name = "smbcloud-networking-account"
 version = "0.3.30"
 dependencies = [
+ "base64",
  "log",
  "openssl",
  "reqwest",
+ "serde",
  "serde_json",
  "smbcloud-model",
  "smbcloud-network",
  "smbcloud-networking",
+ "url-builder",
  "uuid",
 ]
 
