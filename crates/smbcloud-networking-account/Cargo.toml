@@ -20,12 +20,12 @@ readme = "README.md"
 [dependencies]
 base64 = "0.22"
 log = { workspace = true }
-openssl = { version = "0.10", features = ["vendored"] }
 reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+sha2 = "0.10"
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }
 url-builder = { workspace = true }
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "js"] }

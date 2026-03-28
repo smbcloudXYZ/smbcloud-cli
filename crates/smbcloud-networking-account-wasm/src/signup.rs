@@ -4,7 +4,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[wasm_bindgen]
-pub async fn login_with_client(
+pub async fn signup_with_client(
     env: Environment,
     app_id: String,
     app_secret: String,
@@ -16,7 +16,8 @@ pub async fn login_with_client(
         app_secret: &app_secret,
     };
 
-    match smbcloud_networking_account::login::login_with_client(env, client, email, password).await
+    match smbcloud_networking_account::signup::signup_with_client(env, client, email, password)
+        .await
     {
         Ok(response) => Ok(serde_wasm_bindgen::to_value(&response)?),
         Err(error) => Err(serde_wasm_bindgen::to_value(&error)?),
