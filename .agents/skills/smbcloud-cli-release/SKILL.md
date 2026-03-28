@@ -1,6 +1,6 @@
 ---
 name: smbcloud-cli-release
-description: Use when building, packaging, or releasing smbCloud CLI binaries through npm or GitHub Actions CI/CD. Covers the Rust binary packages under `npm/cli-*`, the `@smbcloud/cli` wrapper package, macOS arm64 vs x64 constraints, npm 2FA publishing, and fixes to `.github/workflows/release-npm.yml`.
+description: Use when building, packaging, or releasing smbCloud CLI binaries through npm, PyPI, or GitHub Actions CI/CD. Covers the Rust binary release source of truth, the npm wrapper and platform packages, the PyPI `maturin` package under `pypi/`, local publishing with `uv tool install maturin`, and fixes to `.github/workflows/release-npm.yml` or `.github/workflows/release-pypi.yml`.
 ---
 
 # smbcloud CLI Release
@@ -8,17 +8,34 @@ description: Use when building, packaging, or releasing smbCloud CLI binaries th
 Use this skill when work touches any part of the smbCloud CLI distribution flow:
 
 - local npm release for `smbcloud-cli`
+- local PyPI release for `smbcloud-cli`
 - GitHub Actions npm release automation
-- Rust binary packaging into scoped npm platform packages
-- release failures caused by macOS cross-compilation, missing package metadata, or npm 2FA
+- GitHub Actions PyPI release automation
+- Rust binary packaging into npm platform packages or PyPI wheels
+- release failures caused by macOS cross-compilation, missing package metadata, npm 2FA, or PyPI trusted publishing setup
+
+## Source of truth
+
+Use these files as the release source of truth:
+
+- Rust crate version and binary name: `crates/cli/Cargo.toml`
+- npm release workflow: `.github/workflows/release-npm.yml`
+- PyPI release workflow: `.github/workflows/release-pypi.yml`
+- npm platform package generator: `npm/scripts/render-platform-package.cjs`
+- npm wrapper package generator: `npm/scripts/render-main-package.cjs`
+- npm wrapper launcher: `npm/smbcloud-cli/src/index.ts`
+- PyPI package metadata: `pypi/pyproject.toml`
+- PyPI package README: `pypi/README.md`
 
 ## Release model
 
-There are two npm package layers. Publish them in order.
+There are two public distribution channels.
 
-### 1. Platform binary packages
+### 1. npm
 
-These packages contain the compiled Rust binary only:
+npm has two package layers. Publish them in order.
+
+Platform binary packages:
 
 - `@smbcloud/cli-darwin-arm64`
 - `@smbcloud/cli-darwin-x64`
@@ -26,31 +43,22 @@ These packages contain the compiled Rust binary only:
 - `@smbcloud/cli-windows-arm64`
 - `@smbcloud/cli-windows-x64`
 
-Their package directories are generated under `npm/cli-*/` and should be treated as release artifacts, not source.
-
-### 2. Wrapper package
-
-The public package is:
+Wrapper package:
 
 - `@smbcloud/cli`
 
-It contains the Node launcher in `npm/smbcloud-cli/src/index.ts` and resolves the correct platform package with `require.resolve(...)`.
-
+The wrapper package resolves the right platform package with `require.resolve(...)`.
 Do not publish `@smbcloud/cli` before the required platform packages for that version exist.
 
-## Source of truth
+### 2. PyPI
 
-Use these files as the release source of truth:
+PyPI uses one package:
 
-- Rust crate version: `crates/cli/Cargo.toml`
-- npm release workflow: `.github/workflows/release-npm.yml`
-- platform package generator: `npm/scripts/render-platform-package.cjs`
-- wrapper package generator: `npm/scripts/render-main-package.cjs`
-- wrapper launcher: `npm/smbcloud-cli/src/index.ts`
+- `smbcloud-cli`
 
-Do not hand-edit generated `npm/cli-*/package.json` files unless debugging a broken release artifact.
+It is built from `pypi/pyproject.toml` with `maturin` and `bindings = "bin"`, so the published wheel installs the native `smb` executable directly.
 
-## Local release workflow
+## Local npm release workflow
 
 ### Preflight
 
@@ -64,7 +72,7 @@ Build each target first:
 
 - `cargo build --release --locked --target aarch64-apple-darwin`
 - `cargo build --release --locked --target x86_64-apple-darwin`
-- or the matching Linux/Windows target in CI
+- or the matching Linux or Windows target in CI
 
 ### Generate platform package
 
@@ -87,6 +95,49 @@ Example:
 4. Run `npm run build`
 5. Publish `@smbcloud/cli`
 
+## Local PyPI release workflow
+
+### Tooling
+
+Use `uv` for local `maturin` installation in this repo.
+
+Install:
+
+- `uv tool install maturin`
+
+Upgrade later if needed:
+
+- `uv tool upgrade maturin`
+
+If the shell cannot find `maturin`, use:
+
+- `uv tool run maturin --version`
+
+### Preflight
+
+1. Confirm the crate version in `crates/cli/Cargo.toml`.
+2. Make sure `.env` exists with `CLI_CLIENT_SECRET=...` because the Rust build reads it at compile time.
+3. If publishing from a local machine, use a PyPI API token. Trusted publishing is for CI.
+
+### Build and upload
+
+From `pypi/`:
+
+- `maturin build --release --locked --compatibility pypi --out dist`
+- `maturin upload dist/*`
+
+Or publish in one step:
+
+- `maturin publish --release --locked --compatibility pypi`
+
+For local uploads, export `MATURIN_PYPI_TOKEN` before running `maturin upload` or `maturin publish`.
+
+### Local publishing constraint
+
+A local publish normally builds only for the current platform.
+
+Do not claim a full PyPI release is complete from one machine unless you intentionally published only one platform or separately produced all required wheels.
+
 ## npm 2FA
 
 Publishing may fail with `EOTP`.
@@ -98,6 +149,8 @@ When that happens, retry the exact `npm publish` command with:
 Do not assume the first publish failed before the package upload step. Check the exit result or npm registry state before retrying repeatedly.
 
 ## Trusted publishing
+
+### npm
 
 Prefer npm trusted publishers for CI over `NPM_TOKEN`.
 
@@ -136,39 +189,6 @@ Do not pass `NODE_AUTH_TOKEN` to `npm publish` when using trusted publishing.
 
 The npm CLI detects the GitHub OIDC environment automatically and exchanges it for a short-lived publish credential.
 
-### Rust toolchain consistency
-
-When cross-compiling in CI, the Rust toolchain used for `rustup target add` must match the toolchain used by `cargo build`.
-
-For this repo, `rust-toolchain.toml` is the source of truth.
-
-Do not duplicate the Rust version in the matrix unless the workflow intentionally tests multiple toolchains.
-
-If the workflow installs a target for one toolchain but Cargo builds with another, CI can fail with:
-
-- `error[E0463]: can't find crate for core`
-- note that the target may not be installed
-
-This can happen even when `rustup target add <target>` already ran successfully.
-
-### dtolnay action behavior
-
-For the pinned `dtolnay/rust-toolchain` revision used in this repo, do not assume the action will infer the toolchain from `rust-toolchain.toml` without input.
-
-A workflow can fail with:
-
-- `'toolchain' is a required input`
-
-Preferred pattern in this repo:
-
-- read `channel = "..."` from `rust-toolchain.toml`
-- write it to `RUST_TOOLCHAIN` in `GITHUB_ENV`
-- pass `toolchain: ${{ env.RUST_TOOLCHAIN }}` to `dtolnay/rust-toolchain`
-- run `rustup target add <target> --toolchain ${{ env.RUST_TOOLCHAIN }}`
-- run `cargo build --target <target>` after the action sets that toolchain active
-
-This keeps `rust-toolchain.toml` as the only Rust version source while avoiding implicit action behavior.
-
 ### Trusted publisher command
 
 For this repo, the trust relationship should point at:
@@ -194,80 +214,66 @@ Recommended order:
 
 Do not remove the manual publish path for brand-new package names, because npm trust cannot be configured before the first publish.
 
+### PyPI
+
+Use trusted publishing in GitHub Actions through `pypa/gh-action-pypi-publish@release/v1`.
+Do not use trusted publishing as the default local-machine publish path.
+
 ## CI/CD workflow rules
 
-The release workflow lives in `.github/workflows/release-npm.yml`.
+### Shared rules
+
+For both release workflows:
+
+- `runs-on` must use `matrix.build.OS` when the matrix uses upper-case keys
+- derive `RELEASE_VERSION` from the git tag when `GITHUB_REF_TYPE=tag`
+- for `workflow_dispatch`, fall back to the version in `crates/cli/Cargo.toml`
+- read the Rust toolchain from `rust-toolchain.toml`
+- pass that exact toolchain into `dtolnay/rust-toolchain`
+- run `rustup target add <target> --toolchain ${{ env.RUST_TOOLCHAIN }}` before cross-target builds
+
+### npm workflow
+
+The npm workflow lives in `.github/workflows/release-npm.yml`.
 
 Important rules:
 
-- `runs-on` must use `matrix.build.OS`, not `matrix.build.os`
-- derive `RELEASE_VERSION` from the git tag when `GITHUB_REF_TYPE=tag`
-- for `workflow_dispatch`, fall back to the version in `crates/cli/Cargo.toml`
 - avoid `envsubst` for package generation across runners
 - use the Node generator scripts instead
 - use `npm install` and `npm run build` for the wrapper package job
 
-### Package generation
+### PyPI workflow
 
-Prefer deterministic Node scripts over shell templating.
+The PyPI workflow lives in `.github/workflows/release-pypi.yml`.
 
-Reasons:
+Important rules:
 
-- `envsubst` is not guaranteed across macOS and Windows runners
-- package metadata must stay identical between local release and CI
-- the generated wrapper package must point optional dependencies at the exact release version
+- build wheels with `PyO3/maturin-action@v1`
+- use `working-directory: pypi`
+- pass `target: ${{ matrix.build.TARGET }}`
+- use `manylinux: ${{ matrix.build.MANYLINUX || 'off' }}`
+- build the sdist in a separate job
+- publish only after wheel and sdist artifacts are downloaded into one directory
+
+## Rust toolchain consistency
+
+When cross-compiling in CI, the Rust toolchain used for `rustup target add` must match the toolchain used by `cargo build` or `maturin`.
+
+For this repo, `rust-toolchain.toml` is the only Rust version source of truth.
+
+If the workflow installs a target for one toolchain but builds with another, CI can fail with:
+
+- `error[E0463]: can't find crate for core`
 
 ## macOS cross-build constraint
 
 On an Apple Silicon host, `x86_64-apple-darwin` may fail due to `openssl-sys` if only arm64 Homebrew OpenSSL exists under `/opt/homebrew`.
 
-Typical symptom:
-
-- `openssl-sys` cannot find an `x86_64-apple-darwin` OpenSSL
-
 If that happens:
 
 - do not claim the x64 package is releasable from that machine
 - either build on an Intel Mac
-- or use a Rosetta/x86 Homebrew toolchain with Intel OpenSSL under `/usr/local/opt/openssl@3`
+- or use a Rosetta or x86 Homebrew toolchain with Intel OpenSSL under `/usr/local/opt/openssl@3`
 - or publish only the arm64 platform package and explicitly avoid calling the release complete
 
 Do not publish `@smbcloud/cli` for a version unless you accept that missing platform packages for that version can break installs on those platforms.
-
-## Generated artifacts
-
-Generated platform package directories should be git-ignored:
-
-- `/npm/cli-*/`
-
-These are build artifacts and should not be committed.
-
-## Validation
-
-Use the smallest checks that match the change.
-
-### Local
-
-- `npm whoami`
-- `cargo build --release --locked --target <target>`
-- `node npm/scripts/render-platform-package.cjs ...`
-- `node npm/scripts/render-main-package.cjs ...`
-- `npm install`
-- `npm run build`
-
-### CI/CD edits
-
-After changing the workflow:
-
-- inspect `.github/workflows/release-npm.yml`
-- verify the package generators still output the expected names and versions
-- confirm `@smbcloud/cli` optional dependencies match the platform package names exactly
-
-## Common mistakes
-
-- publishing `@smbcloud/cli` before the matching platform packages exist
-- assuming `workflow_dispatch` has a tag-derived version
-- relying on `envsubst` in a cross-platform GitHub Actions workflow
-- forgetting that Windows binaries need `.exe`
-- treating generated `npm/cli-*` directories as source files
-- trying to cross-build macOS x64 on Apple Silicon without an Intel OpenSSL toolchain
