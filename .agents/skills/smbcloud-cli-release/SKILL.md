@@ -140,7 +140,9 @@ The npm CLI detects the GitHub OIDC environment automatically and exchanges it f
 
 When cross-compiling in CI, the Rust toolchain used for `rustup target add` must match the toolchain used by `cargo build`.
 
-For this repo, check `rust-toolchain.toml` first and keep the workflow matrix aligned with it.
+For this repo, `rust-toolchain.toml` is the source of truth.
+
+Do not duplicate the Rust version in the matrix unless the workflow intentionally tests multiple toolchains.
 
 If the workflow installs a target for one toolchain but Cargo builds with another, CI can fail with:
 
@@ -149,13 +151,23 @@ If the workflow installs a target for one toolchain but Cargo builds with anothe
 
 This can happen even when `rustup target add <target>` already ran successfully.
 
-Preferred pattern:
+### dtolnay action behavior
 
-- install the requested toolchain explicitly
-- run `rustup target add <target> --toolchain <toolchain>`
-- run `cargo +<toolchain> build --target <target>`
+For the pinned `dtolnay/rust-toolchain` revision used in this repo, do not assume the action will infer the toolchain from `rust-toolchain.toml` without input.
 
-Do not rely on plain `cargo build` if the repo pin in `rust-toolchain.toml` can differ from the matrix toolchain version.
+A workflow can fail with:
+
+- `'toolchain' is a required input`
+
+Preferred pattern in this repo:
+
+- read `channel = "..."` from `rust-toolchain.toml`
+- write it to `RUST_TOOLCHAIN` in `GITHUB_ENV`
+- pass `toolchain: ${{ env.RUST_TOOLCHAIN }}` to `dtolnay/rust-toolchain`
+- run `rustup target add <target> --toolchain ${{ env.RUST_TOOLCHAIN }}`
+- run `cargo build --target <target>` after the action sets that toolchain active
+
+This keeps `rust-toolchain.toml` as the only Rust version source while avoiding implicit action behavior.
 
 ### Trusted publisher command
 
