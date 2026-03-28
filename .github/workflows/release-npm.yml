@@ -30,13 +30,13 @@ jobs:
         build:
           - {
               NAME: linux-x64-glibc,
-              OS: ubuntu-20.04,
+              OS: ubuntu-latest,
               TARGET: x86_64-unknown-linux-gnu,
             }
           # Cannot cross-compile for now
           #- {
           #    NAME: linux-arm64-glibc,
-          #    OS: ubuntu-20.04,
+          #    OS: ubuntu-latest,
           #    TOOLCHAIN: stable,
           #    TARGET: aarch64-unknown-linux-gnu,
           #  }
@@ -52,17 +52,17 @@ jobs:
             }
           - {
               NAME: darwin-x64,
-              OS: macos-11,
+              OS: macos-latest,
               TARGET: x86_64-apple-darwin,
             }
           - {
               NAME: darwin-arm64,
-              OS: macos-11,
+              OS: macos-latest,
               TARGET: aarch64-apple-darwin,
             }
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Set the release version
         shell: bash
@@ -166,10 +166,10 @@ jobs:
   publish-npm-base:
     name: Publish the base NPM package
     needs: publish-npm-binaries
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Set the release version
         shell: bash
