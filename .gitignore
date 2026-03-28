@@ -7,3 +7,5 @@
 
 # Secrets
 .env
+# Generated npm release artifacts
+/npm/cli-*/
