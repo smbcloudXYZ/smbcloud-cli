@@ -19,7 +19,7 @@ env:
 jobs:
   publish-npm-binaries:
     name: Publish NPM packages
-    runs-on: ${{ matrix.build.os }}
+    runs-on: ${{ matrix.build.OS }}
     strategy:
       fail-fast: false
       matrix:
@@ -67,7 +67,14 @@ jobs:
 
       - name: Set the release version
         shell: bash
-        run: echo "RELEASE_VERSION=${GITHUB_REF:11}" >> $GITHUB_ENV
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
       - name: Install toolkit
         uses: dtolnay/rust-toolchain@master
@@ -125,10 +132,8 @@ jobs:
           fi
           # create the package directory
           mkdir -p "${node_pkg}/bin"
-          # generate package.json from the template
-          envsubst < package.json.tmpl > "${node_pkg}/package.json"
-          # generate readme.md from the template
-          envsubst < README.md.tmpl > "${node_pkg}/README.md"
+          # generate package metadata
+          node ./scripts/render-platform-package.cjs "${node_pkg}" "${node_version}" "${node_os}" "${node_arch}"
           # copy the binary into the package
           # note: windows binaries has '.exe' extension
           if [ "${{ matrix.build.OS }}" = "windows-2022" ]; then
@@ -151,7 +156,14 @@ jobs:
 
       - name: Set the release version
         shell: bash
-        run: echo "RELEASE_VERSION=${GITHUB_REF:11}" >> $GITHUB_ENV
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
       - name: Install node
         uses: actions/setup-node@v6
@@ -164,14 +176,10 @@ jobs:
         run: |
           cd npm/smbcloud-cli
 
-          # set the version
-          export release_version="${{ env.RELEASE_VERSION }}"
+          node ../scripts/render-main-package.cjs "./package.json" "${{ env.RELEASE_VERSION }}"
 
-          # use the tag version
-          envsubst < ../package-main.json.tmpl > "./package.json"
-
-          yarn install # requires optional dependencies to be present in the registry
-          yarn build
+          npm install
+          npm run build
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
