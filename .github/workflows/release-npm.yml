@@ -159,6 +159,11 @@ jobs:
           # New platform package names must be bootstrapped with NODE_AUTH_TOKEN once
           # before npm trusted publishing can be configured for them.
           cd "${node_pkg}"
+          npm_package_name="@smbcloud/${node_pkg}"
+          if npm view "${npm_package_name}@${node_version}" version >/dev/null 2>&1; then
+            echo "${npm_package_name}@${node_version} already exists on npm, skipping publish"
+            exit 0
+          fi
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -194,6 +199,13 @@ jobs:
           cd npm/smbcloud-cli
 
           node ../scripts/render-main-package.cjs "./package.json" "${{ env.RELEASE_VERSION }}"
+
+          npm_package_name="@smbcloud/cli"
+          npm_package_version="${{ env.RELEASE_VERSION }}"
+          if npm view "${npm_package_name}@${npm_package_version}" version >/dev/null 2>&1; then
+            echo "${npm_package_name}@${npm_package_version} already exists on npm, skipping publish"
+            exit 0
+          fi
 
           npm install
           npm run build
