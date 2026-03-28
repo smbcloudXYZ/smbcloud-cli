@@ -183,12 +183,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
       - name: Download distribution artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: "*"
           path: dist
           merge-multiple: true
+
+      - name: Check whether release already exists on PyPI
+        shell: bash
+        run: |
+          if curl -fsS "https://pypi.org/pypi/smbcloud-cli/${RELEASE_VERSION}/json" >/dev/null 2>&1; then
+            echo "smbcloud-cli ${RELEASE_VERSION} already exists on PyPI, skipping publish"
+            exit 0
+          fi
 
       - name: Publish distribution
         uses: pypa/gh-action-pypi-publish@release/v1
