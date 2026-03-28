@@ -4,7 +4,6 @@ use {
     serde_repr::{Deserialize_repr, Serialize_repr},
     std::{
         fmt::{self, Display, Formatter},
-        fs,
         path::PathBuf,
     },
 };
@@ -56,10 +55,10 @@ pub enum SwiftFramework {
 
 impl Runner {
     pub fn from(repo_path: &PathBuf) -> Result<Runner, ErrorResponse> {
-        // See if we have a framework-based config.
-        if repo_path.join("package.json").exists()
-            && (next_config_exists(repo_path) || astro_config_exists(repo_path))
-        {
+        // Any package.json-driven app belongs on the NodeJs runner.
+        // Framework-specific checks are not reliable because modern Next.js apps
+        // do not need a next.config.* file at all.
+        if repo_path.join("package.json").exists() {
             return Ok(Runner::NodeJs);
         }
 
@@ -98,32 +97,4 @@ fn non_framework_runner() -> Result<Runner, ErrorResponse> {
         error_code: UnsupportedRunner,
         message: UnsupportedRunner.message(None).to_string(),
     })
-}
-
-// Helper function to detect any next.config.* file
-fn next_config_exists(repo_path: &PathBuf) -> bool {
-    if let Ok(entries) = fs::read_dir(repo_path) {
-        for entry in entries.flatten() {
-            let filename = entry.file_name();
-            let filename_str = filename.to_string_lossy();
-            if filename_str.starts_with("next.config.") {
-                return true;
-            }
-        }
-    }
-    false
-}
-
-// Helper function to detect any astro.config.* file
-fn astro_config_exists(repo_path: &PathBuf) -> bool {
-    if let Ok(entries) = fs::read_dir(repo_path) {
-        for entry in entries.flatten() {
-            let filename = entry.file_name();
-            let filename_str = filename.to_string_lossy();
-            if filename_str.starts_with("astro.config.") {
-                return true;
-            }
-        }
-    }
-    false
 }
