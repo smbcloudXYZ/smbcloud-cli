@@ -156,8 +156,6 @@ jobs:
           fi
           cp "../target/${{ matrix.build.TARGET }}/release/${cargo_bin}" "${node_pkg}/bin"
           # publish the package
-          # New platform package names must be bootstrapped with NODE_AUTH_TOKEN once
-          # before npm trusted publishing can be configured for them.
           cd "${node_pkg}"
           npm_package_name="@smbcloud/${node_pkg}"
           if npm view "${npm_package_name}@${node_version}" version >/dev/null 2>&1; then
@@ -165,8 +163,6 @@ jobs:
             exit 0
           fi
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-npm-base:
     name: Publish the base NPM package
