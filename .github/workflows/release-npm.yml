@@ -52,7 +52,7 @@ jobs:
             }
           - {
               NAME: darwin-x64,
-              OS: macos-latest,
+              OS: macos-15-intel,
               TARGET: x86_64-apple-darwin,
             }
           - {
