@@ -1,5 +1,5 @@
 use {
-    log::{debug, error},
+    log::error,
     reqwest::{RequestBuilder, Response, StatusCode},
     serde::de::DeserializeOwned,
     smbcloud_model::{
@@ -8,6 +8,9 @@ use {
         login::AccountStatus,
     },
 };
+
+#[cfg(not(target_arch = "wasm32"))]
+use log::debug;
 
 //use std::time::Duration;
 #[cfg(debug_assertions)]
