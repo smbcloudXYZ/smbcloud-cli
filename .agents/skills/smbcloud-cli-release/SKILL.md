@@ -136,6 +136,27 @@ Do not pass `NODE_AUTH_TOKEN` to `npm publish` when using trusted publishing.
 
 The npm CLI detects the GitHub OIDC environment automatically and exchanges it for a short-lived publish credential.
 
+### Rust toolchain consistency
+
+When cross-compiling in CI, the Rust toolchain used for `rustup target add` must match the toolchain used by `cargo build`.
+
+For this repo, check `rust-toolchain.toml` first and keep the workflow matrix aligned with it.
+
+If the workflow installs a target for one toolchain but Cargo builds with another, CI can fail with:
+
+- `error[E0463]: can't find crate for core`
+- note that the target may not be installed
+
+This can happen even when `rustup target add <target>` already ran successfully.
+
+Preferred pattern:
+
+- install the requested toolchain explicitly
+- run `rustup target add <target> --toolchain <toolchain>`
+- run `cargo +<toolchain> build --target <target>`
+
+Do not rely on plain `cargo build` if the repo pin in `rust-toolchain.toml` can differ from the matrix toolchain version.
+
 ### Trusted publisher command
 
 For this repo, the trust relationship should point at:
