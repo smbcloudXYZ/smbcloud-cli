@@ -2080,7 +2080,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.32"
+version = "0.3.33"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2120,7 +2120,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-model"
-version = "0.3.32"
+version = "0.3.33"
 dependencies = [
  "chrono",
  "log",
@@ -2136,7 +2136,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-network"
-version = "0.3.29"
+version = "0.3.33"
 dependencies = [
  "clap 4.5.57",
  "log",
@@ -2157,7 +2157,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account"
-version = "0.3.30"
+version = "0.3.33"
 dependencies = [
  "base64",
  "log",
@@ -2174,7 +2174,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-account-wasm"
-version = "0.3.29"
+version = "0.3.33"
 dependencies = [
  "serde-wasm-bindgen",
  "smbcloud-network",
