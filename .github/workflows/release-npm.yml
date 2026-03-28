@@ -6,6 +6,10 @@ on:
       - "v*.*.*"
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   SMB_CLIENT_ID: ${{ secrets.SMB_CLIENT_ID }}
   SMB_CLIENT_SECRET: ${{ secrets.SMB_CLIENT_SECRET }}
@@ -77,10 +81,15 @@ jobs:
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
       - name: Install toolkit
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
-          targets: ${{ matrix.build.TARGET }}
-          toolchain: ${{ matrix.build.TOOLCHAIN}}
+          toolchain: ${{ matrix.build.TOOLCHAIN }}
+
+      - name: Install Rust target
+        shell: bash
+        run: |
+          rustup target add ${{ matrix.build.TARGET }} --toolchain ${{ matrix.build.TOOLCHAIN }}
+          rustup target list --installed
 
       - name: Create .env file
         run: |
@@ -143,8 +152,6 @@ jobs:
           # publish the package
           cd "${node_pkg}"
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-npm-base:
     name: Publish the base NPM package
@@ -181,5 +188,3 @@ jobs:
           npm install
           npm run build
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

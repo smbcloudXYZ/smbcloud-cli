@@ -97,6 +97,70 @@ When that happens, retry the exact `npm publish` command with:
 
 Do not assume the first publish failed before the package upload step. Check the exit result or npm registry state before retrying repeatedly.
 
+## Trusted publishing
+
+Prefer npm trusted publishers for CI over `NPM_TOKEN`.
+
+Official references:
+
+- https://docs.npmjs.com/trusted-publishers/
+- https://docs.npmjs.com/cli/v11/commands/npm-trust/
+
+### npm-side constraints
+
+Trusted publishing can only be configured for packages that already exist on npm.
+
+That means:
+
+- publish a package once manually if it does not exist yet
+- then configure trust for that package
+- each package can have only one trusted publisher configuration at a time
+
+For `smbcloud-cli`, configure trust per package, not only for `@smbcloud/cli`.
+
+Example packages:
+
+- `@smbcloud/cli`
+- `@smbcloud/cli-darwin-arm64`
+- later, each additional published `@smbcloud/cli-*` package
+
+### GitHub Actions setup
+
+The workflow must include:
+
+- `permissions:`
+- `id-token: write`
+- `contents: read`
+
+Do not pass `NODE_AUTH_TOKEN` to `npm publish` when using trusted publishing.
+
+The npm CLI detects the GitHub OIDC environment automatically and exchanges it for a short-lived publish credential.
+
+### Trusted publisher command
+
+For this repo, the trust relationship should point at:
+
+- repository: `smbcloudXYZ/smbcloud-cli`
+- workflow file: `release-npm.yml`
+
+Example:
+
+- `npm trust github @smbcloud/cli --repo smbcloudXYZ/smbcloud-cli --file release-npm.yml --yes`
+- `npm trust github @smbcloud/cli-darwin-arm64 --repo smbcloudXYZ/smbcloud-cli --file release-npm.yml --yes`
+
+These commands may require npm 2FA and support `--otp=<code>`.
+
+### Migration guidance
+
+Recommended order:
+
+1. enable trusted publishing for existing packages
+2. verify a CI publish works through OIDC
+3. then remove or stop using `NPM_TOKEN`
+4. after the migration is proven, tighten npm package publishing access if desired
+
+Do not remove the manual publish path for brand-new package names, because npm trust cannot be configured before the first publish.
+
 ## CI/CD workflow rules
 
 The release workflow lives in `.github/workflows/release-npm.yml`.
