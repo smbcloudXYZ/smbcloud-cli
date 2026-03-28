@@ -182,9 +182,35 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
             };
             Ok(AccountStatus::Incomplete { status: error_code })
         }
-        _ => Err(ErrorResponse::Error {
-            error_code: ErrorCode::NetworkError,
-            message: ErrorCode::NetworkError.message(None).to_string(),
+        (StatusCode::UNAUTHORIZED, _) => {
+            let result: SmbAuthorization = match response.json().await {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message: ErrorCode::NetworkError.message(None).to_string(),
+                    });
+                }
+            };
+            let error_code = match result.error_code {
+                Some(code) => code,
+                None => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message: ErrorCode::NetworkError.message(None).to_string(),
+                    });
+                }
+            };
+            Err(ErrorResponse::Error {
+                error_code: ErrorCode::Unauthorized,
+                message: error_code.to_string(),
+            })
+        }
+        (status, _) => parse_error_response(response).await.or_else(|_| {
+            Err(ErrorResponse::Error {
+                error_code: ErrorCode::NetworkError,
+                message: format!("Unexpected login response status: {}", status),
+            })
         }),
     }
 }
