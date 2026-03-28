@@ -6,6 +6,10 @@ on:
       - "v*.*.*"
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   SMB_CLIENT_ID: ${{ secrets.SMB_CLIENT_ID }}
   SMB_CLIENT_SECRET: ${{ secrets.SMB_CLIENT_SECRET }}
@@ -26,44 +30,39 @@ jobs:
         build:
           - {
               NAME: linux-x64-glibc,
-              OS: ubuntu-20.04,
-              TOOLCHAIN: 1.92,
+              OS: ubuntu-latest,
               TARGET: x86_64-unknown-linux-gnu,
             }
           # Cannot cross-compile for now
           #- {
           #    NAME: linux-arm64-glibc,
-          #    OS: ubuntu-20.04,
+          #    OS: ubuntu-latest,
           #    TOOLCHAIN: stable,
           #    TARGET: aarch64-unknown-linux-gnu,
           #  }
           - {
               NAME: win32-x64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: 1.92,
               TARGET: x86_64-pc-windows-msvc,
             }
           - {
               NAME: win32-arm64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: 1.92,
               TARGET: aarch64-pc-windows-msvc,
             }
           - {
               NAME: darwin-x64,
-              OS: macos-11,
-              TOOLCHAIN: 1.92,
+              OS: macos-15-intel,
               TARGET: x86_64-apple-darwin,
             }
           - {
               NAME: darwin-arm64,
-              OS: macos-11,
-              TOOLCHAIN: 1.92,
+              OS: macos-latest,
               TARGET: aarch64-apple-darwin,
             }
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Set the release version
         shell: bash
@@ -76,11 +75,27 @@ jobs:
 
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
       - name: Install toolkit
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
-          targets: ${{ matrix.build.TARGET }}
-          toolchain: ${{ matrix.build.TOOLCHAIN}}
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Install Rust target
+        shell: bash
+        run: |
+          rustup target add ${{ matrix.build.TARGET }} --toolchain ${{ env.RUST_TOOLCHAIN }}
+          rustup target list --installed
 
       - name: Create .env file
         run: |
@@ -142,17 +157,20 @@ jobs:
           cp "../target/${{ matrix.build.TARGET }}/release/${cargo_bin}" "${node_pkg}/bin"
           # publish the package
           cd "${node_pkg}"
+          npm_package_name="@smbcloud/${node_pkg}"
+          if npm view "${npm_package_name}@${node_version}" version >/dev/null 2>&1; then
+            echo "${npm_package_name}@${node_version} already exists on npm, skipping publish"
+            exit 0
+          fi
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-npm-base:
     name: Publish the base NPM package
     needs: publish-npm-binaries
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
 
       - name: Set the release version
         shell: bash
@@ -178,8 +196,13 @@ jobs:
 
           node ../scripts/render-main-package.cjs "./package.json" "${{ env.RELEASE_VERSION }}"
 
+          npm_package_name="@smbcloud/cli"
+          npm_package_version="${{ env.RELEASE_VERSION }}"
+          if npm view "${npm_package_name}@${npm_package_version}" version >/dev/null 2>&1; then
+            echo "${npm_package_name}@${npm_package_version} already exists on npm, skipping publish"
+            exit 0
+          fi
+
           npm install
           npm run build
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
