@@ -1,8 +1,8 @@
 use {
     base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _},
-    openssl::sha::sha256,
     reqwest::{Client, Url},
     serde::{Deserialize, Serialize},
+    sha2::{Digest, Sha256},
     smbcloud_model::error_codes::{ErrorCode, ErrorResponse},
     smbcloud_network::{environment::Environment, network},
     uuid::Uuid,
@@ -55,7 +55,7 @@ pub fn build_authorization_request(
         Uuid::new_v4().simple(),
         Uuid::new_v4().simple()
     );
-    let code_challenge = URL_SAFE_NO_PAD.encode(sha256(code_verifier.as_bytes()));
+    let code_challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(code_verifier.as_bytes()));
     let state = Uuid::new_v4().to_string();
 
     let mut url = issuer_base_url(env).join(AUTHORIZE_PATH).map_err(|err| ErrorResponse::Error {

@@ -1,5 +1,5 @@
 use {
-    log::{debug, error},
+    log::error,
     reqwest::{RequestBuilder, Response, StatusCode},
     serde::de::DeserializeOwned,
     smbcloud_model::{
@@ -9,16 +9,21 @@ use {
     },
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use log::debug;
+
 //use std::time::Duration;
 #[cfg(debug_assertions)]
 const LOG_RESPONSE_BODY: bool = true; // You know what to do here.
 #[cfg(not(debug_assertions))]
 const LOG_RESPONSE_BODY: bool = false;
 
-/// Check if there is an active internet connection
+/// Check if there is an active internet connection.
 ///
-/// This function attempts to connect to a reliable server (dns.google)
-/// with a short timeout. Returns true if the connection was successful.
+/// Native clients can afford a preflight connectivity check. Browser/wasm
+/// clients should skip it and rely on the real request, otherwise the check
+/// itself becomes a separate cross-origin failure surface.
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn check_internet_connection() -> bool {
     debug!("Checking internet connection");
     let client = reqwest::Client::builder()
@@ -47,6 +52,11 @@ pub async fn check_internet_connection() -> bool {
     } else {
         false
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub async fn check_internet_connection() -> bool {
+    true
 }
 
 pub async fn parse_error_response<T: DeserializeOwned>(
