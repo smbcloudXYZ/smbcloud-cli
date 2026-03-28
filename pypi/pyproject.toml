@@ -1,0 +1,38 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "smbcloud-cli"
+description = "smbCloud command line interface."
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["version"]
+license = { text = "Apache-2.0" }
+authors = [{ name = "Seto Elkahfi", email = "hej@setoelkahfi.se" }]
+keywords = ["cli", "cloud", "smbcloud", "web2", "web3"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://smbcloud.xyz/"
+Documentation = "https://docs.smbcloud.xyz/cli"
+Repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+Issues = "https://github.com/smbcloudXYZ/smbcloud-cli/issues"
+
+[tool.maturin]
+manifest-path = "../crates/cli/Cargo.toml"
+bindings = "bin"
+strip = true
