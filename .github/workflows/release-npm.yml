@@ -31,7 +31,6 @@ jobs:
           - {
               NAME: linux-x64-glibc,
               OS: ubuntu-20.04,
-              TOOLCHAIN: 1.93,
               TARGET: x86_64-unknown-linux-gnu,
             }
           # Cannot cross-compile for now
@@ -44,25 +43,21 @@ jobs:
           - {
               NAME: win32-x64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: 1.93,
               TARGET: x86_64-pc-windows-msvc,
             }
           - {
               NAME: win32-arm64-msvc,
               OS: windows-2022,
-              TOOLCHAIN: 1.93,
               TARGET: aarch64-pc-windows-msvc,
             }
           - {
               NAME: darwin-x64,
               OS: macos-11,
-              TOOLCHAIN: 1.93,
               TARGET: x86_64-apple-darwin,
             }
           - {
               NAME: darwin-arm64,
               OS: macos-11,
-              TOOLCHAIN: 1.93,
               TARGET: aarch64-apple-darwin,
             }
     steps:
@@ -82,13 +77,11 @@ jobs:
 
       - name: Install toolkit
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
-        with:
-          toolchain: ${{ matrix.build.TOOLCHAIN }}
 
       - name: Install Rust target
         shell: bash
         run: |
-          rustup target add ${{ matrix.build.TARGET }} --toolchain ${{ matrix.build.TOOLCHAIN }}
+          rustup target add ${{ matrix.build.TARGET }}
           rustup target list --installed
 
       - name: Create .env file
@@ -104,7 +97,7 @@ jobs:
           GH_OAUTH_REDIRECT_URI: ${{ secrets.GH_OAUTH_REDIRECT_URI }}
         shell: bash
         run: |
-          cargo +${{ matrix.build.TOOLCHAIN }} build --release --locked --target ${{ matrix.build.TARGET }}
+          cargo build --release --locked --target ${{ matrix.build.TARGET }}
 
       - name: Install node
         uses: actions/setup-node@v6
@@ -150,8 +143,12 @@ jobs:
           fi
           cp "../target/${{ matrix.build.TARGET }}/release/${cargo_bin}" "${node_pkg}/bin"
           # publish the package
+          # New platform package names must be bootstrapped with NODE_AUTH_TOKEN once
+          # before npm trusted publishing can be configured for them.
           cd "${node_pkg}"
           npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-npm-base:
     name: Publish the base NPM package
