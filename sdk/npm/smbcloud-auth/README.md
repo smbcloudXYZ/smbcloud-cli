@@ -20,7 +20,7 @@
 ## About
 
 `@smbcloud/sdk-auth` is the browser SDK for smbCloud Auth. It wraps the shared Rust
-account crate through WebAssembly so browser apps can use the same auth
+Auth crate through WebAssembly so browser apps can use the same auth
 contract as desktop and mobile clients.
 
 Current exported browser APIs include:

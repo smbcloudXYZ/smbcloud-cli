@@ -12,10 +12,10 @@ use {
     log::debug,
     reqwest::{Client, StatusCode},
     serde::Serialize,
+    smbcloud_auth::signup::signup,
     smbcloud_model::signup::SignupResult,
     smbcloud_network::environment::Environment,
     smbcloud_networking::{constants::PATH_USERS, smb_base_url_builder},
-    smbcloud_networking_account::signup::signup,
     smbcloud_utils::email_validation,
     spinners::Spinner,
 };

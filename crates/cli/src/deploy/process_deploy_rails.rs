@@ -7,9 +7,9 @@ use {
     },
     anyhow::{anyhow, Result},
     chrono::Utc,
+    smbcloud_auth::me::me,
     smbcloud_model::project::{DeploymentPayload, DeploymentStatus},
     smbcloud_network::environment::Environment,
-    smbcloud_networking_account::me::me,
     smbcloud_networking_project::{
         crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
     },

@@ -2079,6 +2079,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
+name = "smbcloud-auth"
+version = "0.3.33"
+dependencies = [
+ "base64",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "smbcloud-model",
+ "smbcloud-network",
+ "smbcloud-networking",
+ "url-builder",
+ "uuid",
+]
+
+[[package]]
+name = "smbcloud-auth-wasm"
+version = "0.3.33"
+dependencies = [
+ "serde-wasm-bindgen",
+ "smbcloud-auth",
+ "smbcloud-network",
+ "smbcloud-networking",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "smbcloud-cli"
 version = "0.3.33"
 dependencies = [
@@ -2100,10 +2129,10 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_repr",
+ "smbcloud-auth",
  "smbcloud-model",
  "smbcloud-network",
  "smbcloud-networking",
- "smbcloud-networking-account",
  "smbcloud-networking-project",
  "smbcloud-utils",
  "spinners",
@@ -2153,35 +2182,6 @@ version = "0.3.31"
 dependencies = [
  "smbcloud-network",
  "url-builder",
-]
-
-[[package]]
-name = "smbcloud-networking-account"
-version = "0.3.33"
-dependencies = [
- "base64",
- "log",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "smbcloud-model",
- "smbcloud-network",
- "smbcloud-networking",
- "url-builder",
- "uuid",
-]
-
-[[package]]
-name = "smbcloud-networking-account-wasm"
-version = "0.3.33"
-dependencies = [
- "serde-wasm-bindgen",
- "smbcloud-network",
- "smbcloud-networking",
- "smbcloud-networking-account",
- "wasm-bindgen",
- "wasm-bindgen-futures",
 ]
 
 [[package]]

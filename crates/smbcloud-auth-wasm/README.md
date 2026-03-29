@@ -1,6 +1,6 @@
-# smbcloud-networking-account-wasm
+# smbcloud-auth-wasm
 
-Wasm bindings for smbCloud account authentication.
+Wasm bindings for the smbCloud Auth SDK.
 
 This crate is intended to be published as an npm package via `wasm-pack` and
 consumed by browser clients that need tenant auth-app signup, sign-in, profile
@@ -28,7 +28,7 @@ import init, {
   Environment,
   login_with_client,
   signup_with_client,
-} from "smbcloud-networking-account-wasm";
+} from "smbcloud-auth-wasm";
 
 await init();
 
