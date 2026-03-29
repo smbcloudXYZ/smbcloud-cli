@@ -1,0 +1,4 @@
+/pkg/
+/target/
+/lib/auth/*.bundle
+/tmp/
