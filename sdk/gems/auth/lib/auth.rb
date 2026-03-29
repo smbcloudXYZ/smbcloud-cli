@@ -24,53 +24,69 @@ module SmbCloud
       PRODUCTION = 'production'
     end
 
-    class << self
-      def signup_with_client(environment:, app_id:, app_secret:, email:, password:)
-        parse_json(__signup_with_client(environment, app_id, app_secret, email, password))
+    class Client
+      attr_reader :environment, :app_id, :app_secret
+
+      def initialize(environment:, app_id:, app_secret:)
+        @environment = environment
+        @app_id = app_id
+        @app_secret = app_secret
+      end
+
+      def signup(email:, password:)
+        Auth.send(:parse_json, Auth.__signup_with_client(environment, app_id, app_secret, email, password))
       rescue RuntimeError => e
-        raise normalize_error(e)
+        raise Auth.send(:normalize_error, e)
+      end
+
+      def login(email:, password:)
+        Auth.send(:parse_json, Auth.__login_with_client(environment, app_id, app_secret, email, password))
+      rescue RuntimeError => e
+        raise Auth.send(:normalize_error, e)
+      end
+
+      def me(access_token:)
+        Auth.send(:parse_json, Auth.__me_with_client(environment, app_id, app_secret, access_token))
+      rescue RuntimeError => e
+        raise Auth.send(:normalize_error, e)
+      end
+
+      def logout(access_token:)
+        Auth.__logout_with_client(environment, app_id, app_secret, access_token)
+      rescue RuntimeError => e
+        raise Auth.send(:normalize_error, e)
+      end
+
+      def remove(access_token:)
+        Auth.__remove_with_client(environment, app_id, app_secret, access_token)
+      rescue RuntimeError => e
+        raise Auth.send(:normalize_error, e)
+      end
+    end
+
+    class << self
+      def client(environment:, app_id:, app_secret:)
+        Client.new(environment:, app_id:, app_secret:)
+      end
+
+      def signup_with_client(environment:, app_id:, app_secret:, email:, password:)
+        client(environment:, app_id:, app_secret:).signup(email:, password:)
       end
 
       def login_with_client(environment:, app_id:, app_secret:, email:, password:)
-        parse_json(__login_with_client(environment, app_id, app_secret, email, password))
-      rescue RuntimeError => e
-        raise normalize_error(e)
+        client(environment:, app_id:, app_secret:).login(email:, password:)
       end
 
       def me_with_client(environment:, app_id:, app_secret:, access_token:)
-        parse_json(__me_with_client(environment, app_id, app_secret, access_token))
-      rescue RuntimeError => e
-        raise normalize_error(e)
+        client(environment:, app_id:, app_secret:).me(access_token:)
       end
 
       def logout_with_client(environment:, app_id:, app_secret:, access_token:)
-        __logout_with_client(environment, app_id, app_secret, access_token)
-      rescue RuntimeError => e
-        raise normalize_error(e)
+        client(environment:, app_id:, app_secret:).logout(access_token:)
       end
 
       def remove_with_client(environment:, app_id:, app_secret:, access_token:)
-        __remove_with_client(environment, app_id, app_secret, access_token)
-      rescue RuntimeError => e
-        raise normalize_error(e)
-      end
-
-      def reset_password(environment:, app_id:, token:, password:)
-        parse_json(__reset_password(environment, app_id, token, password))
-      rescue RuntimeError => e
-        raise normalize_error(e)
-      end
-
-      def resend_email_verification(environment:, app_id:, email:)
-        parse_json(__resend_email_verification(environment, app_id, email))
-      rescue RuntimeError => e
-        raise normalize_error(e)
-      end
-
-      def resend_reset_password_instruction(environment:, app_id:, email:)
-        parse_json(__resend_reset_password_instruction(environment, app_id, email))
-      rescue RuntimeError => e
-        raise normalize_error(e)
+        client(environment:, app_id:, app_secret:).remove(access_token:)
       end
 
       private
