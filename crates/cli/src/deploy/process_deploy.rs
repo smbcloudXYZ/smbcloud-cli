@@ -19,12 +19,12 @@ use {
     anyhow::{anyhow, Result},
     dialoguer::{console::Term, theme::ColorfulTheme, Select},
     git2::{PushOptions, RemoteCallbacks, Repository},
+    smbcloud_auth::me::me,
     smbcloud_model::{
         project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
         runner::Runner,
     },
     smbcloud_network::environment::Environment,
-    smbcloud_networking_account::me::me,
     smbcloud_networking_project::{
         crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
     },

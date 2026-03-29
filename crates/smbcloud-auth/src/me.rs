@@ -1,4 +1,4 @@
-use crate::client_credentials::{base_url_builder as tenant_base_url_builder, ClientCredentials};
+use crate::client_credentials::{ClientCredentials, base_url_builder as tenant_base_url_builder};
 use reqwest::Client;
 use smbcloud_model::account::User;
 use smbcloud_model::error_codes::ErrorResponse;

@@ -1,3 +1,3 @@
-# s6n
+# smbCloud S6n
 
-Simpanan, an S3-compatible object storage for smbCloud.
+S6n an S3-compatible object storage for smbCloud.

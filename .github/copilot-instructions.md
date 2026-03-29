@@ -12,7 +12,7 @@
 | `crates/smbcloud-model` | Shared `serde` data models (source of truth for API shapes) |
 | `crates/smbcloud-network` | Network config, environment resolution, connectivity check |
 | `crates/smbcloud-networking` | Core HTTP client (`SmbClient`) |
-| `crates/smbcloud-networking-account` | Account API calls — login, logout, me |
+| `crates/smbcloud-auth` | Auth SDK API calls — login, logout, me |
 | `crates/smbcloud-networking-project` | Project API calls |
 | `crates/smbcloud-utils` | Shared utility helpers |
 | `crates/gresiq` | Internal tooling |
@@ -34,7 +34,7 @@ ui/                  — terminal output helpers (spinners, styles)
 
 ```
 crates/cli
-  └── smbcloud-networking-account
+  └── smbcloud-auth
   └── smbcloud-networking-project
         └── smbcloud-networking  (SmbClient)
               └── smbcloud-model (API types)

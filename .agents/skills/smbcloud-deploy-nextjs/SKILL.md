@@ -230,7 +230,7 @@ These messages do not mean git push happened. Confirm behavior from the code pat
 
 ## Auth and production-only web issues
 
-If the Next.js app uses the wasm auth client from `smbcloud-networking-account-wasm`, production failures that show:
+If the Next.js app uses the wasm auth client from `smbcloud-auth-wasm`, production failures that show:
 
 - `Network error. Please check your internet connection and try again.`
 

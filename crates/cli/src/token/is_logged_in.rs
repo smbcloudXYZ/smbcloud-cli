@@ -1,8 +1,8 @@
 use {
     crate::{client, token::get_smb_token::get_smb_token},
+    smbcloud_auth::me::me,
     smbcloud_model::error_codes::ErrorResponse,
     smbcloud_network::environment::Environment,
-    smbcloud_networking_account::me::me,
     tracing::debug,
 };
 

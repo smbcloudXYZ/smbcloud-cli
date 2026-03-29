@@ -1,9 +1,9 @@
 [package]
-name = "smbcloud-networking-account"
+name = "smbcloud-auth-wasm"
 version = "0.3.33"
 edition = "2024"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
-description = "Command line tool for deploying NextJS app on the smbCloud platform."
+description = "Browser bindings for the smbCloud Auth SDK."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 documentation = "https://docs.smbcloud.xyz/cli"
@@ -17,15 +17,13 @@ categories = [
 ]
 readme = "README.md"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-base64 = "0.22"
-log = { workspace = true }
-reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-sha2 = "0.10"
-smbcloud-model = { workspace = true }
+serde-wasm-bindgen = "=0.6.5"
 smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }
-url-builder = { workspace = true }
-uuid = { version = "1", features = ["v4", "js"] }
+smbcloud-auth = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = "0.4.50"

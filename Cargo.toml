@@ -27,7 +27,7 @@ serde_repr = "0.1"
 smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
 smbcloud-network = { version = "0.3", path = "crates/smbcloud-network" }
 smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
-smbcloud-networking-account = { version = "0.3", path = "crates/smbcloud-networking-account" }
+smbcloud-auth = { version = "0.3", path = "crates/smbcloud-auth" }
 smbcloud-networking-project = { version = "0.3", path = "crates/smbcloud-networking-project" }
 smbcloud-utils = { version = "0.3", path = "crates/smbcloud-utils" }
 spinners = "4.1.0"

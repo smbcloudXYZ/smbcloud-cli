@@ -14,6 +14,12 @@ use {
     dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
     log::debug,
     reqwest::Client,
+    smbcloud_auth::{
+        check_email::check_email, login::login,
+        resend_email_verification::resend_email_verification as account_resend_email_verification,
+        resend_reset_password_instruction::resend_reset_password_instruction as account_resend_reset_password_instruction,
+        reset_password::reset_password as account_reset_password,
+    },
     smbcloud_model::{
         account::{
             ErrorCode::{
@@ -27,12 +33,6 @@ use {
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking::{constants::PATH_LINK_GITHUB_ACCOUNT, smb_base_url_builder},
-    smbcloud_networking_account::{
-        check_email::check_email, login::login,
-        resend_email_verification::resend_email_verification as account_resend_email_verification,
-        resend_reset_password_instruction::resend_reset_password_instruction as account_resend_reset_password_instruction,
-        reset_password::reset_password as account_reset_password,
-    },
     smbcloud_utils::email_validation,
     spinners::Spinner,
 };

@@ -7,8 +7,8 @@ use {
     },
     anyhow::{anyhow, Result},
     dialoguer::{theme::ColorfulTheme, Confirm},
+    smbcloud_auth::logout::logout,
     smbcloud_network::environment::Environment,
-    smbcloud_networking_account::logout::logout,
     spinners::Spinner,
     std::fs,
 };

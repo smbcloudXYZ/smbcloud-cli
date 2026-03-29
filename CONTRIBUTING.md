@@ -81,7 +81,7 @@ This is a Cargo workspace. Each crate has a focused responsibility:
 | `crates/smbcloud-model`              | Shared API data types (`serde` structs)    |
 | `crates/smbcloud-network`            | Network config and environment resolution  |
 | `crates/smbcloud-networking`         | Core HTTP client (`SmbClient`)             |
-| `crates/smbcloud-networking-account` | Account API calls                          |
+| `crates/smbcloud-auth` | Auth SDK API calls                          |
 | `crates/smbcloud-networking-project` | Project API calls                          |
 | `crates/smbcloud-utils`              | Shared utilities                           |
 

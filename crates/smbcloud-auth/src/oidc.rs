@@ -1,5 +1,5 @@
 use {
-    base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _},
+    base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD},
     reqwest::{Client, Url},
     serde::{Deserialize, Serialize},
     sha2::{Digest, Sha256},
@@ -50,18 +50,17 @@ pub fn build_authorization_request(
     oidc_client_id: &str,
     redirect_uri: String,
 ) -> Result<AuthorizationRequest, ErrorResponse> {
-    let code_verifier = format!(
-        "{}{}",
-        Uuid::new_v4().simple(),
-        Uuid::new_v4().simple()
-    );
+    let code_verifier = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     let code_challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(code_verifier.as_bytes()));
     let state = Uuid::new_v4().to_string();
 
-    let mut url = issuer_base_url(env).join(AUTHORIZE_PATH).map_err(|err| ErrorResponse::Error {
-        error_code: ErrorCode::ParseError,
-        message: err.to_string(),
-    })?;
+    let mut url =
+        issuer_base_url(env)
+            .join(AUTHORIZE_PATH)
+            .map_err(|err| ErrorResponse::Error {
+                error_code: ErrorCode::ParseError,
+                message: err.to_string(),
+            })?;
 
     url.query_pairs_mut()
         .append_pair("client_id", oidc_client_id)
@@ -113,10 +112,12 @@ pub async fn exchange_code(
     code: &str,
     code_verifier: &str,
 ) -> Result<TokenResponse, ErrorResponse> {
-    let url = issuer_base_url(env).join(TOKEN_PATH).map_err(|err| ErrorResponse::Error {
-        error_code: ErrorCode::ParseError,
-        message: err.to_string(),
-    })?;
+    let url = issuer_base_url(env)
+        .join(TOKEN_PATH)
+        .map_err(|err| ErrorResponse::Error {
+            error_code: ErrorCode::ParseError,
+            message: err.to_string(),
+        })?;
 
     let builder = Client::new()
         .post(url)
