@@ -1,0 +1,26 @@
+module Auth
+  VERSION: String
+end
+
+module SmbCloud
+  module Auth
+    class Error < StandardError
+      attr_reader error_code: Integer?
+      attr_reader payload: untyped
+    end
+
+    module Environment
+      DEV: String
+      PRODUCTION: String
+    end
+
+    def self.signup_with_client: (environment: String, app_id: String, app_secret: String, email: String, password: String) -> Hash[Symbol, untyped]
+    def self.login_with_client: (environment: String, app_id: String, app_secret: String, email: String, password: String) -> Hash[Symbol, untyped]
+    def self.me_with_client: (environment: String, app_id: String, app_secret: String, access_token: String) -> Hash[Symbol, untyped]
+    def self.logout_with_client: (environment: String, app_id: String, app_secret: String, access_token: String) -> bool
+    def self.remove_with_client: (environment: String, app_id: String, app_secret: String, access_token: String) -> bool
+    def self.reset_password: (environment: String, app_id: String, token: String, password: String) -> Hash[Symbol, untyped]
+    def self.resend_email_verification: (environment: String, app_id: String, email: String) -> Hash[Symbol, untyped]
+    def self.resend_reset_password_instruction: (environment: String, app_id: String, email: String) -> Hash[Symbol, untyped]
+  end
+end
