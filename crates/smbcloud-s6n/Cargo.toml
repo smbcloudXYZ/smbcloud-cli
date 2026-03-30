@@ -1,0 +1,20 @@
+[package]
+name = "s6n"
+description = "S6n an S3-compatible object storage for smbCloud."
+version = "0.1.0"
+edition = "2024"
+readme = "README.md"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+license = "Apache-2.0"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://docs.smbcloud.xyz/cli"
+keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
+categories = [
+    "command-line-utilities",
+    "command-line-interface",
+    "cryptography::cryptocurrencies",
+    "development-tools",
+    "wasm",
+]
+
+[dependencies]
