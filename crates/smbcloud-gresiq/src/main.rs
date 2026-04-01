@@ -1,27 +1,20 @@
-use tokio_postgres::{Error, NoTls};
+use gresiq::GresiqConfig;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
-    println!("Hello, GresIQ client!");
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = GresiqConfig::from_env()?;
 
-    // Connect to the database.
-    let (client, connection) =
-        tokio_postgres::connect("host=localhost user=postgres", NoTls).await?;
+    println!("GresIQ bootstrap");
+    println!("  branch: {}", config.branch_target.summary());
+    println!("  compute: {}", config.connection_policy.compute_tier);
+    println!("  endpoint: {}", config.redacted_connection_string());
 
-    // The connection object performs the actual communication with the database,
-    // so spawn it off to run on its own.
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            eprintln!("connection error: {}", e);
-        }
-    });
+    let connection = config.connect().await?;
+    let health_check = connection.health_check().await?;
 
-    // Now we can execute a simple statement that just returns its parameter.
-    let rows = client.query("SELECT $1::TEXT", &[&"hello world"]).await?;
-
-    // And then check that we got back the same string we sent over.
-    let value: &str = rows[0].get(0);
-    assert_eq!(value, "hello world");
+    println!("  database: {}", health_check.database_name);
+    println!("  user: {}", health_check.username);
+    println!("  server: {}", health_check.server_version);
 
     Ok(())
 }
