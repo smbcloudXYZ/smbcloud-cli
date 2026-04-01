@@ -1,3 +1,4 @@
+mod apple;
 mod login;
 mod logout;
 mod me;

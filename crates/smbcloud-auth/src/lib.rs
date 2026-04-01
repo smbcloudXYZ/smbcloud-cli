@@ -1,3 +1,4 @@
+pub mod apple;
 pub mod check_email;
 pub mod client_credentials;
 pub mod login;
