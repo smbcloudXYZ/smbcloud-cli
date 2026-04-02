@@ -1,13 +1,13 @@
+use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
-    deploy::config::{check_config, check_project},
+    deploy::config::{check_project, get_config},
     ui::{succeed_message, succeed_symbol},
 };
 use anyhow::Result;
 use smbcloud_model::project::Deployment;
 use smbcloud_network::environment::Environment;
-use smbcloud_networking::smb_client::SmbClient;
 use smbcloud_networking_project::crud_project_deployment_read::{get_deployment, get_deployments};
 use spinners::Spinner;
 use tabled::{Table, Tabled};
@@ -19,7 +19,7 @@ pub(crate) async fn process_deployment(
     let mut spinner: Spinner =
         Spinner::new(spinners::Spinners::Hamburger, succeed_message("Loading"));
     // Load project id from .smb/config.toml
-    let config = check_config(env, None).await?;
+    let config = get_config(env, None).await?;
 
     let access_token = get_smb_token(env)?;
 
@@ -30,7 +30,7 @@ pub(crate) async fn process_deployment(
         let deployment_id: i32 = deployment_id.parse()?;
         let deployment = get_deployment(
             env,
-            SmbClient::Cli,
+            client(),
             access_token,
             config.project.id,
             deployment_id,
@@ -41,8 +41,7 @@ pub(crate) async fn process_deployment(
     } else {
         // List all deployments for the project
         let access_token = get_smb_token(env)?;
-        let deployments =
-            get_deployments(env, SmbClient::Cli, access_token, config.project.id).await?;
+        let deployments = get_deployments(env, client(), access_token, config.project.id).await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Load all deployments"));
         show_project_deployments(&deployments);
     };

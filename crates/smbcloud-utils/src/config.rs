@@ -9,6 +9,7 @@ pub struct Config {
     pub name: String,
     pub description: Option<String>,
     pub project: Project,
+    pub projects: Option<Vec<Project>>,
 }
 
 impl Config {

@@ -1,0 +1,67 @@
+{
+  "name": "@smbcloud/cli",
+  "version": "0.3.33",
+  "keywords": [
+    "smbcloud",
+    "cli",
+    "smb",
+    "pndk",
+    "smbcloud-cli",
+    "cloud",
+    "smbcloud",
+    "developer",
+    "tools",
+    "web3",
+    "web3js",
+    "web3.js",
+    "web3js",
+    "bitcoin",
+    "btc",
+    "ethereum",
+    "solana",
+    "eth",
+    "sol",
+    "blockchain",
+    "smart-contracts",
+    "dapps",
+    "dapp",
+    "dapp-tools",
+    "dapp-tool",
+    "dapp-toolkit",
+    "dapp-toolkit-cli"
+  ],
+  "bin": {
+    "smb": "lib/index.js"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "description": "A CLI for accessing the smbCloud platform.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smbcloudXYZ/smbcloud-cli.git"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "build": "tsc",
+    "dev": "npm run build && node lib/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.11",
+    "@typescript-eslint/eslint-plugin": "^5.48.0",
+    "@typescript-eslint/parser": "^5.48.0",
+    "eslint": "^8.31.0",
+    "typescript": "^5.0.0"
+  },
+  "optionalDependencies": {
+    "@smbcloud/cli-darwin-arm64": "0.3.33",
+    "@smbcloud/cli-darwin-x64": "0.3.33",
+    "@smbcloud/cli-linux-x64": "0.3.33",
+    "@smbcloud/cli-windows-arm64": "0.3.33",
+    "@smbcloud/cli-windows-x64": "0.3.33"
+  }
+}

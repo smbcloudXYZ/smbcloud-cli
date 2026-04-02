@@ -1,5 +1,5 @@
 use {
-    log::{debug, error},
+    log::error,
     reqwest::{RequestBuilder, Response, StatusCode},
     serde::de::DeserializeOwned,
     smbcloud_model::{
@@ -9,16 +9,21 @@ use {
     },
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use log::debug;
+
 //use std::time::Duration;
 #[cfg(debug_assertions)]
 const LOG_RESPONSE_BODY: bool = true; // You know what to do here.
 #[cfg(not(debug_assertions))]
 const LOG_RESPONSE_BODY: bool = false;
 
-/// Check if there is an active internet connection
+/// Check if there is an active internet connection.
 ///
-/// This function attempts to connect to a reliable server (dns.google)
-/// with a short timeout. Returns true if the connection was successful.
+/// Native clients can afford a preflight connectivity check. Browser/wasm
+/// clients should skip it and rely on the real request, otherwise the check
+/// itself becomes a separate cross-origin failure surface.
+#[cfg(not(target_arch = "wasm32"))]
 pub async fn check_internet_connection() -> bool {
     debug!("Checking internet connection");
     let client = reqwest::Client::builder()
@@ -47,6 +52,11 @@ pub async fn check_internet_connection() -> bool {
     } else {
         false
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub async fn check_internet_connection() -> bool {
+    true
 }
 
 pub async fn parse_error_response<T: DeserializeOwned>(
@@ -130,7 +140,7 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
             match error_response {
                 ErrorResponse::Error {
                     error_code,
-                    message,
+                    message: _,
                 } => match error_code {
                     ErrorCode::EmailNotVerified => Ok(AccountStatus::Incomplete {
                         status: smbcloud_model::account::ErrorCode::EmailUnverified,
@@ -172,9 +182,35 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
             };
             Ok(AccountStatus::Incomplete { status: error_code })
         }
-        _ => Err(ErrorResponse::Error {
-            error_code: ErrorCode::NetworkError,
-            message: ErrorCode::NetworkError.message(None).to_string(),
+        (StatusCode::UNAUTHORIZED, _) => {
+            let result: SmbAuthorization = match response.json().await {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message: ErrorCode::NetworkError.message(None).to_string(),
+                    });
+                }
+            };
+            let error_code = match result.error_code {
+                Some(code) => code,
+                None => {
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message: ErrorCode::NetworkError.message(None).to_string(),
+                    });
+                }
+            };
+            Err(ErrorResponse::Error {
+                error_code: ErrorCode::Unauthorized,
+                message: error_code.to_string(),
+            })
+        }
+        (status, _) => parse_error_response(response).await.or_else(|_| {
+            Err(ErrorResponse::Error {
+                error_code: ErrorCode::NetworkError,
+                message: format!("Unexpected login response status: {}", status),
+            })
         }),
     }
 }

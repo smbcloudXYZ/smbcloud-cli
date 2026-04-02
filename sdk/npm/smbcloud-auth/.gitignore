@@ -1,0 +1,5 @@
+dist/
+smbcloud_auth_wasm.js
+smbcloud_auth_wasm.d.ts
+smbcloud_auth_wasm_bg.wasm
+smbcloud_auth_wasm_bg.wasm.d.ts

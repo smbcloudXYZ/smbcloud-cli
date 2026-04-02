@@ -3,6 +3,12 @@
 
 # Editor
 .zed
+.vscode
 
 # Secrets
 .env
+# Generated npm release artifacts
+/npm/cli-*/
+# Generated PyPI release artifacts
+/pypi/dist/
+/pypi/.venv/

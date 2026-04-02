@@ -111,7 +111,7 @@ async fn run() -> Result<CommandResult> {
     // Check if the command requires internet connection
     let needs_internet = match &cli.command {
         Some(Commands::Me {})
-        | Some(Commands::Deploy {})
+        | Some(Commands::Deploy { .. })
         | Some(Commands::Login {})
         | Some(Commands::Logout {})
         | Some(Commands::Account { .. })
@@ -130,11 +130,11 @@ async fn run() -> Result<CommandResult> {
     match cli.command {
         Some(Commands::Me {}) => process_me(cli.environment).await,
         Some(Commands::Init {}) => process_project_init(cli.environment, true).await,
-        Some(Commands::Deploy {}) => process_deploy(cli.environment).await,
+        Some(Commands::Deploy { project }) => process_deploy(cli.environment, project).await,
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
         Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
-        None => process_deploy(cli.environment).await,
+        None => process_deploy(cli.environment, None).await,
     }
 }

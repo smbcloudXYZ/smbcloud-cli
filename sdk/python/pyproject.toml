@@ -1,0 +1,37 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "smbcloud-sdk-auth"
+description = "Python Auth SDK for smbCloud, built from Rust."
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["version"]
+license = { text = "MIT" }
+authors = [{ name = "Seto Elkahfi", email = "hej@setoelkahfi.se" }]
+keywords = ["smbcloud", "auth", "sdk", "python", "rust"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/smbcloudXYZ/smbcloud-cli/tree/main/sdk/python"
+Documentation = "https://docs.smbcloud.xyz/cli"
+Repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+Issues = "https://github.com/smbcloudXYZ/smbcloud-cli/issues"
+
+[tool.maturin]
+manifest-path = "../../crates/smbcloud-auth-py/Cargo.toml"
+bindings = "pyo3"
+strip = true
+module-name = "smbcloud_auth._native"

@@ -7,6 +7,30 @@ use {
     tsync::tsync,
 };
 
+/// How the project's files are delivered to the server.
+///
+/// `Git`   — the classic smbCloud flow: push to a remote git repo, the server
+///           builds and restarts the process.
+/// `Rsync` — files are transferred directly with rsync over SSH; no build step
+///           runs on the server. Ideal for pre-built static sites or assets.
+#[derive(Deserialize_repr, Serialize_repr, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[repr(u8)]
+#[tsync]
+pub enum DeploymentMethod {
+    #[default]
+    Git = 0,
+    Rsync = 1,
+}
+
+impl Display for DeploymentMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeploymentMethod::Git => write!(f, "Git"),
+            DeploymentMethod::Rsync => write!(f, "Rsync"),
+        }
+    }
+}
+
 #[derive(Deserialize, Debug, Serialize)]
 pub struct Config {
     pub current_project: Option<Project>,
@@ -19,10 +43,34 @@ pub struct Project {
     pub id: i32,
     pub name: String,
     pub runner: Runner,
+    /// Defaults to `Git` when absent (older API responses won't include the field).
+    #[serde(default)]
+    pub deployment_method: DeploymentMethod,
+    pub path: Option<String>,
     pub repository: Option<String>,
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Deployment kind, e.g. "vite-spa". Absent for server-side runners.
+    pub kind: Option<String>,
+    /// Local source directory to build from, e.g. "frontend/connected-devices".
+    /// Used by vite-spa deploys as the working directory for the build step.
+    /// Distinct from `path`, which is the remote destination on the server.
+    pub source: Option<String>,
+    /// Build output directory relative to `source`, e.g. "dist".
+    pub output: Option<String>,
+    /// Package manager to use for the build step, e.g. "pnpm".
+    pub package_manager: Option<String>,
+    /// PM2 process name to restart after a nextjs-ssr deploy, e.g. "my-app".
+    /// Matches the name passed to `pm2 start` on the server.
+    pub pm2_app: Option<String>,
+    /// Path to a shared lib directory to rsync to the server before deploying,
+    /// e.g. "lib". Used by Rails apps that depend on native gems built from
+    /// monorepo-level source. Relative to the repo root.
+    pub shared_lib: Option<String>,
+    /// SSH command to run on the server after rsyncing the shared lib,
+    /// e.g. "cd ~/lib/gems/gem_error_codes && rbenv local 3.4.2 && bundle install && bundle exec rake compile".
+    pub compile_cmd: Option<String>,
 }
 
 impl Display for Project {
@@ -37,6 +85,8 @@ pub struct ProjectCreate {
     pub repository: String,
     pub description: String,
     pub runner: Runner,
+    #[serde(default)]
+    pub deployment_method: DeploymentMethod,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -88,12 +138,14 @@ mod tests {
             repository: "test".to_owned(),
             description: "test".to_owned(),
             runner: Runner::NodeJs,
+            deployment_method: DeploymentMethod::Git,
         };
         let json = json!({
             "name": "test",
-            "repository": "test", // Corrected: repository should be included as per struct
+            "repository": "test",
             "description": "test",
-            "runner": 0
+            "runner": 0,
+            "deployment_method": 0
         });
         assert_eq!(serde_json::to_value(project_create).unwrap(), json);
     }

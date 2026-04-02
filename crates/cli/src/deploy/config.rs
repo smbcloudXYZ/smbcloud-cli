@@ -16,7 +16,7 @@ use {
     std::{fs, path::Path},
 };
 
-pub(crate) async fn check_config(
+pub(crate) async fn get_config(
     env: Environment,
     access_token: Option<&str>,
 ) -> Result<Config, ErrorResponse> {
@@ -49,7 +49,7 @@ pub(crate) async fn check_config(
     let config: Config = match toml::from_str(&config_content) {
         Ok(value) => value,
         Err(e) => {
-            println!("{}", e);
+            println!("Error parsing config: {}", e);
             spinner.stop_and_persist(&fail_symbol(), fail_message("Config unsync."));
             handle_config_error()?
         }
@@ -77,7 +77,7 @@ pub(crate) async fn check_project(
     );
     match get_project(
         env,
-        SmbClient::Cli,
+        (&SmbClient::Cli, ""),
         access_token.to_string(),
         id.to_string(),
     )

@@ -1,0 +1,48 @@
+{
+  "name": "@smbcloud/sdk-auth",
+  "description": "Browser Auth SDK for smbCloud, built from Rust and WebAssembly.",
+  "version": "0.3.34",
+  "type": "module",
+  "main": "dist/smbcloud_auth_wasm.js",
+  "module": "dist/smbcloud_auth_wasm.js",
+  "types": "dist/smbcloud_auth_wasm.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/smbcloud_auth_wasm.d.ts",
+      "default": "./dist/smbcloud_auth_wasm.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "smbcloud",
+    "auth",
+    "wasm",
+    "sdk",
+    "browser"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/smbcloudXYZ/smbcloud-cli/tree/main/sdk/npm/smbcloud-auth",
+  "bugs": {
+    "url": "https://github.com/smbcloudXYZ/smbcloud-cli/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/smbcloudXYZ/smbcloud-cli.git",
+    "directory": "sdk/npm/smbcloud-auth"
+  },
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "scripts": {
+    "prepare:package": "node ./prepare-package.mjs",
+    "pack:dry-run": "npm run prepare:package && npm pack --dry-run",
+    "publish:package": "npm run prepare:package && npm publish --access public"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

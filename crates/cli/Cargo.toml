@@ -1,9 +1,9 @@
 [package]
 name = "smbcloud-cli"
-version = "0.3.28"
+version = "0.3.34"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
-description = "Command line tool for deploying NextJS app on the smbCloud platform."
+description = "smbCloud command line interface."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 documentation = "https://docs.smbcloud.xyz/cli"
@@ -29,6 +29,8 @@ clap_mangen = { workspace = true }
 console = { workspace = true }
 dialoguer = { workspace = true }
 dirs = { workspace = true }
+
+dotenv_codegen = { workspace = true }
 git2 = { workspace = true }
 home = { workspace = true }
 indicatif = { workspace = true }
@@ -42,11 +44,12 @@ serde_repr = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }
-smbcloud-networking-account = { workspace = true }
+smbcloud-auth = { workspace = true }
 smbcloud-networking-project = { workspace = true }
 smbcloud-utils = { workspace = true }
 spinners = { workspace = true }
 tabled = { workspace = true }
+tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 toml = { workspace = true }

@@ -10,7 +10,7 @@ use smbcloud_networking::{constants::SMB_USER_AGENT, smb_client::SmbClient};
 
 pub async fn create_deployment(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     access_token: &str,
     project_id: i32,
     payload: DeploymentPayload,
@@ -18,7 +18,7 @@ pub async fn create_deployment(
     let builder = Client::new()
         .post(build_project_deployment_index(
             env,
-            &client,
+            client,
             project_id.to_string(),
         ))
         .json(&payload)

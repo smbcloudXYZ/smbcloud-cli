@@ -25,6 +25,12 @@ brew install cli
 npm i -g @smbcloud/cli
 ```
 
+### With PyPI
+
+```bash
+pip install smbcloud-cli
+```
+
 ## Update
 
 Simply rerun the installation command.
@@ -42,6 +48,9 @@ npm uninstall -g @smbcloud/cli
 # With Homebrew
 brew untap smbcloud/tap 
 brew uninstall smbcloud/tap/cli
+
+# With pip
+pip uninstall smbcloud-cli
 ```
 
 ## Usage:

@@ -11,7 +11,7 @@ use crate::url_builder::build_project_deployment;
 
 pub async fn update(
     env: Environment,
-    client: SmbClient,
+    client: (&SmbClient, &str),
     access_token: String,
     project_id: i32,
     deployment_id: i32,
@@ -19,7 +19,7 @@ pub async fn update(
 ) -> Result<Deployment, ErrorResponse> {
     let url = build_project_deployment(
         env,
-        &client,
+        client,
         project_id.to_string(),
         deployment_id.to_string(),
     );
