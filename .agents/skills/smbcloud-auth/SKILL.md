@@ -1,6 +1,6 @@
 ---
 name: smbcloud-auth
-description: Use when building, debugging, or extending smbCloud authentication across the Rails auth service, the web console, the Rust networking SDK, and Tauri client apps. Covers platform clients vs tenant auth apps, AuthUser signup/sign-in/confirmation, shared auth apps across projects, and development vs production app credentials.
+description: Use when building, debugging, or extending smbCloud authentication across the Rails auth service, the web console, the Rust or WASM auth SDKs, and Tauri or web client apps. Covers platform clients vs tenant auth apps, AuthUser signup/sign-in/confirmation, OAuth providers for AuthUser, shared auth apps across projects, browser SDK integration, and development vs production app credentials.
 ---
 
 # smbCloud Auth
@@ -10,7 +10,9 @@ Use this skill when work touches any part of the smbCloud auth stack:
 - `smbcloud-api` Rails auth service
 - `smbcloud-web-console` Next.js admin UI
 - `smbcloud-cli/crates/smbcloud-auth` Rust SDK
+- `smbcloud-cli/crates/smbcloud-auth-wasm` browser SDK
 - Tauri apps such as Rumi Learn Persian and PBJ Komplit
+- web apps that use `@smbcloud/sdk-auth`
 
 ## Core model
 
@@ -54,6 +56,22 @@ The tenant auth domain is:
 
 Tenant apps must use `AuthAppClientAuthenticatable` and must not go through platform `/v1/users`.
 
+### Provider auth boundary
+
+OAuth providers such as Apple or Google for customer apps belong to the tenant auth plane:
+
+- provider sign-in for end users must resolve to `AuthUser`
+- provider linkage must be scoped to `AuthApp`
+- the result must be the same tenant auth session shape used by email/password
+
+Do not route tenant provider auth through:
+
+- platform `User`
+- `Authorization` records for platform users
+- Doorkeeper/OIDC smbCloud internal users
+
+If provider support is added for tenant apps, the backend contract should end in an `AuthUser` session or JWT, not a provider token as the primary app session.
+
 ## Multi-project auth apps
 
 Current rule:
@@ -72,6 +90,31 @@ When editing `smbcloud-api`:
 - Tenant app auth stays under `AuthUser`
 - Do not reuse `OauthApplication` for tenant end-user login
 - Do not hardcode tenant app validation in platform controllers
+
+### Tenant provider auth modeling
+
+If tenant users need Apple, Google, or other OAuth providers:
+
+- add provider linkage for `AuthUser`, not platform `User`
+- model by stable provider subject, not by email
+- keep provider records scoped to the tenant auth app
+
+Preferred shape:
+
+- `AuthUserAuthorization`
+  - `auth_user_id`
+  - `provider`
+  - `uid`
+  - optional `email`
+  - optional `raw_profile`
+
+For Apple specifically:
+
+- use Apple `sub` as the stable provider identity
+- do not treat email as the primary key
+- do not assume name is available after first sign-in
+
+The Rails backend should verify provider assertions and then mint the normal tenant auth session for the resolved `AuthUser`.
 
 ### AuthUser signup/sign-in rules
 
@@ -95,6 +138,7 @@ Do not claim email confirmation exists unless the mailer and route are actually 
 The Rust client surface lives in:
 
 - `smbcloud-cli/crates/smbcloud-auth`
+- `smbcloud-cli/crates/smbcloud-auth-wasm`
 
 When changing tenant app auth:
 
@@ -106,6 +150,33 @@ When changing tenant app auth:
 - `request_login` depends on `422` + `error_code` for incomplete accounts
 
 If the backend changes error shape or status codes, update the Rust parser accordingly.
+
+### Browser/WASM SDK conventions
+
+The browser package is consumed as `@smbcloud/sdk-auth`.
+
+Current exported surface includes:
+
+- `signup_with_client`
+- `login_with_client`
+- `me_with_client`
+- `logout_with_client`
+- `remove_with_client`
+- `Environment.Dev`
+- `Environment.Production`
+
+Recommended browser integration pattern:
+
+- lazy-load the WASM runtime with `await import("@smbcloud/sdk-auth")`
+- call `await runtime.default()` before using the exported functions
+- store only the access token in browser storage
+- restore the session with `me_with_client`
+- gate environment switching behind explicit debug controls
+
+Do not build browser flows around NextAuth sessions if the product session is actually an smbCloud `AuthUser` token. The browser app should either:
+
+- use the browser SDK directly for email/password flows, or
+- complete provider auth through Rails and then store the resulting tenant auth token
 
 ## Tauri client conventions
 
@@ -143,6 +214,18 @@ Recommended env variable names:
 - `SMBCLOUD_APP_ID_PRODUCTION`
 - `SMBCLOUD_APP_SECRET_PRODUCTION`
 
+### Public-client security rule
+
+Tauri, mobile, and browser apps are public clients. Treat `app_id` as public and `app_secret` as non-confidential if it is shipped in a client binary or browser bundle.
+
+Implications:
+
+- do not claim the client app secret is secure once distributed
+- do not rely on embedded `app_secret` as the main client authentication boundary
+- prefer backend-mediated flows, PKCE, or other public-client-safe patterns for stronger security
+
+If the current SDK or API still requires `app_secret` from public clients, call out that limitation explicitly in code review or implementation notes.
+
 ### macOS Tauri dev builds
 
 `tauri.conf.json` `minimumSystemVersion` is not enough for `tauri dev`.
@@ -176,10 +259,11 @@ Expected behavior:
 
 1. Decide whether the change is platform auth or tenant auth.
 2. Update Rails first.
-3. Update Rust SDK endpoints/parsing if the API contract changed.
-4. Update Tauri clients to match.
-5. Update the web console if auth app management changed.
-6. Validate end-to-end.
+3. If OAuth providers are involved, confirm whether the provider is for `AuthUser` or internal `User`. Default tenant/customer providers to `AuthUser`.
+4. Update Rust or WASM SDK endpoints/parsing if the API contract changed.
+5. Update Tauri or browser clients to match.
+6. Update the web console if auth app management changed.
+7. Validate end-to-end.
 
 ## Validation
 
@@ -194,6 +278,7 @@ Use the smallest relevant checks.
 ### Rust SDK
 
 - `cargo check -p smbcloud-auth`
+- `cargo check -p smbcloud-auth-wasm`
 
 ### Tauri apps
 
@@ -204,10 +289,20 @@ Use the smallest relevant checks.
 
 - `pnpm build`
 
+### Browser SDK apps
+
+- `pnpm build`
+- verify login, logout, and session restore in the browser
+- if environment override exists, verify both development and production modes
+
 ## Common mistakes
 
 - Sending tenant app credentials to `/v1/users`
 - Using `OauthApplication` instead of `AuthApp` for tenant login
 - Replacing platform client validation with tenant auth app validation
+- Implementing Apple or Google for tenant users on platform `User` instead of `AuthUser`
+- Returning raw provider tokens as the primary tenant app session
+- Treating a browser or native app `app_secret` as confidential
 - Auto-confirming `AuthUser` while telling the client to check email
+- Building smbCloud `AuthUser` web auth on top of unrelated NextAuth session state
 - Forgetting that `tauri dev` ignores `tauri.conf.json` macOS minimum version
