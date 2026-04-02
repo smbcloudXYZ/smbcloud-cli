@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-auth-py"
-version = "0.3.33"
+version = "0.3.34"
 edition = "2024"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Python bindings for the smbCloud Auth SDK."

@@ -664,7 +664,7 @@ dependencies = [
 
 [[package]]
 name = "gresiq"
-version = "0.3.26"
+version = "0.3.34"
 dependencies = [
  "tokio",
  "tokio-postgres",
@@ -1959,7 +1959,7 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "s6n"
-version = "0.1.0"
+version = "0.3.34"
 
 [[package]]
 name = "same-file"
@@ -2175,7 +2175,7 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "smbcloud-auth"
-version = "0.3.33"
+version = "0.3.34"
 dependencies = [
  "base64",
  "log",
@@ -2192,7 +2192,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-auth-py"
-version = "0.3.33"
+version = "0.3.34"
 dependencies = [
  "pyo3",
  "pythonize",
@@ -2206,7 +2206,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-auth-wasm"
-version = "0.3.33"
+version = "0.3.34"
 dependencies = [
  "serde-wasm-bindgen",
  "smbcloud-auth",
@@ -2218,7 +2218,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.33"
+version = "0.3.34"
 dependencies = [
  "anyhow",
  "chrono",
