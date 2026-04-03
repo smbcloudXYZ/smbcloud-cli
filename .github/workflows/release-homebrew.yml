@@ -63,11 +63,7 @@ jobs:
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-
-      - name: Add Rust target
-        shell: bash
-        run: |
-          rustup target add ${{ matrix.target }} --toolchain ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -81,7 +77,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          cargo build --release --locked --target ${{ matrix.target }}
+          cargo build --release --locked --package smbcloud-cli --target ${{ matrix.target }}
 
       - name: Package tarball
         shell: bash
@@ -89,13 +85,14 @@ jobs:
           ARCHIVE_NAME="smb-macos-${{ matrix.arch }}.tar.gz"
 
           mkdir -p staging
-          cp "target/${{ matrix.target }}/release/smb" staging/
+          cp "target/${{ matrix.target }}/release/${PROJECT_NAME}" staging/
+          strip "staging/${PROJECT_NAME}"
 
-          tar -C staging -czf "${ARCHIVE_NAME}" smb
+          tar -C staging -czf "${ARCHIVE_NAME}" "${PROJECT_NAME}"
 
           shasum -a 256 "${ARCHIVE_NAME}" | awk '{print $1}' > "${ARCHIVE_NAME}.sha256"
 
-          echo "Archive: ${ARCHIVE_NAME}"
+          echo "Archive:  ${ARCHIVE_NAME}"
           echo "SHA256: $(cat "${ARCHIVE_NAME}.sha256")"
 
       - name: Upload artifact
