@@ -1,85 +1,57 @@
 # Installation
 
-[Cargo](https://doc.rust-lang.org/cargo/) is our main installation method. Setup your [Rust toolchain](https://www.rust-lang.org/tools/install) first.
+Deploying to the cloud should be absolutely frictionless. We provide pre-built binaries and seamless installation across all major platforms. Choose the method that best fits your workflow.
 
-### With Cargo
+### Homebrew (macOS & Linux)
+
+The fastest way to get started on Apple Silicon, Intel Macs, and Linux. We maintain an official tap with highly optimized, pre-built binaries so you can install `smb` in seconds.
 
 ```bash
-$ cargo install smbcloud-cli
+brew tap smbcloudXYZ/tap
+brew install cli
 ```
 
-### Install Scripts
+### Node Package Managers (npm / pnpm / bun / yarn)
 
-Probably broken now.
-
-#### Unix-like
+Perfect for JavaScript and TypeScript developers. The CLI is distributed as a lightweight, native binary wrapper.
 
 ```bash
-$
-$ # Install system-wide
-$ curl -s https://raw.githubusercontent.com/reemus-dev/gitnr/main/scripts/install.sh | sudo bash -s
-$
-$ # Install for current user
-$ curl -s https://raw.githubusercontent.com/reemus-dev/gitnr/main/scripts/install.sh | bash -s -- -u
-$
-$ # Install in specific directory
-$ curl -s https://raw.githubusercontent.com/reemus-dev/gitnr/main/scripts/install.sh | bash -s -- -d <dir>
-$
-```
-
-#### PowerShell
-
-```bash
-Set-ExecutionPolicy Unrestricted -Scope Process; iex (iwr "https://raw.githubusercontent.com/reemus-dev/gitnr/main/scripts/install.ps1").Content
-```
-
-### Homebrew (MacOS/Linux)
-
-Probably broken now.
-
-```bash
-$ brew tap smbcloudXYZ/tap
-$ brew install cli
-```
-
-### With NPM/Pnpm/Bun/Deno
-
-Probably broken now.
-
-```bash
-$ npm i -g @smbcloud/cli
+npm install -g @smbcloud/cli
 ```
 
 ## Updating
 
-Simply re-run the install command.
+To get the latest features, speed improvements, and security patches:
+
+```bash
+# Homebrew
+brew upgrade cli
+
+# NPM
+npm update -g @smbcloud/cli
+
+
+```
 
 ## Uninstallation
 
-Remove smbcloud-cli using your preferred package manager:
+Remove the CLI using your preferred package manager:
 
 ```bash
-# With Cargo
-$ cargo uninstall smbcloud-cli
+# Homebrew
+brew uninstall cli
+brew untap smbcloudXYZ/tap
 
-# With NPM
-$ npm uninstall -g @smbcloud/cli
+# NPM
+npm uninstall -g @smbcloud/cli
 
-# With Homebrew
-$ brew uninstall smbcloudXYZ/tap/cli
-$ brew untap smbcloudXYZ/tap
+
 ```
 
 ## Getting Started
 
-Explore available commands and options:
+Explore the available commands and deploy your first app:
 
 ```bash
 smb --help
 ```
-
-## Credits
-
-- [Sugar](https://github.com/metaplex-foundation/sugar).
-- [NPM packaging for Rust](https://blog.orhun.dev/packaging-rust-for-npm/).
-- [Install scripts tutorial](https://reemus.dev/tldr/cli-install-script).
