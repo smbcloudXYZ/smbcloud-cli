@@ -20,8 +20,6 @@
 
 **smbcloud-cli** is a robust, open-source command-line interface (CLI) for [smbcloud](https://smbcloud.xyz/)—the modern cloud deployment platform. Deploy your Rust, NodeJs, Ruby, or Swift apps with one command: `smb`.
 
-> "Push-to-Deploy" or slide to unlock my heart. ~ Overheard in a metro, Slussen to Gamla Stan.
-
 ## License
 
 MIT

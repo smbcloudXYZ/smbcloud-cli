@@ -1,0 +1,214 @@
+name: Homebrew Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.34)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_NAME: smb
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-macos:
+    name: Build macOS (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+          - arch: amd64
+            runner: macos-15-intel
+            target: x86_64-apple-darwin
+
+    steps:
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Add Rust target
+        shell: bash
+        run: |
+          rustup target add ${{ matrix.target }} --toolchain ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: homebrew-${{ matrix.target }}
+
+      - name: Create .env file
+        run: |
+          echo "CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }}" > .env
+
+      - name: Build
+        shell: bash
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package tarball
+        shell: bash
+        run: |
+          ARCHIVE_NAME="smb-macos-${{ matrix.arch }}.tar.gz"
+
+          mkdir -p staging
+          cp "target/${{ matrix.target }}/release/smb" staging/
+
+          tar -C staging -czf "${ARCHIVE_NAME}" smb
+
+          shasum -a 256 "${ARCHIVE_NAME}" | awk '{print $1}' > "${ARCHIVE_NAME}.sha256"
+
+          echo "Archive: ${ARCHIVE_NAME}"
+          echo "SHA256: $(cat "${ARCHIVE_NAME}.sha256")"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: smb-macos-${{ matrix.arch }}
+          path: |
+            smb-macos-${{ matrix.arch }}.tar.gz
+            smb-macos-${{ matrix.arch }}.tar.gz.sha256
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: smb-macos-${{ matrix.arch }}.tar.gz
+
+  update-homebrew-tap:
+    name: Update Homebrew tap
+    needs: build-macos
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve tag and version
+        id: release
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          VERSION="${TAG#v}"
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Read SHA256 checksums
+        id: sha
+        shell: bash
+        run: |
+          ARM64_SHA=$(cat artifacts/smb-macos-arm64/smb-macos-arm64.tar.gz.sha256)
+          AMD64_SHA=$(cat artifacts/smb-macos-amd64/smb-macos-amd64.tar.gz.sha256)
+
+          echo "arm64=${ARM64_SHA}" >> "$GITHUB_OUTPUT"
+          echo "amd64=${AMD64_SHA}" >> "$GITHUB_OUTPUT"
+
+          echo "ARM64 SHA256: ${ARM64_SHA}"
+          echo "AMD64 SHA256: ${AMD64_SHA}"
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: smbcloudXYZ/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Generate formula
+        shell: bash
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          TAG="${{ steps.release.outputs.tag }}"
+          ARM64_SHA="${{ steps.sha.outputs.arm64 }}"
+          AMD64_SHA="${{ steps.sha.outputs.amd64 }}"
+          REPO="smbcloudXYZ/smbcloud-cli"
+
+          mkdir -p homebrew-tap/Formula
+
+          cat > homebrew-tap/Formula/cli.rb <<FORMULA
+          # Homebrew formula for the smbCloud CLI (\`smb\` binary).
+          class Cli < Formula
+            desc "smbCloud command line interface"
+            homepage "https://github.com/${REPO}"
+            version "${VERSION}"
+            license "Apache-2.0"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/${REPO}/releases/download/${TAG}/smb-macos-arm64.tar.gz"
+                sha256 "${ARM64_SHA}"
+              end
+              on_intel do
+                url "https://github.com/${REPO}/releases/download/${TAG}/smb-macos-amd64.tar.gz"
+                sha256 "${AMD64_SHA}"
+              end
+            end
+
+            def install
+              bin.install "smb"
+            end
+
+            test do
+              system "#{bin}/smb", "--help"
+            end
+          end
+          FORMULA
+
+          echo "Generated formula:"
+          cat homebrew-tap/Formula/cli.rb
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+
+          cd homebrew-tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/cli.rb
+          git diff --cached --quiet && echo "No changes" && exit 0
+          git commit -m "Update smb to ${VERSION}"
+          git push
