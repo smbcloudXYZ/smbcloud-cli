@@ -29,6 +29,7 @@ pub async fn get_config() -> Result<Config> {
             if !path.exists() {
                 let config = Config {
                     current_project: None,
+                    current_frontend_app: None,
                     current_auth_app: None,
                 };
                 return Ok(config);
@@ -47,6 +48,7 @@ pub async fn get_config() -> Result<Config> {
         None => {
             let config = Config {
                 current_project: None,
+                current_frontend_app: None,
                 current_auth_app: None,
             };
             Ok(config)

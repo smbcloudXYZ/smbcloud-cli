@@ -31,9 +31,13 @@ impl Display for DeploymentMethod {
     }
 }
 
-#[derive(Deserialize, Debug, Serialize)]
+#[derive(Deserialize, Debug, Serialize, Clone)]
 pub struct Config {
+    /// Legacy project field — kept for backward compatibility during migration.
     pub current_project: Option<Project>,
+    /// The active FrontendApp for CLI deploy operations.
+    #[serde(default)]
+    pub current_frontend_app: Option<crate::frontend_app::FrontendApp>,
     pub current_auth_app: Option<AuthApp>,
 }
 
