@@ -169,30 +169,32 @@ jobs:
           mkdir -p homebrew-tap/Formula
 
           cat > homebrew-tap/Formula/cli.rb <<FORMULA
+          # frozen_string_literal: true
+
           # Homebrew formula for the smbCloud CLI (\`smb\` binary).
           class Cli < Formula
-            desc "smbCloud command line interface"
-            homepage "https://github.com/${REPO}"
-            version "${VERSION}"
-            license "Apache-2.0"
+            desc 'smbCloud command line interface'
+            homepage 'https://github.com/${REPO}'
+            version '${VERSION}'
+            license 'Apache-2.0'
 
             on_macos do
               on_arm do
-                url "https://github.com/${REPO}/releases/download/${TAG}/smb-macos-arm64.tar.gz"
-                sha256 "${ARM64_SHA}"
+                url 'https://github.com/${REPO}/releases/download/${TAG}/smb-macos-arm64.tar.gz'
+                sha256 '${ARM64_SHA}'
               end
               on_intel do
-                url "https://github.com/${REPO}/releases/download/${TAG}/smb-macos-amd64.tar.gz"
-                sha256 "${AMD64_SHA}"
+                url 'https://github.com/${REPO}/releases/download/${TAG}/smb-macos-amd64.tar.gz'
+                sha256 '${AMD64_SHA}'
               end
             end
 
             def install
-              bin.install "smb"
+              bin.install 'smb'
             end
 
             test do
-              system "#{bin}/smb", "--help"
+              system "#{bin}/smb", '--help'
             end
           end
           FORMULA
