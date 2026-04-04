@@ -143,6 +143,7 @@ pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<
 
     let config = Config {
         current_project: Some(project),
+        current_frontend_app: None,
         current_auth_app: None,
     };
 

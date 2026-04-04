@@ -2,6 +2,7 @@ pub mod account;
 pub mod app_auth;
 pub mod error_codes;
 pub mod forgot;
+pub mod frontend_app;
 pub mod login;
 pub mod oauth;
 pub mod project;
