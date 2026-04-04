@@ -1,3 +1,4 @@
+pub mod crud_frontend_app_read;
 pub mod crud_project_create;
 pub mod crud_project_delete;
 pub mod crud_project_deployment_create;
