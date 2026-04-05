@@ -68,6 +68,9 @@ pub struct Project {
     /// PM2 process name to restart after a nextjs-ssr deploy, e.g. "my-app".
     /// Matches the name passed to `pm2 start` on the server.
     pub pm2_app: Option<String>,
+    /// Port the standalone server binds to (default: 3000). Must match nginx upstream configuration.
+    #[serde(default)]
+    pub port: Option<u16>,
     /// Path to a shared lib directory to rsync to the server before deploying,
     /// e.g. "lib". Used by Rails apps that depend on native gems built from
     /// monorepo-level source. Relative to the repo root.
