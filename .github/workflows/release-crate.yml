@@ -68,11 +68,8 @@ jobs:
         with:
           key: publish
 
-      - name: Create .env file
-        run: |
-          touch .env
-          echo CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }} >> .env
-          cat .env
+      - name: Export build secret
+        run: echo "CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }}" >> "$GITHUB_ENV"
 
       - name: Verify Cargo.toml version matches tag
         shell: bash

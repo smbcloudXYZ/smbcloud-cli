@@ -622,6 +622,9 @@ When the main `README.MD` changes its tagline, logo URL, quick start commands, o
 **Platform support table missing new targets**
 When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
 
+**PyPI blocks short and protocol-reserved package names**
+PyPI maintains a blocklist of names that are too generic or conflict with well-known protocols and tools. `smb` is blocked because it is the name of the Windows SMB/CIFS file sharing protocol. Attempting to publish a package named `smb` returns `400 The name 'smb' isn't allowed`. There is no workaround — the name cannot be registered regardless of who owns it. If you need `uvx <name>` to work without `--from`, the package name and binary name must match AND the package name must not be on the blocklist. For this repo, `uvx --from smbcloud-cli smb` is the correct form.
+
 **`on: release: types: [published]` does not fire when the release is created by automation**
 When `softprops/action-gh-release` (or any action) creates a GitHub Release using the implicit `GITHUB_TOKEN`, GitHub does not dispatch the `release` event to other workflows. The downstream workflow simply never runs — no error, no log entry. Use `workflow_dispatch` via `actions/github-script@v7` to chain workflows explicitly, and add `actions: write` to the upstream workflow's `permissions`.
 
