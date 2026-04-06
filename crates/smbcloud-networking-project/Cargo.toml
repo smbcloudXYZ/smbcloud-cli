@@ -6,7 +6,7 @@ authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Command line tool for deploying NextJS app on the smbCloud platform."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
-documentation = "https://docs.smbcloud.xyz/cli"
+documentation = "https://smbcloud.xyz/posts"
 keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
 categories = [
     "command-line-utilities",

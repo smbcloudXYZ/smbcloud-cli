@@ -24,7 +24,7 @@
     "sdk",
     "browser"
   ],
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://github.com/smbcloudXYZ/smbcloud-cli/tree/main/sdk/npm/smbcloud-auth",
   "bugs": {
     "url": "https://github.com/smbcloudXYZ/smbcloud-cli/issues"

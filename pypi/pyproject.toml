@@ -28,7 +28,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://smbcloud.xyz/"
-Documentation = "https://docs.smbcloud.xyz/cli"
+Documentation = "https://smbcloud.xyz/posts"
 Repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 Issues = "https://github.com/smbcloudXYZ/smbcloud-cli/issues"
 
