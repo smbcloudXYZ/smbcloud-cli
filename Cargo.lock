@@ -2078,7 +2078,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.34"
+version = "0.3.35"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2118,7 +2118,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-model"
-version = "0.3.33"
+version = "0.3.35"
 dependencies = [
  "chrono",
  "log",
@@ -2134,7 +2134,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-network"
-version = "0.3.33"
+version = "0.3.35"
 dependencies = [
  "clap 4.5.57",
  "log",
@@ -2155,7 +2155,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-project"
-version = "0.3.29"
+version = "0.3.35"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2173,7 +2173,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-utils"
-version = "0.3.31"
+version = "0.3.35"
 dependencies = [
  "anyhow",
  "dirs",
