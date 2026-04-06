@@ -623,18 +623,36 @@ When the main `README.MD` changes its tagline, logo URL, quick start commands, o
 When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
 
 **Use workflow-level `env:` for compile-time secrets, not `$GITHUB_ENV` export steps**
-Compile-time secrets like `CLI_CLIENT_SECRET` (read by `env!()`) must be available to every `cargo` invocation across all platforms — including maturin-action's internal Docker containers (manylinux) and Windows subprocesses. Writing to `$GITHUB_ENV` in a separate step is unreliable: it does not propagate into Docker containers, and on Windows runners the default PowerShell shell does not expand `"$GITHUB_ENV"` correctly.
+Compile-time secrets like `CLI_CLIENT_SECRET` (read by `env!()`) must be available to every `cargo` invocation across all platforms. Writing to `$GITHUB_ENV` in a separate step is unreliable: it does not propagate into Docker containers, and on Windows runners the default PowerShell shell does not expand `"$GITHUB_ENV"` correctly.
 
-The correct approach is to declare the secret in the workflow-level `env:` block, which GitHub Actions propagates to all jobs, all steps, and all subprocesses automatically:
+Declare the secret in the workflow-level `env:` block:
 
 ```yaml
 env:
   CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
   CARGO_TERM_COLOR: always
-  # ... other env vars
 ```
 
-Never add a dedicated "Export build secret" step for this purpose. One line in `env:` replaces it entirely and works on Linux (including Docker), macOS, and Windows without any shell workarounds.
+Never add a dedicated "Export build secret" step for this purpose.
+
+**manylinux Docker containers require `docker-options` to forward env vars**
+Even with the secret in the workflow-level `env:` block, maturin-action's manylinux builds run inside a Docker container that does not automatically inherit the runner's environment. The secret is visible to the action process (shown as `CLI_CLIENT_SECRET: ***` in the step log) but is not forwarded into the container unless explicitly requested.
+
+Fix: add `docker-options: -e CLI_CLIENT_SECRET` to the `Build wheel` step:
+
+```yaml
+- name: Build wheel
+  uses: PyO3/maturin-action@v1
+  with:
+    target: ${{ matrix.build.TARGET }}
+    manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
+    working-directory: pypi
+    args: --release --locked --compatibility pypi --out dist
+    before-script-linux: yum install -y perl-core
+    docker-options: -e CLI_CLIENT_SECRET
+```
+
+`-e CLI_CLIENT_SECRET` tells `docker run` to forward that variable from the runner process into the container. Windows and macOS legs are unaffected (they do not use Docker). Without this, `env!("CLI_CLIENT_SECRET")` fails only on Linux manylinux legs while all other platforms succeed — making the root cause easy to miss.
 
 **PyPI blocks short and protocol-reserved package names**
 PyPI maintains a blocklist of names that are too generic or conflict with well-known protocols and tools. `smb` is blocked because it is the name of the Windows SMB/CIFS file sharing protocol. Attempting to publish a package named `smb` returns `400 The name 'smb' isn't allowed`. There is no workaround — the name cannot be registered regardless of who owns it. If you need `uvx <name>` to work without `--from`, the package name and binary name must match AND the package name must not be on the blocklist. For this repo, `uvx --from smbcloud-cli smb` is the correct form.
