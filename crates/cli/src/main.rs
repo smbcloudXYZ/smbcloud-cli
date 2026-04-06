@@ -4,6 +4,7 @@ use {
     console::style,
     smbcloud_cli::{
         account::{login::process_login, logout::process_logout, me::process_me, process_account},
+        clear_smb_token,
         cli::{Cli, CommandResult, Commands},
         deploy::process_deploy::process_deploy,
         project::{crud_create::process_project_init, process::process_project},
@@ -72,25 +73,34 @@ fn setup_logging(env: Environment, level: Option<EnvFilter>) -> Result<()> {
 
 #[tokio::main]
 async fn main() {
-    match run().await {
+    let cli = Cli::parse();
+    let environment = cli.environment;
+    match run(cli).await {
         Ok(result) => {
             result.stop_and_persist();
             std::process::exit(0);
         }
         Err(e) => {
-            println!(
-                "\n{} {}",
-                style("✘".to_string()).for_stderr().red(),
-                style(e).red()
-            );
+            if e.to_string().contains("Unauthorized access.") {
+                let _ = clear_smb_token(environment);
+                println!(
+                    "\n{} {}",
+                    style("✘".to_string()).for_stderr().red(),
+                    style("Your session has expired. Please login again with `smb login`.").red()
+                );
+            } else {
+                println!(
+                    "\n{} {}",
+                    style("✘".to_string()).for_stderr().red(),
+                    style(e).red()
+                );
+            }
             std::process::exit(1);
         }
     }
 }
 
-async fn run() -> Result<CommandResult> {
-    let cli = Cli::parse();
-
+async fn run(cli: Cli) -> Result<CommandResult> {
     // println!("Environment: {}", cli.environment);
 
     let log_level_error: Result<CommandResult> = Err(anyhow!(
