@@ -5,6 +5,10 @@ on:
     tags:
       - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.35)"
+        required: true
 
 permissions:
   id-token: write
@@ -63,6 +67,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -70,7 +76,8 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
-            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
           fi
 
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
@@ -171,6 +178,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -178,7 +187,8 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
-            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
           fi
 
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
