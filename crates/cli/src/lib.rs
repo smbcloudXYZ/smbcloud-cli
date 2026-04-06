@@ -7,10 +7,7 @@ pub mod project;
 mod token;
 mod ui;
 
-#[macro_use]
-extern crate dotenv_codegen;
-
 pub(crate) fn client() -> (&'static SmbClient, &'static str) {
-    let secret = dotenv!("CLI_CLIENT_SECRET");
+    let secret = env!("CLI_CLIENT_SECRET");
     (&SmbClient::Cli, secret)
 }

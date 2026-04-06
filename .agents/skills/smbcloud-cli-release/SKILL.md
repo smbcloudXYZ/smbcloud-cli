@@ -132,6 +132,29 @@ Or publish in one step:
 
 For local uploads, export `MATURIN_PYPI_TOKEN` before running `maturin upload` or `maturin publish`.
 
+### Publishing the smb stub (one-time)
+
+The stub lives in `pypi/smb-stub/` and is built with `hatchling`, not `maturin`. It only needs to be published once — it never changes.
+
+```sh
+cd pypi/smb-stub
+pip install hatchling build twine
+python -m build
+twine upload dist/*
+```
+
+Or with uv:
+
+```sh
+cd pypi/smb-stub
+uv run --with build python -m build
+uv run --with twine twine upload dist/*
+```
+
+Use a PyPI API token with upload scope for `smb`. Trusted publishing is not required for a static stub.
+
+Do not republish the stub on every CLI release. It permanently depends on the unpinned `smbcloud-cli`, so uv always resolves the latest version when the tool environment is created or upgraded.
+
 ### Local publishing constraint
 
 A local publish normally builds only for the current platform.
