@@ -86,11 +86,8 @@ jobs:
         with:
           key: github-${{ matrix.target }}
 
-      - name: Create .env file
-        run: |
-          touch .env
-          echo CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }} >> .env
-          cat .env
+      - name: Export build secrets
+        run: echo "CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }}" >> "$GITHUB_ENV"
 
       - name: Build binary
         shell: bash
