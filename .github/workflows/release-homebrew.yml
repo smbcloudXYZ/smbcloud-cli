@@ -52,7 +52,7 @@ jobs:
           echo "AMD64 SHA256: ${AMD64_SHA}"
 
       - name: Checkout Homebrew tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: smbcloudXYZ/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
