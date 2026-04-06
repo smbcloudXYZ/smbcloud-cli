@@ -198,12 +198,18 @@ jobs:
           merge-multiple: true
 
       - name: Check whether release already exists on PyPI
+        id: pypi-check
         shell: bash
         run: |
           if curl -fsS "https://pypi.org/pypi/smbcloud-cli/${RELEASE_VERSION}/json" >/dev/null 2>&1; then
             echo "smbcloud-cli ${RELEASE_VERSION} already exists on PyPI, skipping publish"
-            exit 0
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish distribution
+        if: steps.pypi-check.outputs.exists != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true
