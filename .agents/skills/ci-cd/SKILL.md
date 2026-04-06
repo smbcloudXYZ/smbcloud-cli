@@ -622,6 +622,20 @@ When the main `README.MD` changes its tagline, logo URL, quick start commands, o
 **Platform support table missing new targets**
 When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
 
+**Use workflow-level `env:` for compile-time secrets, not `$GITHUB_ENV` export steps**
+Compile-time secrets like `CLI_CLIENT_SECRET` (read by `env!()`) must be available to every `cargo` invocation across all platforms — including maturin-action's internal Docker containers (manylinux) and Windows subprocesses. Writing to `$GITHUB_ENV` in a separate step is unreliable: it does not propagate into Docker containers, and on Windows runners the default PowerShell shell does not expand `"$GITHUB_ENV"` correctly.
+
+The correct approach is to declare the secret in the workflow-level `env:` block, which GitHub Actions propagates to all jobs, all steps, and all subprocesses automatically:
+
+```yaml
+env:
+  CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
+  CARGO_TERM_COLOR: always
+  # ... other env vars
+```
+
+Never add a dedicated "Export build secret" step for this purpose. One line in `env:` replaces it entirely and works on Linux (including Docker), macOS, and Windows without any shell workarounds.
+
 **PyPI blocks short and protocol-reserved package names**
 PyPI maintains a blocklist of names that are too generic or conflict with well-known protocols and tools. `smb` is blocked because it is the name of the Windows SMB/CIFS file sharing protocol. Attempting to publish a package named `smb` returns `400 The name 'smb' isn't allowed`. There is no workaround — the name cannot be registered regardless of who owns it. If you need `uvx <name>` to work without `--from`, the package name and binary name must match AND the package name must not be on the blocklist. For this repo, `uvx --from smbcloud-cli smb` is the correct form.
 
