@@ -8,7 +8,7 @@
     Deploy to the cloud in one command.
     <br />
     <br />
-    <a href="https://www.smbcloud.xyz/">Website</a>
+    <a href="https://smbcloud.xyz/">Website</a>
     ·
     <a href="https://docs.smbcloud.xyz/cli">Documentation</a>
     ·
@@ -25,7 +25,7 @@
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://www.smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
 
 Ship your Rust, Node.js, Ruby, or Swift app with a single, magical command.
 
