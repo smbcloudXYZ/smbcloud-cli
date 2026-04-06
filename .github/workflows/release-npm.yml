@@ -37,13 +37,11 @@ jobs:
               OS: ubuntu-latest,
               TARGET: x86_64-unknown-linux-gnu,
             }
-          # Cannot cross-compile for now
-          #- {
-          #    NAME: linux-arm64-glibc,
-          #    OS: ubuntu-latest,
-          #    TOOLCHAIN: stable,
-          #    TARGET: aarch64-unknown-linux-gnu,
-          #  }
+          - {
+              NAME: linux-arm64-glibc,
+              OS: ubuntu-24.04-arm,
+              TARGET: aarch64-unknown-linux-gnu,
+            }
           - {
               NAME: win32-x64-msvc,
               OS: windows-2022,
