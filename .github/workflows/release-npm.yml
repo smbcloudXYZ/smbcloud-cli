@@ -124,6 +124,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           # We want to name our npm package @smbcloud/cli, but the main command is smb.
@@ -198,6 +200,8 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish the package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         shell: bash
         run: |
           cd npm/smbcloud-cli
