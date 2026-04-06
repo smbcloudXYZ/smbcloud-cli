@@ -1,6 +1,6 @@
 ---
 name: ci-cd
-description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially release workflows for crates.io, PyPI, npm, GitHub Releases, or Debian packages. Also covers SDK distribution README branding alignment across npm, PyPI, and the main repo. Covers OpenSSL vendoring, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, and idempotency patterns.
+description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially release workflows for crates.io, PyPI, npm, GitHub Releases, or Debian packages. Also covers SDK distribution README branding alignment across npm, PyPI, and the main repo. Covers OpenSSL vendoring, Windows vs non-Windows platform-conditional dependencies, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, and idempotency patterns.
 ---
 
 # CI/CD
@@ -96,7 +96,7 @@ Never read the version from `Cargo.toml` with `sed` in the `else` branch. That s
     toolchain: ${{ env.RUST_TOOLCHAIN }}
 ```
 
-Never hardcode the toolchain version or use `@stable`. The pinned SHA on `dtolnay/rust-toolchain` prevents silent breakage from upstream action changes.
+Never hardcode the toolchain version or use `@stable`. The pinned SHA on `dtolnay/rust-toolchain` is required because the action does not publish semver tags — its only named ref is `@master`. Pinning to a commit SHA makes the action immutable: it will always refer to that exact tree regardless of what the maintainer pushes later, and it cannot be silently replaced if the account were ever compromised. For first-party actions (`actions/checkout`, `actions/upload-artifact`, etc.) the `@v6`, `@v7` tags are maintained under a strict semver contract by GitHub, so floating major-version tags are safe there.
 
 ### Rust cache — use a per-target key
 
@@ -236,27 +236,40 @@ When `ubuntu-latest` (x86_64) targets `aarch64-unknown-linux-gnu` via maturin, t
 
 ## OpenSSL vendoring
 
-This repo uses `git2` which depends on `libgit2-sys` → `openssl-sys`. On platforms without system OpenSSL headers (manylinux containers, macOS cross-compilation), the build fails with:
+This repo uses `git2` which depends on `libgit2-sys` → `openssl-sys`. On non-Windows platforms without system OpenSSL headers (manylinux containers, macOS cross-compilation), the build fails with:
 
 ```
 Could not find directory of OpenSSL installation
 ```
 
+On Windows, `libgit2-sys` uses **WinHTTP** (built into Windows) for HTTPS — OpenSSL is not needed at all. Enabling `vendored` on Windows causes `openssl-src` to invoke Perl to compile OpenSSL from source, which fails because the Windows runner Perl is missing required modules.
+
 ### Fix applied
 
-`Cargo.toml` (workspace):
+`Cargo.toml` (workspace) — declares the vendored feature once:
 
 ```toml
 openssl = { version = "0.10", features = ["vendored"] }
 ```
 
-`crates/cli/Cargo.toml`:
+`crates/cli/Cargo.toml` — activates it only on non-Windows targets:
 
 ```toml
+[target.'cfg(not(windows))'.dependencies]
 openssl = { workspace = true }
 ```
 
-Adding `openssl` as a direct dependency with `features = ["vendored"]` activates `openssl-sys/vendored` globally via Cargo feature unification. This causes `openssl-src` to compile OpenSSL from source for the exact target triple, requiring no system headers.
+This activates `openssl-sys/vendored` via Cargo feature unification on Linux and macOS (where it is needed), and leaves the `openssl` crate completely absent from the Windows dependency graph (where WinHTTP handles SSL natively).
+
+### Per-platform behaviour
+
+| Platform      | SSL backend         | `openssl-sys/vendored` | OpenSSL compiled from source |
+| ------------- | ------------------- | ---------------------- | ---------------------------- |
+| Linux (gnu)   | vendored OpenSSL    | ✅                     | ✅                           |
+| macOS arm64   | vendored OpenSSL    | ✅                     | ✅                           |
+| macOS x64     | vendored OpenSSL    | ✅                     | ✅                           |
+| Windows x64   | WinHTTP (OS native) | ❌                     | ❌                           |
+| Windows arm64 | WinHTTP (OS native) | ❌                     | ❌                           |
 
 ---
 
@@ -472,6 +485,9 @@ manylinux2014 is CentOS 7. Use `yum`, not `apt`. For manylinux_2_28 (AlmaLinux 8
 
 **Missing `User-Agent` on crates.io API requests**
 crates.io rejects curl requests without a `User-Agent` header. Always include `-H "User-Agent: smbcloud-cli-release-workflow"`.
+
+**Enabling vendored OpenSSL unconditionally on Windows**
+`openssl = { features = ["vendored"] }` as an unconditional dependency forces `openssl-src` to compile OpenSSL from source on Windows. Windows builds fail because the runner Perl is missing modules required by OpenSSL's `Configure` script. Use `[target.'cfg(not(windows))'.dependencies]` so the `openssl` crate is never pulled into the Windows dependency graph. `libgit2-sys` uses WinHTTP on Windows and does not need OpenSSL.
 
 **Distribution README out of sync with main README**
 When the main `README.MD` changes its tagline, logo URL, quick start commands, or value proposition, the npm and PyPI READMEs must be updated in the same commit. Stale distribution READMEs show outdated branding on npmjs.com and pypi.org — the highest-visibility surfaces for new users discovering the CLI.
