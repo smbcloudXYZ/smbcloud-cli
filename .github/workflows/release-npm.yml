@@ -115,7 +115,7 @@ jobs:
           GH_OAUTH_REDIRECT_URI: ${{ secrets.GH_OAUTH_REDIRECT_URI }}
         shell: bash
         run: |
-          cargo build --release --locked --target ${{ matrix.build.TARGET }}
+          cargo build --release --locked --target ${{ matrix.build.TARGET }} --package smbcloud-cli
 
       - name: Install node
         uses: actions/setup-node@v6

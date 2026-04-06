@@ -1,7 +1,17 @@
 name: Crates.io Release
 
 on:
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.35)"
+        required: true
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,15 +25,48 @@ env:
   GH_OAUTH_REDIRECT_PORT: ${{ secrets.GH_OAUTH_REDIRECT_PORT }}
 
 jobs:
-  build:
+  publish:
+    name: Publish to crates.io
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: publish
 
       - name: Create .env file
         run: |
@@ -31,7 +74,37 @@ jobs:
           echo CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }} >> .env
           cat .env
 
+      - name: Verify Cargo.toml version matches tag
+        shell: bash
+        run: |
+          CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "smbcloud-cli") | .version')
+
+          echo "Cargo.toml version : ${CARGO_VERSION}"
+          echo "Release tag version: ${RELEASE_VERSION}"
+
+          if [[ "${CARGO_VERSION}" != "${RELEASE_VERSION}" ]]; then
+            echo "::error::Version mismatch — bump version in Cargo.toml before releasing."
+            exit 1
+          fi
+
+      - name: Check whether release already exists on crates.io
+        id: crates-check
+        shell: bash
+        run: |
+          if curl -fsS \
+            -H "User-Agent: smbcloud-cli-release-workflow" \
+            "https://crates.io/api/v1/crates/smbcloud-cli/${RELEASE_VERSION}" \
+            >/dev/null 2>&1; then
+            echo "smbcloud-cli ${RELEASE_VERSION} already exists on crates.io, skipping publish"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to crates.io
-        uses: katyo/publish-crates@v2
-        with:
-          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        if: steps.crates-check.outputs.exists != 'true'
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --locked --package smbcloud-cli
