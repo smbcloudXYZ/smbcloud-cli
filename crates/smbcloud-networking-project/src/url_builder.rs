@@ -3,6 +3,12 @@ use {
     smbcloud_networking::{smb_base_url_builder, smb_client::SmbClient},
 };
 
+pub(crate) fn build_frontend_apps_url(env: Environment, client: (&SmbClient, &str)) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/frontend_apps");
+    url_builder.build()
+}
+
 // Private functions
 
 pub(crate) fn build_project_url(env: Environment, client: (&SmbClient, &str)) -> String {

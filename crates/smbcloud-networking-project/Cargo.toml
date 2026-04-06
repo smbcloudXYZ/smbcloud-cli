@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-networking-project"
-version = "0.3.29"
+version = "0.3.35"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Command line tool for deploying NextJS app on the smbCloud platform."
@@ -23,7 +23,7 @@ async-trait = { workspace = true, optional = true }
 dirs = { workspace = true }
 log = { workspace = true }
 maybe-async = { workspace = true, features = ["is_sync"] }
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 smbcloud-model = { workspace = true }
