@@ -35,13 +35,12 @@ jobs:
               TARGET: x86_64-unknown-linux-gnu,
               MANYLINUX: "2014",
             }
-          # Cannot cross-compile for now
-          #- {
-          #    NAME: linux-arm64-glibc,
-          #    OS: ubuntu-latest,
-          #    TOOLCHAIN: stable,
-          #    TARGET: aarch64-unknown-linux-gnu,
-          #  }
+          - {
+              NAME: linux-arm64-glibc,
+              OS: ubuntu-24.04-arm,
+              TARGET: aarch64-unknown-linux-gnu,
+              MANYLINUX: "2014",
+            }
           - {
               NAME: win32-x64-msvc,
               OS: windows-2022,
@@ -52,11 +51,7 @@ jobs:
               OS: windows-2022,
               TARGET: aarch64-pc-windows-msvc,
             }
-          - {
-              NAME: darwin-x64,
-              OS: macos-latest,
-              TARGET: x86_64-apple-darwin,
-            }
+          - { NAME: darwin-x64, OS: macos-latest, TARGET: x86_64-apple-darwin }
           - {
               NAME: darwin-arm64,
               OS: macos-latest,
@@ -65,6 +60,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -72,7 +69,8 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
-            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
           fi
 
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
@@ -112,9 +110,10 @@ jobs:
           manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
           working-directory: pypi
           args: --release --locked --compatibility pypi --out dist
+          before-script-linux: yum install -y perl-core
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.build.NAME }}
           path: pypi/dist/*
@@ -125,6 +124,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -132,7 +133,8 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
-            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
           fi
 
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
@@ -167,7 +169,7 @@ jobs:
           args: --out dist
 
       - name: Upload sdist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: pypi/dist/*
@@ -182,6 +184,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -189,25 +193,32 @@ jobs:
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
-            release_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1)"
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
           fi
 
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
       - name: Download distribution artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: "*"
           path: dist
           merge-multiple: true
 
       - name: Check whether release already exists on PyPI
+        id: pypi-check
         shell: bash
         run: |
           if curl -fsS "https://pypi.org/pypi/smbcloud-cli/${RELEASE_VERSION}/json" >/dev/null 2>&1; then
             echo "smbcloud-cli ${RELEASE_VERSION} already exists on PyPI, skipping publish"
-            exit 0
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish distribution
+        if: steps.pypi-check.outputs.exists != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true

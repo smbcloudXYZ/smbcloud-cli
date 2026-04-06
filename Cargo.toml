@@ -19,6 +19,7 @@ indicatif = "0.17.11"
 log = "0.4.14"
 maybe-async = "0.2"
 open = "5.3"
+openssl = { version = "0.10", features = ["vendored"] }
 regex = "1.11"
 reqwest = { version = "0.12.18", default-features = false }
 serde = "1"
