@@ -1,18 +1,19 @@
 ---
 name: ci-cd
-description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially release workflows for crates.io, PyPI, npm, GitHub Releases, or Debian packages. Also covers SDK distribution README branding alignment across npm, PyPI, and the main repo. Covers OpenSSL vendoring, Windows vs non-Windows platform-conditional dependencies, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, and idempotency patterns.
+description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially release workflows for crates.io, PyPI, npm, GitHub Releases, Homebrew tap, or Debian packages. Also covers SDK distribution README branding alignment across npm, PyPI, and the main repo. Covers OpenSSL vendoring, Windows vs non-Windows platform-conditional dependencies, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, idempotency patterns, Homebrew formula generation, and cross-workflow chaining.
 ---
 
 # CI/CD
 
 ## Source of truth for all release workflows
 
-| Distribution            | Workflow file                          |
-| ----------------------- | -------------------------------------- |
-| crates.io               | `.github/workflows/release-crate.yml`  |
-| PyPI                    | `.github/workflows/release-pypi.yml`   |
-| npm                     | `.github/workflows/release-npm.yml`    |
-| GitHub Release binaries | `.github/workflows/release-github.yml` |
+| Distribution            | Workflow file                            |
+| ----------------------- | ---------------------------------------- |
+| crates.io               | `.github/workflows/release-crate.yml`    |
+| PyPI                    | `.github/workflows/release-pypi.yml`     |
+| npm                     | `.github/workflows/release-npm.yml`      |
+| GitHub Release binaries | `.github/workflows/release-github.yml`   |
+| Homebrew tap            | `.github/workflows/release-homebrew.yml` |
 
 All four workflows share the same structural patterns. When editing one, check the others for consistency.
 
@@ -392,6 +393,132 @@ This ensures all platform binaries are collected before any are attached to the 
 
 ---
 
+## Chaining workflows — `GITHUB_TOKEN` cannot fire downstream events
+
+GitHub intentionally does **not** fire `release`, `push`, `pull_request`, or any other repository events when the action that creates them is authenticated with `GITHUB_TOKEN`. This is a deliberate anti-loop safeguard.
+
+**Symptom:** `release-github.yml` uses `softprops/action-gh-release` (with the implicit `GITHUB_TOKEN`) to publish a release. `release-homebrew.yml` has `on: release: types: [published]`. The Homebrew workflow never runs.
+
+**Fix:** Have the upstream workflow dispatch the downstream one explicitly via the GitHub API after it completes. This requires `actions: write` in `permissions`.
+
+```yaml
+# release-github.yml
+
+permissions:
+  contents: write
+  actions: write   # required for createWorkflowDispatch
+
+# At the end of the release job, after softprops/action-gh-release:
+- name: Trigger Homebrew release
+  uses: actions/github-script@v7
+  with:
+    script: |
+      await github.rest.actions.createWorkflowDispatch({
+        owner: context.repo.owner,
+        repo: context.repo.repo,
+        workflow_id: 'release-homebrew.yml',
+        ref: 'main',
+        inputs: {
+          tag: '${{ steps.tag.outputs.tag }}'
+        }
+      })
+```
+
+The downstream workflow (`release-homebrew.yml`) must expose a `workflow_dispatch` trigger with a `tag` input — it no longer needs `on: release: types: [published]` (which is dead code in this pattern).
+
+**Alternative:** Use a Personal Access Token (PAT) with `repo` scope in `softprops/action-gh-release` via `token: ${{ secrets.RELEASE_TOKEN }}`. A PAT is treated as a real user action and does fire the `release` event. This avoids changing permissions but requires managing an extra secret.
+
+---
+
+## Homebrew tap release pattern
+
+`release-homebrew.yml` is triggered by `release-github.yml` via `workflow_dispatch` (see above). It runs a single cheap `ubuntu-latest` job — no Rust compilation, no macOS runners.
+
+### Key principle: compute SHA256 once, at build time
+
+The Homebrew formula's `sha256` field is the checksum of the tarball that Homebrew downloads at `brew install` time. The tarball lives at the GitHub Release URL. CI only needs to _write_ that checksum into `cli.rb` — it does not need to download the tarball again.
+
+**In `release-github.yml` (build job, macOS legs only):**
+
+```yaml
+- name: Package macOS tarball for Homebrew
+  if: contains(matrix.target, 'apple-darwin')
+  shell: bash
+  run: |
+    ARCHIVE_NAME="${PROJECT_NAME}-${{ matrix.name }}.tar.gz"
+
+    mkdir -p staging-brew
+    cp "./release/${PROJECT_NAME}-${{ matrix.name }}" "staging-brew/${PROJECT_NAME}"
+    strip "staging-brew/${PROJECT_NAME}"
+
+    tar -C staging-brew -czf "${ARCHIVE_NAME}" "${PROJECT_NAME}"
+
+    # Compute and save the checksum alongside the archive
+    shasum -a 256 "${ARCHIVE_NAME}" | awk '{print $1}' > "${ARCHIVE_NAME}.sha256"
+
+- name: Upload macOS Homebrew artifacts
+  if: contains(matrix.target, 'apple-darwin')
+  uses: actions/upload-artifact@v7
+  with:
+    name: homebrew-${{ matrix.name }}
+    path: |
+      ${{ env.PROJECT_NAME }}-${{ matrix.name }}.tar.gz
+      ${{ env.PROJECT_NAME }}-${{ matrix.name }}.tar.gz.sha256
+```
+
+Both the `.tar.gz` and the `.sha256` file are downloaded in the release job and attached to the GitHub Release via `files: release/*`.
+
+**In `release-homebrew.yml` (single job):**
+
+```yaml
+- name: Read SHA256 checksums from release
+  id: sha
+  env:
+    GH_TOKEN: ${{ github.token }}
+  shell: bash
+  run: |
+    mkdir -p artifacts
+
+    # Download only the tiny .sha256 text files — not the full tarballs
+    gh release download "${{ steps.release.outputs.tag }}" \
+      --repo "${{ env.REPO }}" \
+      --pattern "smb-macos-*.tar.gz.sha256" \
+      --dir artifacts/
+
+    ARM64_SHA=$(cat artifacts/smb-macos-arm64.tar.gz.sha256)
+    AMD64_SHA=$(cat artifacts/smb-macos-amd64.tar.gz.sha256)
+
+    echo "arm64=${ARM64_SHA}" >> "$GITHUB_OUTPUT"
+    echo "amd64=${AMD64_SHA}" >> "$GITHUB_OUTPUT"
+```
+
+`gh` (GitHub CLI) is pre-installed on all GitHub-hosted runners. `GH_TOKEN: ${{ github.token }}` is sufficient for downloading from a public repo's releases.
+
+### Formula URL convention
+
+The formula `url:` references the release asset directly. Homebrew fetches it at install time — CI never downloads it:
+
+```ruby
+on_macos do
+  on_arm do
+    url 'https://github.com/smbcloudXYZ/smbcloud-cli/releases/download/v0.3.36/smb-macos-arm64.tar.gz'
+    sha256 '<computed during build>'
+  end
+  on_intel do
+    url 'https://github.com/smbcloudXYZ/smbcloud-cli/releases/download/v0.3.36/smb-macos-amd64.tar.gz'
+    sha256 '<computed during build>'
+  end
+end
+```
+
+The tarball must contain the binary named `smb` (not `smb-macos-arm64`) because the formula's install step is `bin.install 'smb'`.
+
+### Homebrew tap permissions
+
+`release-homebrew.yml` only needs `contents: read` on `smbcloud-cli`. Writing to the tap repo (`smbcloudXYZ/homebrew-tap`) is authenticated via `secrets.HOMEBREW_TAP_TOKEN` in the `actions/checkout` step, not via workflow-level permissions.
+
+---
+
 ## `fail-fast: false`
 
 Always set `fail-fast: false` on release build matrices:
@@ -494,3 +621,15 @@ When the main `README.MD` changes its tagline, logo URL, quick start commands, o
 
 **Platform support table missing new targets**
 When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
+
+**`on: release: types: [published]` does not fire when the release is created by automation**
+When `softprops/action-gh-release` (or any action) creates a GitHub Release using the implicit `GITHUB_TOKEN`, GitHub does not dispatch the `release` event to other workflows. The downstream workflow simply never runs — no error, no log entry. Use `workflow_dispatch` via `actions/github-script@v7` to chain workflows explicitly, and add `actions: write` to the upstream workflow's `permissions`.
+
+**Downloading full tarballs in the Homebrew workflow to compute SHA256**
+The Homebrew formula only needs the SHA256 hash — Homebrew itself downloads the tarball at install time. Compute the SHA256 during the build in `release-github.yml`, save it as a `.sha256` file, attach it to the GitHub Release, and then have `release-homebrew.yml` download only those tiny text files with `gh release download --pattern "*.sha256"`. Do not re-download multi-megabyte binaries and do not re-run Rust compilation.
+
+**Rebuilding macOS binaries in `release-homebrew.yml`**
+`release-github.yml` already builds macOS binaries. Running a second Rust compilation in `release-homebrew.yml` wastes two macOS runner slots and risks producing binaries with different checksums if the environment differs. Build once, reuse the output.
+
+**Homebrew tarball contains wrong binary name**
+The formula uses `bin.install 'smb'`. The tarball must contain the binary named `smb`, not `smb-macos-arm64`. Strip and repackage correctly in the "Package macOS tarball for Homebrew" step.
