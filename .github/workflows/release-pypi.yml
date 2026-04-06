@@ -37,7 +37,7 @@ jobs:
             }
           - {
               NAME: linux-arm64-glibc,
-              OS: ubuntu-latest,
+              OS: ubuntu-24.04-arm,
               TARGET: aarch64-unknown-linux-gnu,
               MANYLINUX: "2014",
             }
