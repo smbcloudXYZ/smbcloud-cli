@@ -6,8 +6,6 @@ pub const GH_OAUTH_CLIENT_ID: &str = "bf1f12d97659a6495e43";
 pub const GH_OAUTH_REDIRECT_HOST: &str = "http://localhost";
 pub const GH_OAUTH_REDIRECT_PORT: &str = "8808";
 
-pub const SMB_CLIENT_ID: &str = "cli";
-pub const SMB_CLIENT_SECRET: &str = "secretttttttt";
 pub const SMB_USER_AGENT: &str = "smbcloud-cli";
 
 // Paths
