@@ -35,13 +35,12 @@ jobs:
               TARGET: x86_64-unknown-linux-gnu,
               MANYLINUX: "2014",
             }
-          # Cannot cross-compile for now
-          #- {
-          #    NAME: linux-arm64-glibc,
-          #    OS: ubuntu-latest,
-          #    TOOLCHAIN: stable,
-          #    TARGET: aarch64-unknown-linux-gnu,
-          #  }
+          - {
+              NAME: linux-arm64-glibc,
+              OS: ubuntu-latest,
+              TARGET: aarch64-unknown-linux-gnu,
+              MANYLINUX: "2014",
+            }
           - {
               NAME: win32-x64-msvc,
               OS: windows-2022,
@@ -111,7 +110,7 @@ jobs:
           before-script-linux: yum install -y perl-core
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.build.NAME }}
           path: pypi/dist/*
@@ -164,7 +163,7 @@ jobs:
           args: --out dist
 
       - name: Upload sdist artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: pypi/dist/*
@@ -192,7 +191,7 @@ jobs:
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
       - name: Download distribution artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: "*"
           path: dist
