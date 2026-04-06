@@ -72,10 +72,12 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         succeed_message(&format!("Installing dependencies in {}…", source)),
     );
 
-    let install_status = Command::new(package_manager)
+    // Capture stdout/stderr so pnpm's output does not interleave with the
+    // spinner animation. On failure the captured output is printed for the user.
+    let install_output = Command::new(package_manager)
         .args(["install", "--ignore-scripts"])
         .current_dir(source)
-        .status()
+        .output()
         .map_err(|e| {
             anyhow!(fail_message(&format!(
                 "Failed to spawn '{} install': {}",
@@ -83,14 +85,21 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
             )))
         })?;
 
-    if !install_status.success() {
-        install_spinner.stop_and_persist(
-            &fail_symbol(),
-            fail_message("Install failed. See output above."),
-        );
+    if !install_output.status.success() {
+        install_spinner.stop_and_persist(&fail_symbol(), fail_message("Install failed."));
+        let stderr = String::from_utf8_lossy(&install_output.stderr);
+        let stdout = String::from_utf8_lossy(&install_output.stdout);
+        let details = if !stderr.trim().is_empty() {
+            stderr
+        } else {
+            stdout
+        };
+        if !details.trim().is_empty() {
+            eprintln!("{}", details.trim());
+        }
         return Err(anyhow!(fail_message(&format!(
             "'{} install --ignore-scripts' exited with status {}",
-            package_manager, install_status
+            package_manager, install_output.status
         ))));
     }
 
@@ -100,11 +109,10 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     );
 
     // ── Step 2: pnpm build ───────────────────────────────────────────────────
+    // No spinner — Next.js writes its own rich progress output to the terminal.
+    // Blank lines before and after keep it visually separated from our log lines.
 
-    let mut build_spinner = Spinner::new(
-        Spinners::SimpleDotsScrolling,
-        succeed_message(&format!("Building {} with {}…", source, package_manager)),
-    );
+    println!();
 
     let build_status = Command::new(package_manager)
         .arg("build")
@@ -117,18 +125,20 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
             )))
         })?;
 
+    println!();
+
     if !build_status.success() {
-        build_spinner.stop_and_persist(
-            &fail_symbol(),
-            fail_message("Build failed. See output above."),
-        );
         return Err(anyhow!(fail_message(&format!(
             "'{} build' exited with status {}",
             package_manager, build_status
         ))));
     }
 
-    build_spinner.stop_and_persist(&succeed_symbol(), succeed_message("Build complete."));
+    println!(
+        "{} {}",
+        succeed_symbol(),
+        succeed_message("Build complete.")
+    );
 
     // ── Step 3: verify standalone output exists ──────────────────────────────
     //
@@ -266,11 +276,18 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     //
     // Runs `node server.js` via pm2 inside the deployed standalone directory.
     // PORT and HOSTNAME are set so Next.js binds correctly behind nginx.
-    // nvm is sourced from ~/.profile so the right Node version is used.
     //
-    // pm2 describe checks whether the process already exists:
-    //   - exists  → pm2 restart (picks up new server.js in place)
-    //   - missing → pm2 start   (first deploy)
+    // We always delete the existing pm2 process (if any) and start fresh with
+    // `node server.js`. A bare `pm2 restart` would re-execute the *old* command
+    // (e.g. `next start --port XXXX` from a previous git-push deploy), which
+    // fails when the working directory now contains standalone output instead of
+    // the full Next.js build tree. Deleting first guarantees the entry point
+    // and environment are always correct.
+    //
+    // The port defaults to 3000 and can be overridden with `port = XXXX` in
+    // .smb/config.toml — it must match the nginx upstream configuration.
+
+    let port = config.project.port.unwrap_or(3000);
 
     let deploy_script = format!(
         r#"set -e
@@ -284,17 +301,17 @@ fi
 
 cd "$APP_PATH"
 
-echo "Starting/restarting $PM2_APP with pm2..."
+echo "Starting $PM2_APP with pm2..."
 if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
-    pm2 restart "$PM2_APP"
-else
-    PORT=3010 HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
+    pm2 delete "$PM2_APP"
 fi
+PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
 pm2 save
 echo "Done."
 "#,
         remote_path = remote_path,
         pm2_app = pm2_app,
+        port = port,
     );
 
     let mut restart_spinner = Spinner::new(
@@ -333,6 +350,8 @@ echo "Done."
             "bash -s",
         ])
         .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| anyhow!(fail_message(&format!("Failed to spawn SSH: {}", e))))?;
 
@@ -342,17 +361,26 @@ echo "Done."
             .map_err(|e| anyhow!("Failed to write deploy script to SSH stdin: {}", e))?;
     }
 
-    let ssh_status = child
-        .wait()
+    // stdin was dropped at the end of the if-let block above, sending EOF to
+    // remote bash. wait_with_output() reads stdout/stderr then waits for exit.
+    let ssh_output = child
+        .wait_with_output()
         .map_err(|e| anyhow!("Failed to wait for SSH process: {}", e))?;
 
     drop(ssh_known_hosts_file);
 
-    if !ssh_status.success() {
-        restart_spinner.stop_and_persist(
-            &fail_symbol(),
-            fail_message("Remote restart failed. See output above."),
-        );
+    if !ssh_output.status.success() {
+        restart_spinner.stop_and_persist(&fail_symbol(), fail_message("Remote restart failed."));
+        let stderr = String::from_utf8_lossy(&ssh_output.stderr);
+        let stdout = String::from_utf8_lossy(&ssh_output.stdout);
+        let details = if !stderr.trim().is_empty() {
+            stderr
+        } else {
+            stdout
+        };
+        if !details.trim().is_empty() {
+            eprintln!("{}", details.trim());
+        }
         mark_failed(
             &deploy_ref,
             &created_deployment,
@@ -363,7 +391,7 @@ echo "Done."
         .await;
         return Err(anyhow!(fail_message(&format!(
             "SSH deploy script exited with status {}",
-            ssh_status
+            ssh_output.status
         ))));
     }
 
