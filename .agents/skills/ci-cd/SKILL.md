@@ -1,6 +1,6 @@
 ---
 name: ci-cd
-description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially release workflows for crates.io, PyPI, npm, GitHub Releases, or Debian packages. Covers OpenSSL vendoring, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, and idempotency patterns.
+description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially release workflows for crates.io, PyPI, npm, GitHub Releases, or Debian packages. Also covers SDK distribution README branding alignment across npm, PyPI, and the main repo. Covers OpenSSL vendoring, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, and idempotency patterns.
 ---
 
 # CI/CD
@@ -15,6 +15,17 @@ description: Use when creating, debugging, or improving GitHub Actions workflows
 | GitHub Release binaries | `.github/workflows/release-github.yml` |
 
 All four workflows share the same structural patterns. When editing one, check the others for consistency.
+
+## Source of truth for distribution channel READMEs
+
+| File                         | Published as                                      |
+| ---------------------------- | ------------------------------------------------- |
+| `README.MD`                  | GitHub repo — canonical brand voice               |
+| `npm/smbcloud-cli/README.md` | npmjs.com — `@smbcloud/cli`                       |
+| `pypi/README.md`             | pypi.org — `smbcloud-cli`                         |
+| `npm/README.md.tmpl`         | npmjs.com — `@smbcloud/cli-*` (platform packages) |
+
+When the main `README.MD` changes its tagline, logo, quick start, or value proposition, update all three distribution READMEs to match.
 
 ---
 
@@ -382,6 +393,60 @@ The default `fail-fast: true` cancels all in-progress jobs as soon as one fails.
 
 ---
 
+## SDK distribution README branding
+
+Every distribution channel README must stay aligned with the main `README.MD`. The three elements that must always match exactly:
+
+- **Logo** — `https://avatars.githubusercontent.com/u/89791739?s=200&v=4`, width 128
+- **Tagline** — "Deploy to the cloud in one command."
+- **Quick start** — `smb login` → `smb init` → `smb deploy`
+
+### Structure per README type
+
+**Wrapper package** (`npm/smbcloud-cli/README.md` → `@smbcloud/cli`, `pypi/README.md` → `smbcloud-cli`):
+
+1. Logo + tagline + nav links + badges
+2. About section (copy from main README verbatim)
+3. Primary install method for that channel first (`npm install -g` or `pip install`)
+4. Quick start
+5. All other install methods (Homebrew, npm, pip, shell, PowerShell)
+6. Documentation link
+7. Platform support table
+8. Source & Issues pointer to GitHub
+9. License
+
+The PyPI README leads with the PyPI badge; the npm README leads with the npm badge. Both include the full badge row.
+
+**Platform binary package** (`npm/README.md.tmpl` → `@smbcloud/cli-darwin-arm64`, etc.):
+
+Keep it minimal. Show the logo and tagline for brand recognition, then immediately redirect to `@smbcloud/cli`. Do not repeat install instructions — the user landed on the wrong package.
+
+### Platform support table
+
+Keep this table consistent across all READMEs:
+
+```md
+| Platform      | Architecture |
+| ------------- | ------------ |
+| macOS         | arm64, x64   |
+| Linux (glibc) | arm64, x64   |
+| Windows       | arm64, x64   |
+```
+
+Update it whenever a new platform is added to the release matrix.
+
+### PyPI-specific copy
+
+Add this line to distinguish the pip install from npm:
+
+> This package installs the native `smb` executable for your platform directly — no Node.js, no Docker, no runtime dependencies.
+
+### Template variable in `README.md.tmpl`
+
+The platform package template uses `${node_pkg}` as a shell-style variable. This is substituted at release time by the npm publish script. Do not replace it with a hardcoded package name.
+
+---
+
 ## Common mistakes
 
 **Building the full workspace in release workflows**
@@ -407,3 +472,9 @@ manylinux2014 is CentOS 7. Use `yum`, not `apt`. For manylinux_2_28 (AlmaLinux 8
 
 **Missing `User-Agent` on crates.io API requests**
 crates.io rejects curl requests without a `User-Agent` header. Always include `-H "User-Agent: smbcloud-cli-release-workflow"`.
+
+**Distribution README out of sync with main README**
+When the main `README.MD` changes its tagline, logo URL, quick start commands, or value proposition, the npm and PyPI READMEs must be updated in the same commit. Stale distribution READMEs show outdated branding on npmjs.com and pypi.org — the highest-visibility surfaces for new users discovering the CLI.
+
+**Platform support table missing new targets**
+When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
