@@ -70,6 +70,14 @@ async fn do_process_logout(env: Environment) -> Result<()> {
     let token = get_smb_token(env)?;
     match logout(env, client(), token).await {
         Ok(_) => Ok(()),
-        Err(e) => Err(anyhow!("{e}")),
+        Err(e) => {
+            // A 401 means the session is already expired on the server.
+            // Treat this as success — the session is gone either way.
+            if e.to_string().contains("Unauthorized") {
+                Ok(())
+            } else {
+                Err(anyhow!("{e}"))
+            }
+        }
     }
 }
