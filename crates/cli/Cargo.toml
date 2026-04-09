@@ -27,6 +27,7 @@ chrono = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
 clap_mangen = { workspace = true }
 console = { workspace = true }
+crossterm = { workspace = true }
 dialoguer = { workspace = true }
 dirs = { workspace = true }
 
@@ -37,6 +38,7 @@ home = { workspace = true }
 indicatif = { workspace = true }
 log = { workspace = true }
 open = { workspace = true }
+ratatui = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
 serde = { workspace = true, features = ["derive"] }
