@@ -10,7 +10,7 @@
     <br />
     <a href="https://smbcloud.xyz/">Website</a>
     ·
-    <a href="https://docs.smbcloud.xyz/cli">Documentation</a>
+    <a href="https://smbcloud.xyz/posts">Documentation</a>
     ·
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/releases">Releases</a>
     ·
@@ -76,7 +76,7 @@ irm https://raw.githubusercontent.com/smbcloudXYZ/smbcloud-cli/main/install-wind
 
 ## Documentation
 
-Full documentation is available at [docs.smbcloud.xyz/cli](https://docs.smbcloud.xyz/cli).
+Full documentation is available at [smbcloud.xyz/posts](https://smbcloud.xyz/posts).
 
 ## Platform Support
 
