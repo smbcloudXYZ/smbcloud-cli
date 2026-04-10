@@ -8,9 +8,9 @@
     Deploy to the cloud in one command.
     <br />
     <br />
-    <a href="https://www.smbcloud.xyz/">Website</a>
+    <a href="https://smbcloud.xyz/">Website</a>
     ·
-    <a href="https://docs.smbcloud.xyz/cli">Documentation</a>
+    <a href="https://smbcloud.xyz/posts">Documentation</a>
     ·
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/releases">Releases</a>
     ·
@@ -25,7 +25,7 @@
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://www.smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
 
 Ship your Rust, Node.js, Ruby, or Swift app with a single, magical command.
 
@@ -76,7 +76,7 @@ irm https://raw.githubusercontent.com/smbcloudXYZ/smbcloud-cli/main/install-wind
 
 ## Documentation
 
-Full documentation is available at [docs.smbcloud.xyz/cli](https://docs.smbcloud.xyz/cli).
+Full documentation is available at [smbcloud.xyz/posts](https://smbcloud.xyz/posts).
 
 ## Platform Support
 

@@ -8,7 +8,7 @@
     Deploy to the cloud in one command.
     <br />
     <br />
-    <a href="https://www.smbcloud.xyz/">Website</a>
+    <a href="https://smbcloud.xyz/">Website</a>
     ·
     <a href="./docs">Documentation</a>
     ·
@@ -17,7 +17,9 @@
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/releases">Releases</a>
   </p>
   <p align="center">
+    <a href="https://crates.io/crates/smbcloud-cli"><img alt="Crates.io" src="https://img.shields.io/crates/v/smbcloud-cli"></a>
     <a href="https://www.npmjs.com/package/@smbcloud/cli"><img alt="npm" src="https://img.shields.io/npm/v/@smbcloud/cli"></a>
+    <a href="https://github.com/smbcloudXYZ/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew"></a>
     <a href="https://pypi.org/project/smbcloud-cli/"><img alt="PyPI" src="https://img.shields.io/pypi/v/smbcloud-cli"></a>
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/smbcloudXYZ/smbcloud-cli"></a>
   </p>
@@ -25,7 +27,7 @@
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://www.smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
 
 Ship your Rust, Node.js, Ruby, or Swift app with a single, magical command.
 

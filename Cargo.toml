@@ -9,6 +9,7 @@ chrono = "0.4"
 clap = "4.1.6"
 clap_mangen = "0.2.10"
 console = "0.16"
+crossterm = "0.28"
 dialoguer = "0.11.0"
 dirs = "6.0"
 
@@ -20,6 +21,7 @@ log = "0.4.14"
 maybe-async = "0.2"
 open = "5.3"
 openssl = { version = "0.10", features = ["vendored"] }
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
 regex = "1.11"
 reqwest = { version = "0.12.18", default-features = false }
 serde = "1"
@@ -29,6 +31,7 @@ smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
 smbcloud-network = { version = "0.3", path = "crates/smbcloud-network" }
 smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
 smbcloud-auth = { version = "0.3", path = "crates/smbcloud-auth" }
+smbcloud-auth-sdk = { version = "0.3", path = "crates/smbcloud-auth-sdk" }
 smbcloud-networking-project = { version = "0.3", path = "crates/smbcloud-networking-project" }
 smbcloud-utils = { version = "0.3", path = "crates/smbcloud-utils" }
 spinners = "4.1.0"
