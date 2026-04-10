@@ -31,6 +31,7 @@ smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
 smbcloud-network = { version = "0.3", path = "crates/smbcloud-network" }
 smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
 smbcloud-auth = { version = "0.3", path = "crates/smbcloud-auth" }
+smbcloud-auth-sdk = { version = "0.3", path = "crates/smbcloud-auth-sdk" }
 smbcloud-networking-project = { version = "0.3", path = "crates/smbcloud-networking-project" }
 smbcloud-utils = { version = "0.3", path = "crates/smbcloud-utils" }
 spinners = "4.1.0"
