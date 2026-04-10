@@ -1,20 +1,16 @@
 use {
+    crate::client_credentials::{ClientCredentials, base_url_builder as tenant_base_url_builder},
     reqwest::Client,
     smbcloud_model::{
         error_codes::ErrorResponse,
         login::{AccountStatus, LoginParams, UserParam},
     },
     smbcloud_network::{environment::Environment, network::request_login},
-    smbcloud_networking::{
-        constants::{PATH_USERS_SIGN_IN, SMB_USER_AGENT},
-        smb_base_url_builder,
-        smb_client::SmbClient,
-    },
 };
 
-pub async fn login(
+pub async fn login_with_client(
     env: Environment,
-    client: (&SmbClient, &str),
+    client: ClientCredentials<'_>,
     username: String,
     password: String,
 ) -> Result<AccountStatus, ErrorResponse> {
@@ -25,14 +21,14 @@ pub async fn login(
         },
     };
     let builder = Client::new()
-        .post(build_smb_login_url(env, client))
+        .post(build_login_url(env, client))
         .json(&login_params)
-        .header("User-agent", SMB_USER_AGENT);
+        .header("User-agent", client.app_id);
     request_login(builder).await
 }
 
-pub(crate) fn build_smb_login_url(env: Environment, client: (&SmbClient, &str)) -> String {
-    let mut url_builder = smb_base_url_builder(env, client);
-    url_builder.add_route(PATH_USERS_SIGN_IN);
+fn build_login_url(env: Environment, client: ClientCredentials<'_>) -> String {
+    let mut url_builder = tenant_base_url_builder(env, client);
+    url_builder.add_route("v1/client/users/sign_in");
     url_builder.build()
 }

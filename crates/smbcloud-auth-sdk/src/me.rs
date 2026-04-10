@@ -1,25 +1,25 @@
 use {
+    crate::client_credentials::{ClientCredentials, base_url_builder as tenant_base_url_builder},
     reqwest::Client,
     smbcloud_model::{account::User, error_codes::ErrorResponse},
     smbcloud_network::{environment::Environment, network::request},
-    smbcloud_networking::{constants::PATH_USERS_ME, smb_base_url_builder, smb_client::SmbClient},
 };
 
-pub async fn me(
+pub async fn me_with_client(
     env: Environment,
-    client: (&SmbClient, &str),
+    client: ClientCredentials<'_>,
     access_token: &str,
 ) -> Result<User, ErrorResponse> {
     let builder = Client::new()
-        .get(build_smb_info_url(env, client))
+        .get(build_me_url(env, client))
         .header("Authorization", access_token)
         .header("Accept", "application/json")
         .header("Content-Type", "application/x-www-form-urlencoded");
     request(builder).await
 }
 
-fn build_smb_info_url(env: Environment, client: (&SmbClient, &str)) -> String {
-    let mut url_builder = smb_base_url_builder(env, client);
-    url_builder.add_route(PATH_USERS_ME);
+fn build_me_url(env: Environment, client: ClientCredentials<'_>) -> String {
+    let mut url_builder = tenant_base_url_builder(env, client);
+    url_builder.add_route("v1/client/me");
     url_builder.build()
 }

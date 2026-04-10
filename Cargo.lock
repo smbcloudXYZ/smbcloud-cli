@@ -2443,12 +2443,10 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 name = "smbcloud-auth"
 version = "0.3.34"
 dependencies = [
- "base64",
  "log",
  "reqwest",
  "serde",
  "serde_json",
- "sha2 0.10.9",
  "smbcloud-model",
  "smbcloud-network",
  "smbcloud-networking",
@@ -2468,6 +2466,21 @@ dependencies = [
  "smbcloud-model",
  "smbcloud-network",
  "tokio",
+]
+
+[[package]]
+name = "smbcloud-auth-sdk"
+version = "0.3.34"
+dependencies = [
+ "base64",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "smbcloud-model",
+ "smbcloud-network",
+ "url-builder",
+ "uuid",
 ]
 
 [[package]]
