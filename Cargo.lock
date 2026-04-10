@@ -2462,7 +2462,7 @@ dependencies = [
  "pythonize",
  "serde",
  "serde_json",
- "smbcloud-auth",
+ "smbcloud-auth-sdk",
  "smbcloud-model",
  "smbcloud-network",
  "tokio",
@@ -2488,7 +2488,7 @@ name = "smbcloud-auth-wasm"
 version = "0.3.34"
 dependencies = [
  "serde-wasm-bindgen",
- "smbcloud-auth",
+ "smbcloud-auth-sdk",
  "smbcloud-network",
  "smbcloud-networking",
  "wasm-bindgen",

@@ -7,7 +7,7 @@ use pyo3::{
 };
 use pythonize::pythonize;
 use serde::Serialize;
-use smbcloud_auth::{
+use smbcloud_auth_sdk::{
     client_credentials::ClientCredentials, login::login_with_client as rust_login_with_client,
     logout::logout_with_client as rust_logout_with_client,
     me::me_with_client as rust_me_with_client,

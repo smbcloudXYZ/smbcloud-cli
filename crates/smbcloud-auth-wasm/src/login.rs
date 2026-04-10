@@ -1,4 +1,4 @@
-use smbcloud_auth::client_credentials::ClientCredentials;
+use smbcloud_auth_sdk::client_credentials::ClientCredentials;
 use smbcloud_network::environment::Environment;
 use wasm_bindgen::JsValue;
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -16,7 +16,7 @@ pub async fn login_with_client(
         app_secret: &app_secret,
     };
 
-    match smbcloud_auth::login::login_with_client(env, client, email, password).await {
+    match smbcloud_auth_sdk::login::login_with_client(env, client, email, password).await {
         Ok(response) => Ok(serde_wasm_bindgen::to_value(&response)?),
         Err(error) => Err(serde_wasm_bindgen::to_value(&error)?),
     }
