@@ -1,6 +1,6 @@
 [package]
 name = "auth"
-version = "0.3.33"
+version = "0.3.35"
 edition = "2024"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 publish = false
@@ -17,6 +17,9 @@ tokio     = { version = "1", features = ["rt-multi-thread"] }
 # smbcloud-auth was split into smbcloud-auth-sdk (pure HTTP SDK, no CLI plumbing).
 # smbcloud-networking is an internal dep of the old smbcloud-auth crate and is
 # not re-exported by smbcloud-auth-sdk, so it is dropped here.
-smbcloud-auth-sdk = { path = "./../../../../../crates/smbcloud-auth-sdk" }
-smbcloud-model    = { path = "./../../../../../crates/smbcloud-model" }
-smbcloud-network  = { path = "./../../../../../crates/smbcloud-network" }
+smbcloud-auth-sdk = { version = "0.3" }
+# smbcloud-auth-sdk = { path = "./../../../../../crates/smbcloud-auth-sdk" }
+smbcloud-model    = { version = "0.3" }
+# smbcloud-model    = { path = "./../../../../../crates/smbcloud-model" }
+smbcloud-network  = { version = "0.3" }
+# smbcloud-network  = { path = "./../../../../../crates/smbcloud-network" }
