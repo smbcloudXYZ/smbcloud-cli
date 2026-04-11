@@ -1,0 +1,21 @@
+AllCops:
+  TargetRubyVersion: 3.1
+  NewCops: enable
+  Exclude:
+    - "vendor/**/*"
+    - "tmp/**/*"
+    - "target/**/*"
+    - "pkg/**/*"
+
+# Native extension wrapper gems use a bare `module Auth; end` stub at the
+# top level so Magnus can register the native methods into the right namespace.
+# Having both that stub and the real `SmbCloud::Auth` implementation in one
+# file is intentional — splitting them would break the require chain.
+Style/OneClassPerFile:
+  Enabled: false
+
+# Yard / CHANGELOG serve as the documentation source for this gem.
+# Requiring top-level doc comments on every module and class adds noise
+# without benefit for a thin wrapper library.
+Style/Documentation:
+  Enabled: false

@@ -1,6 +1,6 @@
-use magnus::{Error, Ruby, function, prelude::*};
+use magnus::{function, prelude::*, Error, Ruby};
 use serde::Serialize;
-use smbcloud_auth::{
+use smbcloud_auth_sdk::{
     client_credentials::ClientCredentials, login::login_with_client, logout::logout_with_client,
     me::me_with_client, remove::remove_with_client, signup::signup_with_client,
 };

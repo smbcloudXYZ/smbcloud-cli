@@ -9,11 +9,14 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-magnus = { version = "0.7.1" }
-serde = { version = "1", features = ["derive"] }
+magnus    = { version = "0.7.1" }
+serde     = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["rt-multi-thread"] }
-smbcloud-auth = { path = "./../../../../../crates/smbcloud-auth" }
-smbcloud-model = { path = "./../../../../../crates/smbcloud-model" }
-smbcloud-network = { path = "./../../../../../crates/smbcloud-network" }
-smbcloud-networking = { path = "./../../../../../crates/smbcloud-networking" }
+tokio     = { version = "1", features = ["rt-multi-thread"] }
+
+# smbcloud-auth was split into smbcloud-auth-sdk (pure HTTP SDK, no CLI plumbing).
+# smbcloud-networking is an internal dep of the old smbcloud-auth crate and is
+# not re-exported by smbcloud-auth-sdk, so it is dropped here.
+smbcloud-auth-sdk = { path = "./../../../../../crates/smbcloud-auth-sdk" }
+smbcloud-model    = { path = "./../../../../../crates/smbcloud-model" }
+smbcloud-network  = { path = "./../../../../../crates/smbcloud-network" }
