@@ -196,7 +196,7 @@ Use `actions/upload-artifact@v7` and `actions/download-artifact@v7` consistently
 
 The workspace root `Cargo.toml` is a **virtual manifest** (no `[package]` section). Running `cargo build` or `cargo publish` from the workspace root without `--package` will either fail or build every workspace member.
 
-This workspace includes `smbcloud-auth-py`, a PyO3 `cdylib` that requires Python symbols at link time. Building the full workspace on platforms without a matching Python interpreter causes:
+This workspace includes `smbcloud-auth-sdk-py`, a PyO3 `cdylib` that requires Python symbols at link time. Building the full workspace on platforms without a matching Python interpreter causes:
 
 ```
 ld: symbol(s) not found for architecture arm64
@@ -590,7 +590,7 @@ The platform package template uses `${node_pkg}` as a shell-style variable. This
 ## Common mistakes
 
 **Building the full workspace in release workflows**
-Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
+Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-sdk-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
 
 **`exit 0` in a separate step does not skip the next step**
 `exit 0` only terminates the current `run` shell. The following step runs regardless. Use `$GITHUB_OUTPUT` + `if:` conditions for inter-step flow control.

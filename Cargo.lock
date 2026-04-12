@@ -2455,20 +2455,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "smbcloud-auth-py"
-version = "0.3.35"
-dependencies = [
- "pyo3",
- "pythonize",
- "serde",
- "serde_json",
- "smbcloud-auth-sdk",
- "smbcloud-model",
- "smbcloud-network",
- "tokio",
-]
-
-[[package]]
 name = "smbcloud-auth-sdk"
 version = "0.3.34"
 dependencies = [
@@ -2484,7 +2470,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "smbcloud-auth-wasm"
+name = "smbcloud-auth-sdk-py"
+version = "0.3.35"
+dependencies = [
+ "pyo3",
+ "pythonize",
+ "serde",
+ "serde_json",
+ "smbcloud-auth-sdk",
+ "smbcloud-model",
+ "smbcloud-network",
+ "tokio",
+]
+
+[[package]]
+name = "smbcloud-auth-sdk-wasm"
 version = "0.3.35"
 dependencies = [
  "serde-wasm-bindgen",
