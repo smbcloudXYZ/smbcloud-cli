@@ -1,4 +1,9 @@
 #![allow(unexpected_cfgs, unsafe_op_in_unsafe_fn)]
+// The #[pyfunction] macro generates FFI wrapper code that calls From<PyErr>::from(err)
+// on the error path of every wrapped function. Since PyErr: From<PyErr> is the identity
+// impl, clippy flags it as useless_conversion. We cannot change macro-generated code,
+// so suppress the lint at crate level.
+#![allow(clippy::useless_conversion)]
 
 use pyo3::{
     create_exception,
@@ -67,7 +72,7 @@ fn serialize<'py, T>(py: Python<'py>, value: &T) -> PyResult<PyObject>
 where
     T: Serialize,
 {
-    Ok(pythonize(py, value)?.unbind().into())
+    Ok(pythonize(py, value)?.unbind())
 }
 
 fn login_payload(status: AccountStatus) -> LoginPayload {
@@ -120,18 +125,18 @@ fn signup_with_client(
     email: &str,
     password: &str,
 ) -> PyResult<PyObject> {
-    let env = parse_env(env)?;
-    let client = client_credentials(app_id, app_secret);
-    let result = runtime()
-        .block_on(rust_signup_with_client(
-            env,
-            client,
-            email.to_string(),
-            password.to_string(),
-        ))
-        .map_err(native_error)?;
-
-    serialize(py, &result)
+    parse_env(env).and_then(|env| {
+        let client = client_credentials(app_id, app_secret);
+        runtime()
+            .block_on(rust_signup_with_client(
+                env,
+                client,
+                email.to_string(),
+                password.to_string(),
+            ))
+            .map_err(native_error)
+            .and_then(|result| serialize(py, &result))
+    })
 }
 
 #[pyfunction]
@@ -143,19 +148,19 @@ fn login_with_client(
     email: &str,
     password: &str,
 ) -> PyResult<PyObject> {
-    let env = parse_env(env)?;
-    let client = client_credentials(app_id, app_secret);
-    let result = runtime()
-        .block_on(rust_login_with_client(
-            env,
-            client,
-            email.to_string(),
-            password.to_string(),
-        ))
-        .map(login_payload)
-        .map_err(native_error)?;
-
-    serialize(py, &result)
+    parse_env(env).and_then(|env| {
+        let client = client_credentials(app_id, app_secret);
+        runtime()
+            .block_on(rust_login_with_client(
+                env,
+                client,
+                email.to_string(),
+                password.to_string(),
+            ))
+            .map(login_payload)
+            .map_err(native_error)
+            .and_then(|result| serialize(py, &result))
+    })
 }
 
 #[pyfunction]
@@ -165,16 +170,16 @@ fn logout_with_client(
     app_secret: &str,
     access_token: &str,
 ) -> PyResult<()> {
-    let env = parse_env(env)?;
-    let client = client_credentials(app_id, app_secret);
-
-    runtime()
-        .block_on(rust_logout_with_client(
-            env,
-            client,
-            access_token.to_string(),
-        ))
-        .map_err(native_error)
+    parse_env(env).and_then(|env| {
+        let client = client_credentials(app_id, app_secret);
+        runtime()
+            .block_on(rust_logout_with_client(
+                env,
+                client,
+                access_token.to_string(),
+            ))
+            .map_err(native_error)
+    })
 }
 
 #[pyfunction]
@@ -185,13 +190,13 @@ fn me_with_client(
     app_secret: &str,
     access_token: &str,
 ) -> PyResult<PyObject> {
-    let env = parse_env(env)?;
-    let client = client_credentials(app_id, app_secret);
-    let result = runtime()
-        .block_on(rust_me_with_client(env, client, access_token))
-        .map_err(native_error)?;
-
-    serialize(py, &result)
+    parse_env(env).and_then(|env| {
+        let client = client_credentials(app_id, app_secret);
+        runtime()
+            .block_on(rust_me_with_client(env, client, access_token))
+            .map_err(native_error)
+            .and_then(|result| serialize(py, &result))
+    })
 }
 
 #[pyfunction]
@@ -201,12 +206,12 @@ fn remove_with_client(
     app_secret: &str,
     access_token: &str,
 ) -> PyResult<()> {
-    let env = parse_env(env)?;
-    let client = client_credentials(app_id, app_secret);
-
-    runtime()
-        .block_on(rust_remove_with_client(env, client, access_token))
-        .map_err(native_error)
+    parse_env(env).and_then(|env| {
+        let client = client_credentials(app_id, app_secret);
+        runtime()
+            .block_on(rust_remove_with_client(env, client, access_token))
+            .map_err(native_error)
+    })
 }
 
 #[pymodule(name = "_native")]
