@@ -30,3 +30,9 @@ smbcloud-networking = { workspace = true }
 smbcloud-auth-sdk = { workspace = true }
 wasm-bindgen = { workspace = true }
 wasm-bindgen-futures = "0.4.50"
+
+# uuid's v4 feature needs a randomness source on wasm32-unknown-unknown.
+# The `js` feature wires it to the Web Crypto API (crypto.getRandomValues).
+# This only activates when building for wasm32 targets.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1", features = ["js"] }
