@@ -29,7 +29,6 @@
 /// ```sh
 /// ssh-keyscan -t ed25519 api.smbcloud.xyz api-1.smbcloud.xyz 2>/dev/null
 /// ```
-
 /// Pinned ed25519 host key for `api.smbcloud.xyz` (NodeJs / Static tier).
 pub const API_SMBCLOUD_XYZ: &str =
     "api.smbcloud.xyz ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINGy4LHGyOilS7SXo770V3tQnXDRVQr7X7JsPLCfy4XB";
