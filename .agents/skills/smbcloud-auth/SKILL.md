@@ -10,7 +10,7 @@ Use this skill when work touches any part of the smbCloud auth stack:
 - `smbcloud-api` Rails auth service
 - `smbcloud-web-console` Next.js admin UI
 - `smbcloud-cli/crates/smbcloud-auth` Rust SDK
-- `smbcloud-cli/crates/smbcloud-auth-wasm` browser SDK
+- `smbcloud-cli/crates/smbcloud-auth-sdk-wasm` browser SDK
 - Tauri apps such as Rumi Learn Persian and PBJ Komplit
 - web apps that use `@smbcloud/sdk-auth`
 
@@ -138,7 +138,7 @@ Do not claim email confirmation exists unless the mailer and route are actually 
 The Rust client surface lives in:
 
 - `smbcloud-cli/crates/smbcloud-auth`
-- `smbcloud-cli/crates/smbcloud-auth-wasm`
+- `smbcloud-cli/crates/smbcloud-auth-sdk-wasm`
 
 When changing tenant app auth:
 
@@ -278,7 +278,7 @@ Use the smallest relevant checks.
 ### Rust SDK
 
 - `cargo check -p smbcloud-auth`
-- `cargo check -p smbcloud-auth-wasm`
+- `cargo check -p smbcloud-auth-sdk-wasm`
 
 ### Tauri apps
 

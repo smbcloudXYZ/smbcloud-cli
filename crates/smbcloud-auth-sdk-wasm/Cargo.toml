@@ -1,5 +1,5 @@
 [package]
-name = "smbcloud-auth-wasm"
+name = "smbcloud-auth-sdk-wasm"
 version = "0.3.35"
 edition = "2024"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
@@ -18,6 +18,9 @@ categories = [
 readme = "README.md"
 
 [lib]
+# Pin the lib name so wasm-pack artifact filenames (smbcloud_auth_wasm.js etc.)
+# remain stable regardless of the crate/directory rename.
+name = "smbcloud_auth_wasm"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]

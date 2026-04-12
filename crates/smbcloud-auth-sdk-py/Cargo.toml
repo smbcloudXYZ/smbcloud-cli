@@ -1,5 +1,5 @@
 [package]
-name = "smbcloud-auth-py"
+name = "smbcloud-auth-sdk-py"
 version = "0.3.35"
 edition = "2024"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
@@ -12,7 +12,7 @@ categories = ["api-bindings", "authentication", "development-tools"]
 readme = "README.md"
 
 [lib]
-name = "smbcloud_auth_py"
+name = "smbcloud_auth_sdk_py"
 crate-type = ["cdylib"]
 
 [dependencies]

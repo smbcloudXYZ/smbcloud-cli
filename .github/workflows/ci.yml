@@ -1,17 +1,219 @@
 name: Tests
 
-# This workflow run tests for each push
+# Runs on every push.
+# Covers:
+#   - All Rust workspace members (fmt, clippy, tests)
+#   - smbcloud-auth-sdk-wasm (wasm32-unknown-unknown cargo check)
+#   - sdk/python  → maturin wheel build  (smbcloud-sdk-auth)
+#   - sdk/npm     → wasm-pack + prepare-package.mjs  (@smbcloud/sdk-auth)
+#   - sdk/gems    → rb_sys native-extension compile   (smbcloud-auth gem)
 
 on: push
 
 env:
   CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
+  CARGO_TERM_COLOR: always
 
 jobs:
-  test_branch:
+  # ── Rust workspace ──────────────────────────────────────────────────────────
+  test-rust:
+    name: Rust — fmt / clippy / test (workspace)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - run: cargo test --all-features
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: rustfmt, clippy
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: test-rust
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      # smbcloud-auth-sdk-wasm targets wasm32-unknown-unknown and cannot be
+      # compiled or tested on the host. It is checked in its own job below.
+      - name: Clippy — all workspace members (host targets)
+        run: cargo clippy --workspace --exclude smbcloud-auth-sdk-wasm --tests -- -D warnings
+
+      - name: Test — all workspace members (host targets)
+        run: cargo test --workspace --exclude smbcloud-auth-sdk-wasm
+
+  # ── WASM crate ──────────────────────────────────────────────────────────────
+  check-wasm:
+    name: Rust — smbcloud-auth-sdk-wasm (wasm32-unknown-unknown)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit with wasm32 target
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check-wasm
+
+      - name: Check — smbcloud-auth-sdk-wasm
+        run: cargo check --package smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown
+
+  # ── Python SDK ──────────────────────────────────────────────────────────────
+  check-python-sdk:
+    name: SDK — Python wheel (smbcloud-sdk-auth)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check-python-sdk
+
+      # manylinux: 'off' runs natively on the ubuntu-latest runner without
+      # spinning up a manylinux container, which is sufficient for a CI check.
+      # OpenSSL is vendored in the workspace (features = ["vendored"]) so no
+      # system libssl-dev is required.
+      - name: Build Python wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          working-directory: sdk/python
+          manylinux: "off"
+          args: --release --locked --out dist
+
+  # ── npm / WASM SDK ──────────────────────────────────────────────────────────
+  check-npm-sdk:
+    name: SDK — npm / WASM (@smbcloud/sdk-auth)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit with wasm32 target
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check-npm-sdk
+
+      # wasm-pack orchestrates the wasm32 build and wasm-bindgen code generation.
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      # prepare-package.mjs runs wasm-pack internally and then assembles the
+      # dist/ directory — this validates the full npm package pipeline.
+      - name: Build and prepare package
+        working-directory: sdk/npm/smbcloud-auth
+        run: node ./prepare-package.mjs
+
+  # ── Ruby Gem ────────────────────────────────────────────────────────────────
+  check-ruby-gem:
+    name: SDK — Ruby gem (smbcloud-auth)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      # The gem's ext Cargo workspace (sdk/gems/auth) is separate from the main
+      # workspace and pulls smbcloud-* crates from crates.io. Its transitive
+      # deps may link against system OpenSSL, so we install libssl-dev to be safe.
+      - name: Install system dependencies
+        run: sudo apt-get update -q && sudo apt-get install -y libssl-dev pkg-config
+
+      # Swatinem/rust-cache scoped to the gem's own Cargo workspace so its
+      # registry deps are cached independently from the main workspace.
+      - name: Setup Rust cache (gem workspace)
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check-ruby-gem
+          workspaces: sdk/gems/auth
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.2"
+          bundler-cache: true
+          working-directory: sdk/gems/auth
+
+      - name: Compile native extension
+        working-directory: sdk/gems/auth
+        run: bundle exec rake compile

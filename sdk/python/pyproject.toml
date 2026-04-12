@@ -31,7 +31,7 @@ Repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 Issues = "https://github.com/smbcloudXYZ/smbcloud-cli/issues"
 
 [tool.maturin]
-manifest-path = "../../crates/smbcloud-auth-py/Cargo.toml"
+manifest-path = "../../crates/smbcloud-auth-sdk-py/Cargo.toml"
 bindings = "pyo3"
 strip = true
 module-name = "smbcloud_auth._native"
