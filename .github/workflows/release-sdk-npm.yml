@@ -1,0 +1,118 @@
+name: SDK npm Release
+
+# Publishes @smbcloud/sdk-auth (WASM) to npm.
+# WASM is a single universal target — no platform matrix needed.
+#
+# Required secrets:
+#   NPM_TOKEN  — npm access token with publish rights to @smbcloud/sdk-auth
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.35)"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
+
+jobs:
+  publish-sdk-npm:
+    name: Publish @smbcloud/sdk-auth to npm
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit with wasm32 target
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: wasm32-unknown-unknown
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: sdk-npm
+
+      - name: Verify Cargo.toml version matches tag
+        shell: bash
+        run: |
+          CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "smbcloud-auth-sdk-wasm") | .version')
+
+          echo "Cargo.toml version : ${CARGO_VERSION}"
+          echo "Release tag version: ${RELEASE_VERSION}"
+
+          if [[ "${CARGO_VERSION}" != "${RELEASE_VERSION}" ]]; then
+            echo "::error::Version mismatch — bump version in crates/smbcloud-auth-sdk-wasm/Cargo.toml before releasing."
+            exit 1
+          fi
+
+      # wasm-pack drives the wasm32 compilation and wasm-bindgen code generation.
+      # prepare-package.mjs calls wasm-pack internally and also enforces that
+      # sdk/npm/smbcloud-auth/package.json version matches the Cargo.toml version.
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Check whether release already exists on npm
+        id: npm-check
+        shell: bash
+        run: |
+          if npm view "@smbcloud/sdk-auth@${RELEASE_VERSION}" version >/dev/null 2>&1; then
+            echo "@smbcloud/sdk-auth@${RELEASE_VERSION} already exists on npm, skipping publish"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and prepare package
+        if: steps.npm-check.outputs.exists != 'true'
+        working-directory: sdk/npm/smbcloud-auth
+        run: node ./prepare-package.mjs
+
+      - name: Publish to npm
+        if: steps.npm-check.outputs.exists != 'true'
+        working-directory: sdk/npm/smbcloud-auth
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
