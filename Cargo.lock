@@ -803,20 +803,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gresiq"
-version = "0.3.34"
-dependencies = [
- "native-tls",
- "postgres-native-tls",
- "reqwest",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokio",
- "tokio-postgres",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -964,6 +950,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tower-service",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2120,6 +2107,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -2519,6 +2507,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "smbcloud-auth-sdk-wasm"
+version = "0.1.0"
+
+[[package]]
 name = "smbcloud-auth-wasm"
 version = "0.3.34"
 dependencies = [
@@ -2570,6 +2562,32 @@ dependencies = [
  "tracing-bunyan-formatter",
  "tracing-subscriber",
  "url-builder",
+]
+
+[[package]]
+name = "smbcloud-gresiq"
+version = "0.3.34"
+dependencies = [
+ "native-tls",
+ "postgres-native-tls",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-postgres",
+]
+
+[[package]]
+name = "smbcloud-gresiq-sdk"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
@@ -3612,6 +3630,15 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22cfaf3c063993ff62e73cb4311efde4db1efb31ab78a3e5c457939ad5cc0bed"
+dependencies = [
+ "rustls-pki-types",
 ]
 
 [[package]]

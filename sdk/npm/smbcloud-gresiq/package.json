@@ -1,0 +1,4 @@
+{
+  "name": "@smbcloud/sdk-gresiq",
+  "description": "Browser Auth SDK for smbCloud, built from Rust and WebAssembly."
+}
