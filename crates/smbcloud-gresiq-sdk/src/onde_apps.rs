@@ -174,3 +174,30 @@ pub async fn list_models(
         .await?;
     Ok(check(response).await?.json::<ModelsEnvelope>().await?.models)
 }
+
+
+/// Rename an existing app.
+///
+/// `PATCH /v1/client/gresiq/apps/{onde_app_id}` — body: `{ "gresiq_app": { "name": "..." } }`
+pub async fn rename_app(
+    environment: &Environment,
+    app_id: &str,
+    app_secret: &str,
+    access_token: &str,
+    onde_app_id: &str,
+    new_name: &str,
+) -> Result<OndeApp, GresiqError> {
+    let path = format!("apps/{}", onde_app_id);
+    let url = endpoint(environment, &path, app_id, app_secret);
+    let body = CreateAppBody {
+        gresiq_app: CreateAppParams { name: new_name },
+    };
+    let response = reqwest::Client::new()
+        .patch(&url)
+        .header("Authorization", bearer(access_token))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+    Ok(check(response).await?.json::<OndeApp>().await?)
+}
