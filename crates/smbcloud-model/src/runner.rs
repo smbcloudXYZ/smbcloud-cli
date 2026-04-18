@@ -4,7 +4,7 @@ use {
     serde_repr::{Deserialize_repr, Serialize_repr},
     std::{
         fmt::{self, Display, Formatter},
-        path::PathBuf,
+        path::Path,
     },
 };
 
@@ -54,7 +54,7 @@ pub enum SwiftFramework {
 }
 
 impl Runner {
-    pub fn from(repo_path: &PathBuf) -> Result<Runner, ErrorResponse> {
+    pub fn from(repo_path: &Path) -> Result<Runner, ErrorResponse> {
         // Any package.json-driven app belongs on the NodeJs runner.
         // Framework-specific checks are not reliable because modern Next.js apps
         // do not need a next.config.* file at all.

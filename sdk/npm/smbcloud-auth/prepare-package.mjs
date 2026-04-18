@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 
 const packageDir = resolve(import.meta.dirname);
 const repoRoot = resolve(packageDir, "../../..");
-const crateDir = resolve(repoRoot, "crates/smbcloud-auth-wasm");
+const crateDir = resolve(repoRoot, "crates/smbcloud-auth-sdk-wasm");
 const stageDir = resolve(repoRoot, "target/npm/sdk-auth");
 const distDir = resolve(packageDir, "dist");
 const npmPackageJsonPath = resolve(packageDir, "package.json");
@@ -34,7 +34,7 @@ if (crateVersion !== npmVersion) {
             "Version mismatch for @smbcloud/sdk-auth.",
             `npm package version: ${npmVersion}`,
             `Rust crate version: ${crateVersion}`,
-            "Update sdk/npm/smbcloud-auth/package.json or crates/smbcloud-auth-wasm/Cargo.toml so they match before publishing.",
+            "Update sdk/npm/smbcloud-auth/package.json or crates/smbcloud-auth-sdk-wasm/Cargo.toml so they match before publishing.",
         ].join("\n"),
     );
 }

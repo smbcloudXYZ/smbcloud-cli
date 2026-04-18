@@ -87,13 +87,13 @@ pub fn parse_callback_url(
         });
     }
 
-    if let Some(expected_state) = expected_state {
-        if state.as_deref() != Some(expected_state) {
-            return Err(ErrorResponse::Error {
-                error_code: ErrorCode::InvalidParams,
-                message: "Apple callback state mismatch.".to_string(),
-            });
-        }
+    if let Some(expected_state) = expected_state
+        && state.as_deref() != Some(expected_state)
+    {
+        return Err(ErrorResponse::Error {
+            error_code: ErrorCode::InvalidParams,
+            message: "Apple callback state mismatch.".to_string(),
+        });
     }
 
     Ok(AppleAuthSession {

@@ -1,4 +1,4 @@
-# smbcloud-auth-wasm
+# smbcloud-auth-sdk-wasm
 
 Wasm bindings for the smbCloud Auth SDK.
 
@@ -28,7 +28,7 @@ import init, {
   Environment,
   login_with_client,
   signup_with_client,
-} from "smbcloud-auth-wasm";
+} from "smbcloud-auth-sdk-wasm";
 
 await init();
 
