@@ -38,8 +38,10 @@
 mod client;
 mod client_credentials;
 mod error;
+mod onde_apps;
 
 pub use client::GresiqClient;
 pub use client_credentials::{base_url, GresiqCredentials};
 pub use error::GresiqError;
+pub use onde_apps::{assign_model, create_app, list_apps, list_models, OndeApp, OndeModel};
 pub use smbcloud_network::environment::Environment;
