@@ -5,13 +5,12 @@
 //! interface for inserting and querying rows.
 //!
 //! This crate handles the HTTP transport and auth headers. Schema knowledge
-//! (which tables exist, what the rows look like) lives in the caller — see
-//! `onde::pulse` for an example of wrapping this for a specific schema.
+//! (which tables exist, what the rows look like) lives in the caller.
 //!
 //! # Quick start
 //!
 //! ```no_run
-//! use smbcloud_gresiq_sdk::GresiqClient;
+//! use smbcloud_gresiq_sdk::{Environment, GresiqClient, GresiqCredentials};
 //! use serde::Serialize;
 //!
 //! #[derive(Serialize)]
@@ -19,8 +18,13 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
-//!     let client = GresiqClient::from_env()
-//!         .expect("set GRESIQ_BASE_URL, GRESIQ_API_KEY, GRESIQ_API_SECRET");
+//!     let client = GresiqClient::from_credentials(
+//!         Environment::Dev,
+//!         GresiqCredentials {
+//!             api_key: "your-key",
+//!             api_secret: "your-secret",
+//!         },
+//!     );
 //!
 //!     client.insert("hits", &Hit {
 //!         path:   "/api/chat".into(),
@@ -32,7 +36,10 @@
 //! ```
 
 mod client;
+mod client_credentials;
 mod error;
 
 pub use client::GresiqClient;
+pub use client_credentials::{base_url, GresiqCredentials};
 pub use error::GresiqError;
+pub use smbcloud_network::environment::Environment;

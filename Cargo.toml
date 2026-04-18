@@ -13,7 +13,6 @@ crossterm = "0.28"
 dialoguer = "0.11.0"
 dirs = "6.0"
 
-
 git2 = "0.20.1"
 home = "0.5.4"
 indicatif = "0.17.11"
@@ -27,13 +26,13 @@ reqwest = { version = "0.12.18", default-features = false }
 serde = "1"
 serde_json = "1.0.82"
 serde_repr = "0.1"
+smbcloud-auth = { version = "0.3", path = "crates/smbcloud-auth" }
+smbcloud-auth-sdk = { version = "0.3", path = "crates/smbcloud-auth-sdk" }
+smbcloud-gresiq-sdk = { version = "0.1", path = "crates/smbcloud-gresiq-sdk" }
 smbcloud-model = { version = "0.3", path = "crates/smbcloud-model" }
 smbcloud-network = { version = "0.3", path = "crates/smbcloud-network" }
 smbcloud-networking = { version = "0.3", path = "crates/smbcloud-networking" }
-smbcloud-auth = { version = "0.3", path = "crates/smbcloud-auth" }
-smbcloud-auth-sdk = { version = "0.3", path = "crates/smbcloud-auth-sdk" }
 smbcloud-networking-project = { version = "0.3", path = "crates/smbcloud-networking-project" }
-smbcloud-gresiq-sdk = { version = "0.1", path = "crates/smbcloud-gresiq-sdk" }
 smbcloud-utils = { version = "0.3", path = "crates/smbcloud-utils" }
 spinners = "4.1.0"
 strum = "0.27"

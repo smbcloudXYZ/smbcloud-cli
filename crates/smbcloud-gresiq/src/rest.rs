@@ -147,18 +147,12 @@ impl GresiqRestClient {
     }
 
     /// Attaches the standard request headers required by the GresIQ gateway.
-    pub(crate) fn apply_headers(
-        &self,
-        req: reqwest::RequestBuilder,
-    ) -> reqwest::RequestBuilder {
+    pub(crate) fn apply_headers(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         let schema = self.config.schema.as_deref().unwrap_or("public");
-        req.header(
-            "Authorization",
-            format!("Bearer {}", self.config.api_key),
-        )
-        .header("Content-Type", "application/json")
-        .header("Accept-Profile", schema)
-        .header("Content-Profile", schema)
+        req.header("Authorization", format!("Bearer {}", self.config.api_key))
+            .header("Content-Type", "application/json")
+            .header("Accept-Profile", schema)
+            .header("Content-Profile", schema)
     }
 }
 
@@ -371,12 +365,8 @@ impl<'c> QueryBuilder<'c> {
         // the operation variant.
         let (http_method, prefer_header, body) = match operation {
             Operation::Select => ("GET", "return=representation".to_owned(), None),
-            Operation::Insert(rows) => {
-                ("POST", "return=representation".to_owned(), Some(rows))
-            }
-            Operation::Update(patch) => {
-                ("PATCH", "return=representation".to_owned(), Some(patch))
-            }
+            Operation::Insert(rows) => ("POST", "return=representation".to_owned(), Some(rows)),
+            Operation::Update(patch) => ("PATCH", "return=representation".to_owned(), Some(patch)),
             Operation::Upsert(rows) => (
                 "POST",
                 "return=representation,resolution=merge-duplicates".to_owned(),

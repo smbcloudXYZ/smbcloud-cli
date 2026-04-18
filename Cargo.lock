@@ -2586,6 +2586,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "smbcloud-network",
  "thiserror 2.0.18",
  "tokio",
 ]
