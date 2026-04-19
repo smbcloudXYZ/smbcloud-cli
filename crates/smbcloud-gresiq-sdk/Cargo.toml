@@ -16,6 +16,7 @@ categories = ["api-bindings", "network-programming", "web-programming::http-clie
 path = "src/smbcloud_gresiq_sdk.rs"
 
 [dependencies]
+anyhow = { workspace = true }
 log = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls-tls"] }
 serde = { workspace = true, features = ["derive"] }

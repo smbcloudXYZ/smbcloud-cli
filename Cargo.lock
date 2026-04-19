@@ -2579,6 +2579,7 @@ dependencies = [
 name = "smbcloud-gresiq-sdk"
 version = "0.3.34"
 dependencies = [
+ "anyhow",
  "log",
  "reqwest",
  "serde",
