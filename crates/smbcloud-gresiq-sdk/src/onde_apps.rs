@@ -172,9 +172,12 @@ pub async fn list_models(
         .header("Content-Type", "application/json")
         .send()
         .await?;
-    Ok(check(response).await?.json::<ModelsEnvelope>().await?.models)
+    Ok(check(response)
+        .await?
+        .json::<ModelsEnvelope>()
+        .await?
+        .models)
 }
-
 
 /// Rename an existing app.
 ///
