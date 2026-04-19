@@ -2521,7 +2521,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.37"
+version = "0.3.38"
 dependencies = [
  "anyhow",
  "chrono",
