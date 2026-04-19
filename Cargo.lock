@@ -2521,7 +2521,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.37"
+version = "0.3.38"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2579,6 +2579,7 @@ dependencies = [
 name = "smbcloud-gresiq-sdk"
 version = "0.3.34"
 dependencies = [
+ "anyhow",
  "log",
  "reqwest",
  "serde",
