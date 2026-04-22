@@ -24,6 +24,8 @@ pub struct OndeApp {
     pub status: Option<String>,
     pub app_secret: Option<String>,
     pub current_model_id: Option<String>,
+    #[serde(alias = "activeModel")]
+    pub active_model: Option<String>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
 }
