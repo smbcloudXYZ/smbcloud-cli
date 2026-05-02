@@ -2543,6 +2543,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "smbcloud-auth",
+ "smbcloud-mail",
  "smbcloud-model",
  "smbcloud-network",
  "smbcloud-networking",
@@ -2586,6 +2587,18 @@ dependencies = [
  "smbcloud-network",
  "thiserror 2.0.18",
  "tokio",
+]
+
+[[package]]
+name = "smbcloud-mail"
+version = "0.3.38"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "smbcloud-model",
+ "smbcloud-network",
+ "smbcloud-networking",
 ]
 
 [[package]]
