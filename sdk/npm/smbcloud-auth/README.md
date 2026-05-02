@@ -70,10 +70,12 @@ npm run pack:dry-run
 This builds the wasm crate, stages the generated artifacts into the npm package
 folder, and lets you verify the publish payload before release.
 
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
 ## License
 
-MIT
+Apache-2.0
 
-## Credits
+## Copyright
 
-2026 [smbCloud](https://github.com/smbCloudXYZ). Built for [SplitFire AI](https://splitfire.ai).
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

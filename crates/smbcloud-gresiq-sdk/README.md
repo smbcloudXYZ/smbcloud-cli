@@ -68,6 +68,12 @@ rename_app(&Environment::Production, APP_ID, APP_SECRET, &token, &app.id, "Renam
 | `OndeModel`         | Catalog model (id, name, family, format, approx size bytes)      |
 | `Environment`       | `Dev` or `Production`                                            |
 
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
 ## License
 
 Apache-2.0
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

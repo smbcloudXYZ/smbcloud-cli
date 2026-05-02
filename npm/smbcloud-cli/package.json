@@ -1,6 +1,6 @@
 {
   "name": "@smbcloud/cli",
-  "version": "0.3.33",
+  "version": "0.3.39",
   "keywords": [
     "smbcloud",
     "cli",
@@ -58,10 +58,10 @@
     "typescript": "^5.0.0"
   },
   "optionalDependencies": {
-    "@smbcloud/cli-darwin-arm64": "0.3.33",
-    "@smbcloud/cli-darwin-x64": "0.3.33",
-    "@smbcloud/cli-linux-x64": "0.3.33",
-    "@smbcloud/cli-windows-arm64": "0.3.33",
-    "@smbcloud/cli-windows-x64": "0.3.33"
+    "@smbcloud/cli-darwin-arm64": "0.3.39",
+    "@smbcloud/cli-darwin-x64": "0.3.39",
+    "@smbcloud/cli-linux-x64": "0.3.39",
+    "@smbcloud/cli-windows-arm64": "0.3.39",
+    "@smbcloud/cli-windows-x64": "0.3.39"
   }
 }

@@ -101,6 +101,12 @@ This is a native binary distributed via npm. The source code lives at
 [github.com/smbcloudXYZ/smbcloud-cli](https://github.com/smbcloudXYZ/smbcloud-cli).
 Please report bugs and feature requests there.
 
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
 ## License
 
 [Apache-2.0](https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE)
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
