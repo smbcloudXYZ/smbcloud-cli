@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-gresiq-sdk"
-version = "0.3.35"
+version = "0.3.39"
 edition = "2021"
 description = "Rust client for the smbCloud GresIQ REST gateway — API-key auth, app management, and model assignment for Onde Inference."
 license = "Apache-2.0"

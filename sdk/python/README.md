@@ -47,6 +47,12 @@ From `sdk/python`:
 maturin build
 ```
 
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
 ## License
 
-MIT
+Apache-2.0
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

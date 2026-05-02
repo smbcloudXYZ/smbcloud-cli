@@ -49,3 +49,13 @@ For simple scripting, module-level convenience wrappers are also available:
 - `SmbCloud::Auth.me_with_client(...)`
 - `SmbCloud::Auth.logout_with_client(...)`
 - `SmbCloud::Auth.remove_with_client(...)`
+
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
+## License
+
+MIT
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

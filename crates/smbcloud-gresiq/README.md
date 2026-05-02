@@ -80,3 +80,13 @@ The current bootstrap focuses on connection modeling and operational correctness
 - passwordless or ephemeral credentials
 - metrics, query insights, and tenant-aware usage controls
 - adapters for smbCloud CLI, Tauri, wasm, npm, and native SDKs
+
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
+## License
+
+Apache-2.0
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

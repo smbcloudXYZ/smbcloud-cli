@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-mail"
-version = "0.3.38"
+version = "0.3.39"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "smbCloud mail API client for the CLI."

@@ -93,6 +93,12 @@ See the [`docs/`](./docs) directory for guides on authentication, project config
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started. All contributions are welcome.
 
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
 ## License
 
 [Apache-2.0](LICENSE)
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

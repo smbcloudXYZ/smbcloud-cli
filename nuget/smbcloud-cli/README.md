@@ -43,6 +43,12 @@ This .NET tool bundles native `smb` binaries for:
 - Documentation: <https://smbcloud.xyz/posts>
 - Issues: <https://github.com/smbcloudXYZ/smbcloud-cli/issues>
 
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
 ## License
 
 Apache-2.0
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

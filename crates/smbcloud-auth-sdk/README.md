@@ -27,3 +27,13 @@ let status = login_with_client(Environment::Production, client, email, password)
 // Profile
 let user = me_with_client(Environment::Production, client, &access_token).await?;
 ```
+
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
+## License
+
+Apache-2.0
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
