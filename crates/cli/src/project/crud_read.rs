@@ -105,12 +105,14 @@ pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<
     );
     match home::home_dir() {
         Some(path) => {
-            debug!("{}", path.to_str().unwrap());
+            let config_directory = path.join(env.smb_dir());
+            std::fs::create_dir_all(&config_directory)?;
+            debug!("{}", config_directory.display());
             let mut file = OpenOptions::new()
                 .create(true)
                 .truncate(true)
                 .write(true)
-                .open([path.to_str().unwrap(), "/.smb/config.json"].join(""))?;
+                .open(config_directory.join("config.json"))?;
             let json = serde_json::to_string(&config)?;
             file.write_all(json.as_bytes())?;
 
