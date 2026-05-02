@@ -18,6 +18,7 @@
   </p>
   <p align="center">
     <a href="https://www.npmjs.com/package/@smbcloud/cli"><img alt="npm" src="https://img.shields.io/npm/v/@smbcloud/cli"></a>
+    <a href="https://www.nuget.org/packages/SmbCloud.Cli"><img alt="NuGet" src="https://img.shields.io/nuget/v/SmbCloud.Cli"></a>
     <a href="https://pypi.org/project/smbcloud-cli/"><img alt="PyPI" src="https://img.shields.io/pypi/v/smbcloud-cli"></a>
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/smbcloudXYZ/smbcloud-cli"></a>
   </p>
@@ -54,6 +55,12 @@ That's it. Your app is live.
 ```sh
 brew tap smbcloudXYZ/tap
 brew install cli
+```
+
+### .NET tool
+
+```sh
+dotnet tool install --global SmbCloud.Cli
 ```
 
 ### pip
