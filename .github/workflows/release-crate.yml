@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,26 +20,39 @@ env:
 
 jobs:
   publish:
-    name: Publish to crates.io
+    name: Publish workspace crates to crates.io
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      published_count: ${{ steps.plan.outputs.count }}
+      publish_cli_sdk_pypi: ${{ steps.downstream.outputs.publish_cli_sdk_pypi }}
+      publish_cli_sdk_npm: ${{ steps.downstream.outputs.publish_cli_sdk_npm }}
+      publish_cli_sdk_gem: ${{ steps.downstream.outputs.publish_cli_sdk_gem }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
+          fetch-depth: 0
           ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
+        id: release
         shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
             release_version="${GITHUB_REF_NAME#v}"
           else
-            release_version="${{ github.event.inputs.tag }}"
-            release_version="${release_version#v}"
+            release_tag="${{ github.event.inputs.tag }}"
+            release_tag="${release_tag#refs/tags/}"
+            release_version="${release_tag#v}"
           fi
 
+          echo "RELEASE_TAG=${release_tag}" >> "$GITHUB_ENV"
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+          echo "tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${release_version}" >> "$GITHUB_OUTPUT"
 
       - name: Read Rust toolchain
         shell: bash
@@ -61,37 +75,207 @@ jobs:
         with:
           key: publish
 
-      - name: Verify Cargo.toml version matches tag
+      - name: Install cargo-workspaces
+        shell: bash
+        run: cargo install cargo-workspaces --version 0.4.2 --locked
+
+      - name: Verify workspace crate versions match tag
         shell: bash
         run: |
-          CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 \
-            | jq -r '.packages[] | select(.name == "smbcloud-cli") | .version')
+          cargo metadata --no-deps --format-version 1 > metadata.json
 
-          echo "Cargo.toml version : ${CARGO_VERSION}"
-          echo "Release tag version: ${RELEASE_VERSION}"
-
-          if [[ "${CARGO_VERSION}" != "${RELEASE_VERSION}" ]]; then
-            echo "::error::Version mismatch — bump version in Cargo.toml before releasing."
+          crate_count="$(jq '[.packages[] | select(.manifest_path | contains("/crates/"))] | length' metadata.json)"
+          if [[ "$crate_count" == "0" ]]; then
+            echo "::error::No workspace crates found under /crates."
             exit 1
           fi
 
-      - name: Check whether release already exists on crates.io
-        id: crates-check
-        shell: bash
-        run: |
-          if curl -fsS \
-            -H "User-Agent: smbcloud-cli-release-workflow" \
-            "https://crates.io/api/v1/crates/smbcloud-cli/${RELEASE_VERSION}" \
-            >/dev/null 2>&1; then
-            echo "smbcloud-cli ${RELEASE_VERSION} already exists on crates.io, skipping publish"
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+          mismatches="$({
+            jq -r --arg release_version "${RELEASE_VERSION}" '
+              .packages[]
+              | select(.manifest_path | contains("/crates/"))
+              | select(.version != $release_version)
+              | "\(.name) \(.version)"' metadata.json
+          } || true)"
+
+          if [[ -n "$mismatches" ]]; then
+            echo "::error::These crates do not match tag version ${RELEASE_VERSION}:"
+            echo "$mismatches"
+            exit 1
           fi
 
-      - name: Publish to crates.io
-        if: steps.crates-check.outputs.exists != 'true'
+      - name: Build unpublished crate plan
+        id: plan
         shell: bash
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --locked --package smbcloud-cli
+        run: |
+          if [[ -z "${CARGO_REGISTRY_TOKEN}" ]]; then
+            echo "::error::CARGO_REGISTRY_TOKEN is required."
+            exit 1
+          fi
+
+          cargo workspaces plan --skip-published --json --token "${CARGO_REGISTRY_TOKEN}" > plan.json
+          cat plan.json
+
+          plan_count="$(jq 'length' plan.json)"
+          echo "count=${plan_count}" >> "$GITHUB_OUTPUT"
+
+      - name: Derive downstream workflow triggers
+        id: downstream
+        shell: bash
+        run: |
+          publish_cli_sdk_pypi="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk-py" or . == "smbcloud-auth-sdk" or . == "smbcloud-model" or . == "smbcloud-network")' plan.json)"
+          publish_cli_sdk_npm="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk-wasm" or . == "smbcloud-auth-sdk" or . == "smbcloud-network" or . == "smbcloud-networking")' plan.json)"
+          publish_cli_sdk_gem="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk" or . == "smbcloud-model" or . == "smbcloud-network")' plan.json)"
+
+          echo "publish_cli_sdk_pypi=${publish_cli_sdk_pypi}" >> "$GITHUB_OUTPUT"
+          echo "publish_cli_sdk_npm=${publish_cli_sdk_npm}" >> "$GITHUB_OUTPUT"
+          echo "publish_cli_sdk_gem=${publish_cli_sdk_gem}" >> "$GITHUB_OUTPUT"
+
+          echo "SDK PyPI trigger: ${publish_cli_sdk_pypi}"
+          echo "SDK npm trigger: ${publish_cli_sdk_npm}"
+          echo "SDK gem trigger: ${publish_cli_sdk_gem}"
+
+      - name: Publish workspace crates to crates.io
+        if: steps.plan.outputs.count != '0'
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo workspaces publish \
+            --publish-as-is \
+            --yes \
+            --locked \
+            --allow-branch "*" \
+            --publish-interval 15 \
+            --token "${CARGO_REGISTRY_TOKEN}"
+
+      - name: Nothing to publish
+        if: steps.plan.outputs.count == '0'
+        run: echo "All workspace crate versions in this tag are already published."
+
+  dispatch-distributions:
+    name: Trigger CLI distribution workflows
+    needs: publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger GitHub CLI release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-github.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })
+
+      - name: Trigger npm CLI release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-npm.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })
+
+      - name: Trigger NuGet CLI release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-nuget.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })
+
+      - name: Trigger PyPI CLI release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-pypi.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })
+
+  dispatch-sdk-pypi:
+    name: Trigger SDK PyPI release
+    needs: publish
+    if: needs.publish.outputs.publish_cli_sdk_pypi == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger SDK PyPI release workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-sdk-pypi.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })
+
+  dispatch-sdk-npm:
+    name: Trigger SDK npm release
+    needs: publish
+    if: needs.publish.outputs.publish_cli_sdk_npm == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger SDK npm release workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-sdk-npm.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })
+
+  dispatch-sdk-gem:
+    name: Trigger SDK Ruby gem release
+    needs: publish
+    if: needs.publish.outputs.publish_cli_sdk_gem == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger SDK Ruby gem release workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-sdk-gem.yml',
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })

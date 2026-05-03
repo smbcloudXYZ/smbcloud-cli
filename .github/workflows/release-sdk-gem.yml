@@ -8,9 +8,6 @@ name: SDK Ruby Gem Release
 #   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
@@ -32,17 +29,56 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: linux-x64,    runner: ubuntu-latest,    platform: x86_64-linux   }
-          - { name: linux-arm64,  runner: ubuntu-24.04-arm, platform: aarch64-linux  }
-          - { name: darwin-arm64, runner: macos-latest,     platform: arm64-darwin   }
-          - { name: darwin-x64,   runner: macos-15-intel,   platform: x86_64-darwin  }
-          - { name: win-x64,      runner: windows-2022,     platform: x64-mingw-ucrt }
+          - { name: linux-x64, runner: ubuntu-latest, platform: x86_64-linux }
+          - {
+              name: linux-arm64,
+              runner: ubuntu-24.04-arm,
+              platform: aarch64-linux,
+            }
+          - { name: darwin-arm64, runner: macos-latest, platform: arm64-darwin }
+          - {
+              name: darwin-x64,
+              runner: macos-15-intel,
+              platform: x86_64-darwin,
+            }
+          - { name: win-x64, runner: windows-2022, platform: x64-mingw-ucrt }
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Wait for Rust crate dependencies on crates.io
+        shell: bash
+        run: |
+          for crate_name in smbcloud-auth-sdk smbcloud-model smbcloud-network; do
+            for attempt in 1 2 3 4 5 6; do
+              if curl -fsS "https://crates.io/api/v1/crates/${crate_name}/${RELEASE_VERSION}" >/dev/null 2>&1; then
+                echo "${crate_name} ${RELEASE_VERSION} is available on crates.io"
+                break
+              fi
+
+              if [ "$attempt" -eq 6 ]; then
+                echo "Timed out waiting for ${crate_name} ${RELEASE_VERSION} on crates.io" >&2
+                exit 1
+              fi
+
+              echo "Waiting for ${crate_name} ${RELEASE_VERSION} to appear on crates.io..."
+              sleep 15
+            done
+          done
 
       - name: Read Rust toolchain
         shell: bash

@@ -1,9 +1,6 @@
 name: GitHub CLI Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
@@ -182,7 +179,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-homebrew.yml',
-              ref: 'main',
+              ref: context.payload.repository.default_branch,
               inputs: {
                 tag: '${{ steps.tag.outputs.tag }}'
               }

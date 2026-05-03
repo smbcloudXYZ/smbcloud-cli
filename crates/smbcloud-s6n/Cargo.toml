@@ -1,6 +1,6 @@
 [package]
-name = "s6n"
-description = "S6n an S3-compatible object storage for smbCloud."
+name = "smbcloud-s6n"
+description = "S6n is an S3-compatible object storage for smbCloud."
 version = "0.3.39"
 edition = "2024"
 readme = "README.md"

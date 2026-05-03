@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-cli"
-version = "0.3.39"
+version = "0.3.40"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "smbCloud command line interface."

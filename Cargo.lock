@@ -2221,10 +2221,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
-name = "s6n"
-version = "0.3.39"
-
-[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2520,7 +2516,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2603,7 +2599,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-model"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "chrono",
  "log",
@@ -2632,7 +2628,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking"
-version = "0.3.39"
+version = "0.3.40"
 dependencies = [
  "smbcloud-network",
  "url-builder",
@@ -2655,6 +2651,10 @@ dependencies = [
  "smbcloud-networking",
  "thiserror 2.0.18",
 ]
+
+[[package]]
+name = "smbcloud-s6n"
+version = "0.3.39"
 
 [[package]]
 name = "smbcloud-utils"

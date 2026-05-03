@@ -7,9 +7,6 @@ name: SDK npm Release
 #   NPM_TOKEN  — npm access token with publish rights to @smbcloud/sdk-auth
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:

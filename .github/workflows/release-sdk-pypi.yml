@@ -1,12 +1,10 @@
 name: SDK PyPI Release
 
 # Publishes smbcloud-sdk-auth (sdk/python) to PyPI.
-# Triggered automatically on semver tags or manually via workflow_dispatch.
+# Triggered by the crates release workflow when wrapped Rust crates change,
+# or manually via workflow_dispatch.
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
@@ -51,7 +49,11 @@ jobs:
               OS: windows-2022,
               TARGET: aarch64-pc-windows-msvc,
             }
-          - { NAME: darwin-x64, OS: macos-15-intel, TARGET: x86_64-apple-darwin }
+          - {
+              NAME: darwin-x64,
+              OS: macos-15-intel,
+              TARGET: x86_64-apple-darwin,
+            }
           - {
               NAME: darwin-arm64,
               OS: macos-latest,
