@@ -20,17 +20,19 @@ function getExePath() {
     }
 
     try {
-        // Since the binary will be located inside `node_modules`, we can simply call `require.resolve`
-        return require.resolve(`@smbcloud/cli-${os}-${arch}/bin/smb${extension}`);
+        // The binary lives in `node_modules`, so `require.resolve` gives us the installed path.
+        return require.resolve(
+            `@smbcloud/cli-${os}-${arch}/bin/smb${extension}`,
+        );
     } catch (e) {
         throw new Error(
-            `Couldn't find application binary inside node_modules for ${os}-${arch}`
+            `Couldn't find application binary inside node_modules for ${os}-${arch}`,
         );
     }
 }
 
 /**
- * Runs the application with args using nodejs spawn
+ * Runs the native CLI with the current process arguments.
  */
 function run() {
     const args = process.argv.slice(2);

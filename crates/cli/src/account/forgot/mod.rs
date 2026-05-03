@@ -13,7 +13,7 @@ use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
 pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
-    println!("Provide your login credentials.");
+    println!("Enter your email address.");
     let email = Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Email")
         .validate_with(|email: &String| email_validation(email))
