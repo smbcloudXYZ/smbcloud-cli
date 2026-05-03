@@ -1,14 +1,19 @@
-name: PyPI CLI Release
+name: SDK PyPI Release
 
+# Publishes smbcloud-sdk-auth (sdk/python) to PyPI.
+# Triggered by the crates release workflow when wrapped Rust crates change,
+# or manually via workflow_dispatch.
+#
 # Windows arm64 wheels are intentionally not built here. GitHub's hosted
 # Windows runners provide x64 Python, and maturin refuses to build an arm64
 # wheel when the interpreter reports win-amd64.
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.35)"
+        required: true
 
 permissions:
   id-token: write
@@ -43,8 +48,11 @@ jobs:
               OS: windows-2022,
               TARGET: x86_64-pc-windows-msvc,
             }
-
-          - { NAME: darwin-x64, OS: macos-latest, TARGET: x86_64-apple-darwin }
+          - {
+              NAME: darwin-x64,
+              OS: macos-15-intel,
+              TARGET: x86_64-apple-darwin,
+            }
           - {
               NAME: darwin-arm64,
               OS: macos-latest,
@@ -90,12 +98,31 @@ jobs:
           rustup target add ${{ matrix.build.TARGET }} --toolchain ${{ env.RUST_TOOLCHAIN }}
           rustup target list --installed
 
+      - name: Verify Cargo.toml version matches tag
+        shell: bash
+        run: |
+          CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "smbcloud-auth-sdk-py") | .version')
+
+          echo "Cargo.toml version : ${CARGO_VERSION}"
+          echo "Release tag version: ${RELEASE_VERSION}"
+
+          if [[ "${CARGO_VERSION}" != "${RELEASE_VERSION}" ]]; then
+            echo "::error::Version mismatch — bump version in crates/smbcloud-auth-sdk-py/Cargo.toml before releasing."
+            exit 1
+          fi
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: sdk-pypi-${{ matrix.build.NAME }}
+
       - name: Build wheel
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.build.TARGET }}
           manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
-          working-directory: pypi
+          working-directory: sdk/python
           args: --release --locked --compatibility pypi --out dist
           before-script-linux: yum install -y perl-core
           docker-options: -e CLI_CLIENT_SECRET
@@ -104,7 +131,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.build.NAME }}
-          path: pypi/dist/*
+          path: sdk/python/dist/*
 
   build-sdist:
     name: Build source distribution
@@ -147,14 +174,14 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          working-directory: pypi
+          working-directory: sdk/python
           args: --out dist
 
       - name: Upload sdist artifact
         uses: actions/upload-artifact@v7
         with:
           name: sdist
-          path: pypi/dist/*
+          path: sdk/python/dist/*
 
   publish-pypi:
     name: Publish to PyPI
@@ -192,8 +219,8 @@ jobs:
         id: pypi-check
         shell: bash
         run: |
-          if curl -fsS "https://pypi.org/pypi/smbcloud-cli/${RELEASE_VERSION}/json" >/dev/null 2>&1; then
-            echo "smbcloud-cli ${RELEASE_VERSION} already exists on PyPI, skipping publish"
+          if curl -fsS "https://pypi.org/pypi/smbcloud-sdk-auth/${RELEASE_VERSION}/json" >/dev/null 2>&1; then
+            echo "smbcloud-sdk-auth ${RELEASE_VERSION} already exists on PyPI, skipping publish"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"

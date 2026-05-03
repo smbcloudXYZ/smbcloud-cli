@@ -12,3 +12,11 @@
 # Generated PyPI release artifacts
 /pypi/dist/
 /pypi/.venv/
+
+# Local .NET CLI state
+/.dotnet/
+
+# Generated .NET / NuGet build outputs
+/nuget/dist/
+/nuget/**/bin/
+/nuget/**/obj/
