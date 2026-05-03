@@ -33,7 +33,7 @@ use {
 /// Optional config fields:
 ///   - `source`      — local source directory (defaults to current directory)
 ///   - `compile_cmd` — remote command sequence to run inside `path` after the
-///                     upload. When omitted, the CLI runs `cargo build --release`.
+///     upload. When omitted, the CLI runs `cargo build --release`.
 ///
 /// Typical `compile_cmd` for a systemd-managed service:
 ///   cargo build --release && sudo systemctl restart smbcloud-mail-imap
