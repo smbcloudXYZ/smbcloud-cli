@@ -148,7 +148,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           pattern: nuget-native-*
-          path: nuget/smbcloud-cli
+          path: nuget/smbcloud-cli/native
           merge-multiple: true
 
       - name: Setup .NET SDK
