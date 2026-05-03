@@ -57,6 +57,30 @@ Avoiding AI patterns is only half the job. Sterile, voiceless writing is just as
 
 **Be specific about feelings.** Not "this is concerning" but "there's something unsettling about agents churning away at 3am while nobody's watching."
 
+### For landing pages and product copy
+
+Human does not mean longer.
+
+A lot of weak AI copy explains the product to death. It keeps telling you what the thing means, why it exists, how it fits into a workflow, and what philosophy sits behind it. Real product copy usually has more restraint.
+
+Use these rules:
+
+- Say what it is.
+- Say what it does.
+- Say where to get it.
+- Stop.
+
+When editing marketing pages:
+
+- Cut any sentence that explains the page more than the product.
+- Cut any sentence that sounds like the company is narrating its own strategy.
+- Prefer capability over commentary.
+- Prefer commands, nouns, and concrete outcomes over thesis statements.
+- If one short sentence does the job, do not expand it into three.
+- If a section exists only to justify the product's existence, delete or compress it.
+- Keep CTAs and subheads tight. They should scan fast.
+- Do not confuse "human" with "chatty." Brevity feels more confident.
+
 ### Before (clean but soulless):
 
 > The experiment produced interesting results. The agents generated 3 million lines of code. Some developers were impressed while others were skeptical. The implications remain unclear.
