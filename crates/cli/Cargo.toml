@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-cli"
-version = "0.3.37"
+version = "0.3.39"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "smbCloud command line interface."
@@ -31,7 +31,6 @@ crossterm = { workspace = true }
 dialoguer = { workspace = true }
 dirs = { workspace = true }
 
-
 git2 = { workspace = true }
 
 home = { workspace = true }
@@ -44,10 +43,11 @@ reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_repr = { workspace = true }
+smbcloud-auth = { workspace = true }
+smbcloud-mail = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }
 smbcloud-networking = { workspace = true }
-smbcloud-auth = { workspace = true }
 smbcloud-networking-project = { workspace = true }
 smbcloud-utils = { workspace = true }
 spinners = { workspace = true }

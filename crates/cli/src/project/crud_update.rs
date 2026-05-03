@@ -41,7 +41,13 @@ pub async fn process_project_update(env: Environment, project_id: String) -> Res
         Err(_) => return Err(anyhow!("Invalid description.")),
     };
 
-    let runners = vec![Runner::NodeJs, Runner::Static, Runner::Ruby, Runner::Swift];
+    let runners = vec![
+        Runner::NodeJs,
+        Runner::Static,
+        Runner::Ruby,
+        Runner::Swift,
+        Runner::Rust,
+    ];
     let runner = Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)

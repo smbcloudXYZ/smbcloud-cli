@@ -1,7 +1,7 @@
 {
   "name": "@smbcloud/sdk-auth",
   "description": "Browser Auth SDK for smbCloud, built from Rust and WebAssembly.",
-  "version": "0.3.34",
+  "version": "0.3.39",
   "type": "module",
   "main": "dist/smbcloud_auth_wasm.js",
   "module": "dist/smbcloud_auth_wasm.js",

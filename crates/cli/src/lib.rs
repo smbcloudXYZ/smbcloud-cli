@@ -3,6 +3,7 @@ use smbcloud_networking::smb_client::SmbClient;
 pub mod account;
 pub mod cli;
 pub mod deploy;
+pub mod mail;
 pub mod project;
 mod token;
 mod ui;

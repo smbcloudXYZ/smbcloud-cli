@@ -7,6 +7,7 @@ name: Tests
 #   - sdk/python  → maturin wheel build  (smbcloud-sdk-auth)
 #   - sdk/npm     → wasm-pack + prepare-package.mjs  (@smbcloud/sdk-auth)
 #   - sdk/gems    → rb_sys native-extension compile   (smbcloud-auth gem)
+#   - nuget       → .NET tool launcher build         (SmbCloud.Cli)
 
 on: push
 
@@ -169,6 +170,22 @@ jobs:
       - name: Build and prepare package
         working-directory: sdk/npm/smbcloud-auth
         run: node ./prepare-package.mjs
+
+  # ── .NET tool ───────────────────────────────────────────────────────────────
+  check-nuget-tool:
+    name: NuGet — .NET tool launcher (SmbCloud.Cli)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build .NET tool launcher
+        run: dotnet build nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release
 
   # ── Ruby Gem ────────────────────────────────────────────────────────────────
   check-ruby-gem:

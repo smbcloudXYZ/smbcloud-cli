@@ -206,12 +206,12 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
                 message: error_code.to_string(),
             })
         }
-        (status, _) => parse_error_response(response).await.or_else(|_| {
-            Err(ErrorResponse::Error {
+        (status, _) => parse_error_response(response)
+            .await
+            .map_err(|_| ErrorResponse::Error {
                 error_code: ErrorCode::NetworkError,
                 message: format!("Unexpected login response status: {}", status),
-            })
-        }),
+            }),
     }
 }
 

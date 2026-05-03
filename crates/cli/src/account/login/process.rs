@@ -78,8 +78,6 @@ pub async fn process_login(env: Environment, is_logged_in: Option<bool>) -> Resu
     }
 }
 
-// Private functions
-
 async fn login_with_github(env: Environment) -> Result<CommandResult> {
     match authorize_github(&env).await {
         Ok(result) => process_authorization(env, result).await,
@@ -91,15 +89,13 @@ async fn login_with_github(env: Environment) -> Result<CommandResult> {
 }
 
 async fn process_authorization(env: Environment, auth: SmbAuthorization) -> Result<CommandResult> {
-    // What to do if not logged in with GitHub?
-    // Check error_code first
+    // Handle the account state returned by the OAuth flow before treating it as a login.
     if let Some(error_code) = auth.error_code {
         debug!("{}", error_code);
         match error_code {
             EmailNotFound => return create_new_account(env, auth.user_email, auth.user_info).await,
             EmailUnverified => return send_email_verification(env, auth.user).await,
             PasswordNotSet => {
-                // Only for email and password login
                 let error = anyhow!("Password not set.");
                 return Err(error);
             }
@@ -107,14 +103,12 @@ async fn process_authorization(env: Environment, auth: SmbAuthorization) -> Resu
         }
     }
 
-    // Logged in with GitHub!
-    // Token handling is in the lib.rs account module.
+    // Token handling lives in the account module.
     if let Some(user) = auth.user {
         let spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
             style("Logging you in...").green().bold().to_string(),
         );
-        // We're logged in with GitHub.
         return Ok(CommandResult {
             spinner,
             symbol: "✅".to_owned(),
@@ -142,7 +136,6 @@ async fn create_new_account(
         }
     };
 
-    // Create account if user confirms
     if !confirm {
         let spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
@@ -169,11 +162,10 @@ async fn create_new_account(
         return do_signup(env, &params).await;
     }
 
-    Err(anyhow!("Shouldn't be here."))
+    Err(anyhow!("GitHub returned incomplete account details."))
 }
 
 async fn send_email_verification(env: Environment, user: Option<User>) -> Result<CommandResult> {
-    // Return early if user is null
     if let Some(user) = user {
         let confirm = match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to send a new verification email?")
@@ -186,16 +178,15 @@ async fn send_email_verification(env: Environment, user: Option<User>) -> Result
             }
         };
 
-        // Send verification email if user confirms
         if !confirm {
             let spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Cancel operation.").green().bold().to_string(),
+                style("Cancelled.").green().bold().to_string(),
             );
             return Ok(CommandResult {
                 spinner,
                 symbol: succeed_symbol(),
-                msg: succeed_message("Doing nothing."),
+                msg: succeed_message("Cancelled."),
             });
         }
         resend_email_verification(env, user).await
@@ -238,16 +229,15 @@ async fn connect_github_account(env: Environment, auth: SmbAuthorization) -> Res
         }
     };
 
-    // Link GitHub account if user confirms
     if !confirm {
         let spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
-            succeed_message("Cancel operation."),
+            succeed_message("Cancelled."),
         );
         return Ok(CommandResult {
             spinner,
             symbol: succeed_symbol(),
-            msg: succeed_message("Doing nothing."),
+            msg: succeed_message("Cancelled."),
         });
     }
 
@@ -278,7 +268,7 @@ async fn connect_github_account(env: Environment, auth: SmbAuthorization) -> Res
 }
 
 async fn login_with_email(env: Environment) -> Result<CommandResult> {
-    println!("Provide your login credentials.");
+    println!("Enter your login details.");
     let username = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Email")
         .validate_with(|email: &String| email_validation(email))
@@ -293,9 +283,7 @@ async fn login_with_email(env: Environment) -> Result<CommandResult> {
 
     match check_email(env, client(), &username).await {
         Ok(auth) => {
-            // Only continue with password input if email is found and confirmed.
             if auth.error_code.is_some() {
-                // Check if email is in the database, unconfirmed. Only presents password input if email is found and confirmed.
                 let spinner = Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
                     succeed_message("Checking email"),
@@ -382,11 +370,11 @@ async fn after_checking_email_step(
                 }
                 _ => {
                     spinner.stop_and_persist(&fail_symbol(), fail_message("An error occurred."));
-                    Err(anyhow!("Idk what happened."))
+                    Err(anyhow!("The server returned an unexpected account state."))
                 }
             }
         }
-        None => Err(anyhow!("Shouldn't be here.")),
+        None => Err(anyhow!("The server did not return an account state.")),
     }
 }
 
@@ -421,13 +409,12 @@ async fn action_on_account_status(
         }
         _ => {
             spinner.stop_and_persist(&fail_symbol(), fail_message("An error occurred."));
-            Err(anyhow!("Idk what happened."))
+            Err(anyhow!("The server returned an unexpected account state."))
         }
     }
 }
 
 async fn send_reset_password(env: Environment, user: Option<User>) -> Result<CommandResult> {
-    // Return early if user is null
     if let Some(user) = user {
         let confirm = match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to reset your password?")
@@ -440,16 +427,15 @@ async fn send_reset_password(env: Environment, user: Option<User>) -> Result<Com
             }
         };
 
-        // Send verification email if user confirms
         if !confirm {
             let spinner = Spinner::new(
                 spinners::Spinners::SimpleDotsScrolling,
-                style("Cancel operation.").green().bold().to_string(),
+                style("Cancelled.").green().bold().to_string(),
             );
             return Ok(CommandResult {
                 spinner,
                 symbol: succeed_symbol(),
-                msg: succeed_message("Doing nothing."),
+                msg: succeed_message("Cancelled."),
             });
         }
         resend_reset_password_instruction(env, user).await

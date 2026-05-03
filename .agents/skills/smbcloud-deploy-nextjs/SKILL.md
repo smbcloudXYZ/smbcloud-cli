@@ -90,9 +90,7 @@ Note that `server.js` is expected at the remote root because the CLI uploads the
 
 ## PM2 behavior
 
-The current SSR deploy implementation does not use `ecosystem.config.js`.
-
-It runs logic equivalent to:
+The CLI's deploy path runs logic equivalent to:
 
 ```sh
 cd "$APP_PATH"
@@ -109,9 +107,52 @@ pm2 save
 This has two consequences:
 
 - old git-based `post-receive` hooks are irrelevant for the SSR path
-- the port is currently hardcoded to `3010` in the CLI unless the code is patched
+- the port is currently hardcoded to `3010` in the CLI for fresh starts unless patched
 
-### Manual PM2 operations
+### Environment variables â ecosystem file (standard pattern)
+
+The server runs in a **multi-tenant setup**: multiple Next.js apps share one server, each managed as a separate PM2 process. The standard way to manage per-app environment variables is an `ecosystem.config.js` file kept **on the server only** (never committed to the app repo).
+
+The flow works like this:
+
+1. On first setup, SSH in, create the ecosystem file, start with it, and save:
+
+   ```sh
+   ssh git@<server>
+   cd /home/git/apps/web/<app>
+
+   cat > ecosystem.config.js << 'EOF'
+   module.exports = {
+     apps: [{
+       name: "<pm2_app>",
+       script: "server.js",
+       cwd: "/home/git/apps/web/<app>",
+       env_production: {
+         NODE_ENV:  "production",
+         PORT:      3026,
+         HOSTNAME:  "127.0.0.1",
+         MY_SECRET: "...",
+       }
+     }]
+   }
+   EOF
+
+   pm2 start ecosystem.config.js --env production
+   pm2 save
+   ```
+
+2. Every subsequent CLI deploy runs `pm2 restart <pm2_app>`. Because `pm2 save` already persisted the env, PM2 restarts with the same environment â **the CLI does not need to know about the ecosystem file at all**.
+
+3. To change or add env vars, SSH in, edit `ecosystem.config.js`, then:
+
+   ```sh
+   pm2 restart <pm2_app> --update-env
+   pm2 save
+   ```
+
+The ecosystem file is the server-side source of truth for each appâs runtime config. Future versions of the smbCloud web console will provide a UI to manage these vars per app, which will write to this file and trigger the restart remotely.
+
+### Manual PM2 operations (without ecosystem file)
 
 If the app is already deployed and `server.js` exists:
 
@@ -121,7 +162,7 @@ pm2 restart <pm2_app> --update-env
 pm2 save
 ```
 
-If starting from scratch:
+If starting from scratch without an ecosystem file:
 
 ```sh
 cd /home/git/apps/web/<app>
@@ -284,6 +325,6 @@ Use the smallest checks that prove the contract.
 - forgetting `kind = "nextjs-ssr"`
 - keeping an old git `post-receive` hook and expecting it to manage SSR deploys
 - using static-file Nginx config for an SSR app
-- trusting an old `ecosystem.config.js` when the CLI actually runs `node server.js`
+- editing `ecosystem.config.js` but forgetting `pm2 restart <app> --update-env && pm2 save` â PM2 keeps the old env until explicitly refreshed
 - leaving port values inconsistent across PM2, Nginx, and CLI
 - treating browser CORS failures as real internet outages

@@ -4,7 +4,7 @@ use {
     serde_repr::{Deserialize_repr, Serialize_repr},
     std::{
         fmt::{self, Display, Formatter},
-        path::PathBuf,
+        path::Path,
     },
 };
 
@@ -19,6 +19,7 @@ pub enum Runner {
     Static = 1,
     Ruby = 2,
     Swift = 3,
+    Rust = 4,
     Monorepo = 255,
 }
 
@@ -29,6 +30,7 @@ impl Display for Runner {
             Runner::Static => write!(f, "Static"),
             Runner::Ruby => write!(f, "Ruby"),
             Runner::Swift => write!(f, "Swift"),
+            Runner::Rust => write!(f, "Rust"),
             Runner::Monorepo => write!(f, "Monorepo"),
         }
     }
@@ -54,7 +56,7 @@ pub enum SwiftFramework {
 }
 
 impl Runner {
-    pub fn from(repo_path: &PathBuf) -> Result<Runner, ErrorResponse> {
+    pub fn from(repo_path: &Path) -> Result<Runner, ErrorResponse> {
         // Any package.json-driven app belongs on the NodeJs runner.
         // Framework-specific checks are not reliable because modern Next.js apps
         // do not need a next.config.* file at all.
@@ -67,6 +69,9 @@ impl Runner {
         }
         if repo_path.join("Package.swift").exists() {
             return Ok(Runner::Swift);
+        }
+        if repo_path.join("Cargo.toml").exists() {
+            return Ok(Runner::Rust);
         }
         // See if we have a monorepo setup.
         non_framework_runner()
@@ -87,7 +92,7 @@ impl Runner {
             Runner::Monorepo => "monorepo",
             // Static sites and NodeJs projects share the same lightweight tier
             Runner::NodeJs | Runner::Static => "api",
-            Runner::Ruby | Runner::Swift => "api-1",
+            Runner::Ruby | Runner::Swift | Runner::Rust => "api-1",
         }
     }
 }

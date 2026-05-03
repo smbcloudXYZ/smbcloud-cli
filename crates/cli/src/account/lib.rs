@@ -25,9 +25,7 @@ use {
 };
 
 pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
-    // Spin up a simple localhost server to listen for the GitHub OAuth callback
-    // setup_oauth_callback_server();
-    // Open the GitHub OAuth URL in the user's browser
+    // Listen for the GitHub OAuth callback on localhost, then open the browser.
     let mut spinner = Spinner::new(
         spinners::Spinners::BouncingBall,
         style("🚀 Getting your GitHub information...")
@@ -61,7 +59,6 @@ pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
     match rx.recv() {
         Ok(code) => {
             debug!("Got code from channel: {:#?}", &code);
-            //Err(anyhow!("Failed to get code from channel."))
             process_connect_github(*env, code).await
         }
         Err(e) => {
@@ -144,7 +141,6 @@ fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
     stream.flush().unwrap();
 }
 
-// Get access token
 pub async fn process_connect_github(env: Environment, code: String) -> Result<SmbAuthorization> {
     let response = Client::new()
         .post(build_authorize_smb_url(env))
@@ -160,10 +156,8 @@ pub async fn process_connect_github(env: Environment, code: String) -> Result<Sm
             .bold()
             .to_string(),
     );
-    // println!("Response: {:#?}", &response);
     match response.status() {
         StatusCode::OK => {
-            // Account authorized and token received
             spinner.stop_and_persist("✅", "You are logged in with your GitHub account!".into());
             save_token(env, &response).await?;
             let result = response.json().await?;
@@ -171,21 +165,16 @@ pub async fn process_connect_github(env: Environment, code: String) -> Result<Sm
             Ok(result)
         }
         StatusCode::NOT_FOUND => {
-            // Account not found and we show signup option
-            spinner.stop_and_persist("🥲", "Account not found. Please signup!".into());
+            spinner.stop_and_persist("🥲", "Account not found. Please sign up.".into());
             let result = response.json().await?;
-            // println!("Result: {:#?}", &result);
             Ok(result)
         }
         StatusCode::UNPROCESSABLE_ENTITY => {
-            // Account found but email not verified
-            spinner.stop_and_persist("🥹", "Unverified email!".into());
+            spinner.stop_and_persist("🥹", "Please verify your email address.".into());
             let result = response.json().await?;
-            // println!("Result: {:#?}", &result);
             Ok(result)
         }
         _ => {
-            // Other errors
             let error = anyhow!("Error while authorizing with GitHub.");
             Err(error)
         }
@@ -222,13 +211,14 @@ fn github_base_url_builder() -> URLBuilder {
 
 pub async fn save_token(env: Environment, response: &Response) -> Result<()> {
     let headers = response.headers();
-    // println!("Headers: {:#?}", &headers);
     match headers.get("Authorization") {
         Some(token) => {
             debug!("{}", token.to_str()?);
             store_token(env, token.to_str()?.to_string()).await
         }
-        None => Err(anyhow!("Failed to get token. Probably a backend issue.")),
+        None => Err(anyhow!(
+            "Failed to get the access token from the server response."
+        )),
     }
 }
 

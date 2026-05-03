@@ -1,0 +1,26 @@
+[package]
+name = "smbcloud-mail"
+version = "0.3.39"
+edition = "2021"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+description = "smbCloud mail API client for the CLI."
+license = "Apache-2.0"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://smbcloud.xyz/posts"
+keywords = ["cli", "cloud", "mail", "smbcloud", "email"]
+categories = [
+    "command-line-utilities",
+    "api-bindings",
+]
+readme = "README.md"
+
+[lib]
+path = "src/smbcloud_mail.rs"
+
+[dependencies]
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+smbcloud-model = { workspace = true }
+smbcloud-network = { workspace = true }
+smbcloud-networking = { workspace = true }

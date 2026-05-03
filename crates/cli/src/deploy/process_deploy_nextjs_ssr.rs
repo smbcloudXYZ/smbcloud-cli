@@ -235,6 +235,11 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         let local_path = format!("{}/{}", source, local_rel);
         let destination = format!("{}{}", remote_base, remote_rel);
 
+        // Skip optional directories that the project does not have.
+        if !std::path::Path::new(&local_path).exists() {
+            continue;
+        }
+
         let output = Command::new("rsync")
             .args([
                 "-az",
@@ -305,7 +310,7 @@ echo "Starting $PM2_APP with pm2..."
 if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
     pm2 delete "$PM2_APP"
 fi
-PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
+NODE_ENV=production PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
 pm2 save
 echo "Done."
 "#,

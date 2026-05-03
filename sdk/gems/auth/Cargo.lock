@@ -104,7 +104,7 @@ dependencies = [
 
 [[package]]
 name = "auth"
-version = "0.3.35"
+version = "0.3.39"
 dependencies = [
  "magnus",
  "serde",
