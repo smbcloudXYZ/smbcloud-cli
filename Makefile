@@ -11,9 +11,9 @@ release:
 	@test -n "$(BUMP)" || (echo "BUMP is required" && exit 1)
 	@if [ "$(BUMP)" = "custom" ] && [ -z "$(VERSION)" ]; then echo "VERSION is required for custom releases"; exit 1; fi
 	@if [ "$(BUMP)" = "custom" ]; then \
-		cargo workspaces version custom "$(VERSION)" --yes --no-git-push; \
+		cargo workspaces version custom "$(VERSION)" --yes --no-git-push --allow-branch "*" --force "*"; \
 	else \
-		cargo workspaces version "$(BUMP)" --yes --no-git-push; \
+		cargo workspaces version "$(BUMP)" --yes --no-git-push --allow-branch "*" --force "*"; \
 	fi
 	@echo "Release version prepared locally."
 	@echo "Next: git push origin $$(git branch --show-current) && git push origin --tags"
