@@ -4,7 +4,10 @@ use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
-    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    ui::{
+        fail_message, fail_symbol, project_detail_view::show_project_detail_tui,
+        project_table::show_projects_tui, succeed_message, succeed_symbol,
+    },
 };
 use anyhow::{anyhow, Result};
 use log::debug;
@@ -12,37 +15,6 @@ use smbcloud_model::project::{Config, Project};
 use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_read::{get_project, get_projects};
 use spinners::Spinner;
-use tabled::{Table, Tabled};
-
-#[derive(Tabled)]
-struct ProjectRow {
-    #[tabled(rename = "ID")]
-    id: i32,
-    #[tabled(rename = "Name")]
-    name: String,
-    #[tabled(rename = "Runner")]
-    runner: String,
-    #[tabled(rename = "Repository")]
-    repository: String,
-    #[tabled(rename = "Description")]
-    description: String,
-}
-
-#[derive(Tabled)]
-struct ProjectDetailRow {
-    #[tabled(rename = "ID")]
-    id: i32,
-    #[tabled(rename = "Name")]
-    name: String,
-    #[tabled(rename = "Repository")]
-    repository: String,
-    #[tabled(rename = "Description")]
-    description: String,
-    #[tabled(rename = "Created at")]
-    created_at: String,
-    #[tabled(rename = "Updated at")]
-    updated_at: String,
-}
 
 pub async fn process_project_list(env: Environment) -> Result<CommandResult> {
     let mut spinner = Spinner::new(
@@ -56,9 +28,9 @@ pub async fn process_project_list(env: Environment) -> Result<CommandResult> {
             let msg = if projects.is_empty() {
                 succeed_message("No projects found.")
             } else {
-                succeed_message("Showing all projects.")
+                succeed_message("Done.")
             };
-            show_projects(projects);
+            show_projects(projects)?;
             Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
@@ -89,7 +61,7 @@ pub async fn process_project_show(env: Environment, id: String) -> Result<Comman
         Ok(project) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
             let message = succeed_message(&format!("Showing project {}.", &project.name));
-            show_project_detail(&project);
+            show_project_detail(&project)?;
             Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
@@ -106,35 +78,15 @@ pub async fn process_project_show(env: Environment, id: String) -> Result<Comman
     }
 }
 
-pub(crate) fn show_projects(projects: Vec<Project>) {
+pub(crate) fn show_projects(projects: Vec<Project>) -> Result<()> {
     if projects.is_empty() {
-        return;
+        return Ok(());
     }
-    let rows: Vec<ProjectRow> = projects
-        .into_iter()
-        .map(|p| ProjectRow {
-            id: p.id,
-            name: p.name,
-            runner: p.runner.to_string(),
-            repository: p.repository.unwrap_or("-".to_string()),
-            description: p.description.unwrap_or("-".to_owned()),
-        })
-        .collect();
-    let table = Table::new(rows);
-    println!("{table}");
+    show_projects_tui(projects).map_err(|e| anyhow!(e))
 }
 
-pub(crate) fn show_project_detail(project: &Project) {
-    let row = ProjectDetailRow {
-        id: project.id,
-        name: project.name.clone(),
-        repository: project.repository.clone().unwrap_or("-".to_owned()),
-        description: project.description.clone().unwrap_or("-".to_owned()),
-        created_at: project.created_at.date_naive().to_string(),
-        updated_at: project.updated_at.date_naive().to_string(),
-    };
-    let table = Table::new(vec![row]);
-    println!("{table}");
+pub(crate) fn show_project_detail(project: &Project) -> Result<()> {
+    show_project_detail_tui(project).map_err(|e| anyhow!(e))
 }
 
 pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<CommandResult> {
@@ -153,12 +105,14 @@ pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<
     );
     match home::home_dir() {
         Some(path) => {
-            debug!("{}", path.to_str().unwrap());
+            let config_directory = path.join(env.smb_dir());
+            std::fs::create_dir_all(&config_directory)?;
+            debug!("{}", config_directory.display());
             let mut file = OpenOptions::new()
                 .create(true)
                 .truncate(true)
                 .write(true)
-                .open([path.to_str().unwrap(), "/.smb/config.json"].join(""))?;
+                .open(config_directory.join("config.json"))?;
             let json = serde_json::to_string(&config)?;
             file.write_all(json.as_bytes())?;
 

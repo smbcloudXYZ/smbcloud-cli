@@ -4,8 +4,10 @@ use {
     console::style,
     smbcloud_cli::{
         account::{login::process_login, logout::process_logout, me::process_me, process_account},
+        clear_smb_token,
         cli::{Cli, CommandResult, Commands},
         deploy::process_deploy::process_deploy,
+        mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
     },
     smbcloud_network::{environment::Environment, network::check_internet_connection},
@@ -72,25 +74,34 @@ fn setup_logging(env: Environment, level: Option<EnvFilter>) -> Result<()> {
 
 #[tokio::main]
 async fn main() {
-    match run().await {
+    let cli = Cli::parse();
+    let environment = cli.environment;
+    match run(cli).await {
         Ok(result) => {
             result.stop_and_persist();
             std::process::exit(0);
         }
         Err(e) => {
-            println!(
-                "\n{} {}",
-                style("✘".to_string()).for_stderr().red(),
-                style(e).red()
-            );
+            if e.to_string().contains("Unauthorized access.") {
+                let _ = clear_smb_token(environment);
+                println!(
+                    "\n{} {}",
+                    style("✘".to_string()).for_stderr().red(),
+                    style("Your session has expired. Please login again with `smb login`.").red()
+                );
+            } else {
+                println!(
+                    "\n{} {}",
+                    style("✘".to_string()).for_stderr().red(),
+                    style(e).red()
+                );
+            }
             std::process::exit(1);
         }
     }
 }
 
-async fn run() -> Result<CommandResult> {
-    let cli = Cli::parse();
-
+async fn run(cli: Cli) -> Result<CommandResult> {
     // println!("Environment: {}", cli.environment);
 
     let log_level_error: Result<CommandResult> = Err(anyhow!(
@@ -115,6 +126,7 @@ async fn run() -> Result<CommandResult> {
         | Some(Commands::Login {})
         | Some(Commands::Logout {})
         | Some(Commands::Account { .. })
+        | Some(Commands::Mail { .. })
         | Some(Commands::Project { .. })
         | None => true,
         Some(Commands::Init {}) => true,
@@ -134,6 +146,7 @@ async fn run() -> Result<CommandResult> {
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
         Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
+        Some(Commands::Mail { command }) => process_mail(cli.environment, command).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
         None => process_deploy(cli.environment, None).await,
     }

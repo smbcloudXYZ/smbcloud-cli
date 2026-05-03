@@ -1,5 +1,4 @@
 use {
-    crate::client_credentials::{ClientCredentials, base_url_builder as tenant_base_url_builder},
     reqwest::Client,
     smbcloud_model::{
         error_codes::ErrorResponse,
@@ -32,33 +31,8 @@ pub async fn login(
     request_login(builder).await
 }
 
-pub async fn login_with_client(
-    env: Environment,
-    client: ClientCredentials<'_>,
-    username: String,
-    password: String,
-) -> Result<AccountStatus, ErrorResponse> {
-    let login_params = LoginParams {
-        user: UserParam {
-            email: username,
-            password,
-        },
-    };
-    let builder = Client::new()
-        .post(build_login_url_with_client(env, client))
-        .json(&login_params)
-        .header("User-agent", client.app_id);
-    request_login(builder).await
-}
-
 pub(crate) fn build_smb_login_url(env: Environment, client: (&SmbClient, &str)) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route(PATH_USERS_SIGN_IN);
-    url_builder.build()
-}
-
-fn build_login_url_with_client(env: Environment, client: ClientCredentials<'_>) -> String {
-    let mut url_builder = tenant_base_url_builder(env, client);
-    url_builder.add_route("v1/client/users/sign_in");
     url_builder.build()
 }

@@ -1,10 +1,28 @@
-# smbcloud-cli
-
-This is a CLI program to access [smbcloud](https://smbcloud.xyz/).
+<!-- LOGO -->
+<h1>
+<p align="center">
+  <img src="https://avatars.githubusercontent.com/u/89791739?s=200&v=4" alt="smbCloud Logo" width="128">
+  <br>smbCloud CLI
+</h1>
+  <p align="center">
+    Deploy to the cloud in one command.
+    <br />
+    <br />
+    <a href="https://smbcloud.xyz/">Website</a>
+    ·
+    <a href="https://smbcloud.xyz/posts">Documentation</a>
+    ·
+    <a href="https://github.com/smbcloudXYZ/smbcloud-cli/releases">Releases</a>
+  </p>
+  <p align="center">
+    <a href="https://crates.io/crates/smbcloud-cli"><img alt="Crates.io" src="https://img.shields.io/crates/v/smbcloud-cli"></a>
+    <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/smbcloudXYZ/smbcloud-cli"></a>
+  </p>
+</p>
 
 ## Installation
 
-One can install this program in different ways. 
+You can install the CLI a few different ways.
 
 ### With Cargo
 
@@ -15,14 +33,14 @@ cargo install smbcloud-cli
 ### Homebrew (MacOS/Linux)
 
 ```bash
-brew tap smbcloud/tap
+brew tap smbcloudXYZ/tap
 brew install cli
 ```
 
 ### With NPM
 
-```
-npm i -g @smbcloud/cli
+```bash
+npm install -g @smbcloud/cli
 ```
 
 ### With PyPI
@@ -33,12 +51,11 @@ pip install smbcloud-cli
 
 ## Update
 
-Simply rerun the installation command.
+To update the CLI, run the same install command again.
 
 ## Uninstall
 
 ```bash
-
 # With cargo
 cargo uninstall smbcloud-cli
 
@@ -46,14 +63,14 @@ cargo uninstall smbcloud-cli
 npm uninstall -g @smbcloud/cli
 
 # With Homebrew
-brew untap smbcloud/tap 
-brew uninstall smbcloud/tap/cli
+brew uninstall cli
+brew untap smbcloudXYZ/tap
 
 # With pip
 pip uninstall smbcloud-cli
 ```
 
-## Usage:
+## Usage
 
 ```bash
 smb --help
@@ -61,19 +78,23 @@ smb --help
 
 ## Contribution
 
-- Setup your Rust tooling.
+- Set up your Rust tooling.
 - Clone the repo.
-- Provide the environement variables in the .env.local.
+- Add the required environment variables to `.env.local`.
 - Run `cargo run`.
 
 ## Credits
 
-This repo is inspired by [Sugar](https://github.com/metaplex-foundation/sugar).
+This repo draws inspiration from [Sugar](https://github.com/metaplex-foundation/sugar).
 
-This repo tries to follow [the 12 factor CLI app](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46) principles by Heroku team.
+It also borrows ideas from [the 12 factor CLI app](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46).
 
-NPM support guide by [orhun.dev](https://blog.orhun.dev/packaging-rust-for-npm/).
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
 
-## Licence
+## License
 
-MIT.
+[Apache-2.0](https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE)
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

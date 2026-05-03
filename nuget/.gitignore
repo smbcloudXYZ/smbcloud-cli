@@ -1,0 +1,4 @@
+dist/
+smbcloud-cli/bin/
+smbcloud-cli/obj/
+smbcloud-cli/native/

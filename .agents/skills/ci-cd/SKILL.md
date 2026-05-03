@@ -1,21 +1,25 @@
 ---
 name: ci-cd
-description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially release workflows for crates.io, PyPI, npm, GitHub Releases, Homebrew tap, or Debian packages. Also covers SDK distribution README branding alignment across npm, PyPI, and the main repo. Covers OpenSSL vendoring, Windows vs non-Windows platform-conditional dependencies, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, idempotency patterns, Homebrew formula generation, and cross-workflow chaining.
+description: Use when creating, debugging, or improving GitHub Actions workflows for this repo — especially the crates.io release orchestrator and the downstream CLI and SDK release workflows for PyPI, npm, GitHub Releases, Homebrew tap, and NuGet. Also covers SDK distribution README branding alignment across npm, PyPI, and the main repo. Covers cargo-workspaces publish flow, release orchestration, OpenSSL vendoring, Windows vs non-Windows platform-conditional dependencies, manylinux containers, Perl module gaps, workspace scoping, native vs QEMU arm64 runners, trusted publishing, artifact actions, toolchain parity, idempotency patterns, Homebrew formula generation, and cross-workflow chaining.
 ---
 
 # CI/CD
 
-## Source of truth for all release workflows
+## Source of truth for release orchestration
 
-| Distribution            | Workflow file                            |
-| ----------------------- | ---------------------------------------- |
-| crates.io               | `.github/workflows/release-crate.yml`    |
-| PyPI                    | `.github/workflows/release-pypi.yml`     |
-| npm                     | `.github/workflows/release-npm.yml`      |
-| GitHub Release binaries | `.github/workflows/release-github.yml`   |
-| Homebrew tap            | `.github/workflows/release-homebrew.yml` |
+| Role                                | Workflow file                            |
+| ----------------------------------- | ---------------------------------------- |
+| Workspace crates publish entrypoint | `.github/workflows/release-crate.yml`    |
+| GitHub Release binaries             | `.github/workflows/release-github.yml`   |
+| Homebrew tap update                 | `.github/workflows/release-homebrew.yml` |
+| CLI npm release                     | `.github/workflows/release-npm.yml`      |
+| CLI PyPI release                    | `.github/workflows/release-pypi.yml`     |
+| CLI NuGet release                   | `.github/workflows/release-nuget.yml`    |
+| SDK npm release                     | `.github/workflows/release-sdk-npm.yml`  |
+| SDK PyPI release                    | `.github/workflows/release-sdk-pypi.yml` |
+| SDK Ruby gem release                | `.github/workflows/release-sdk-gem.yml`  |
 
-All four workflows share the same structural patterns. When editing one, check the others for consistency.
+`release-crate.yml` is the top of the chain. It publishes Rust crates first, then fans out to the CLI distribution workflows, and then conditionally triggers SDK workflows when the published crate set says they need to run.
 
 ## Source of truth for distribution channel READMEs
 
@@ -32,15 +36,32 @@ When the main `README.MD` changes its tagline, logo, quick start, or value propo
 
 ## Universal workflow patterns
 
-Every release workflow must follow these patterns identically.
+The repo now has two kinds of release workflows.
 
-### Trigger
+### Trigger shape
+
+**Orchestrator workflow:**
+
+`release-crate.yml` is the only release workflow that should run directly from a tag push.
 
 ```yaml
 on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.35)"
+        required: true
+```
+
+**Downstream workflows:**
+
+Everything else in the release chain should be `workflow_dispatch` only. The orchestrator passes the tag in explicitly.
+
+```yaml
+on:
   workflow_dispatch:
     inputs:
       tag:
@@ -61,6 +82,8 @@ Without `ref:`, a `workflow_dispatch` run checks out the default branch HEAD, no
 
 ### Version resolution
 
+For simple downstream workflows, resolving `RELEASE_VERSION` is enough:
+
 ```yaml
 - name: Set the release version
   shell: bash
@@ -75,7 +98,28 @@ Without `ref:`, a `workflow_dispatch` run checks out the default branch HEAD, no
     echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 ```
 
-Never read the version from `Cargo.toml` with `sed` in the `else` branch. That silently publishes the current `Cargo.toml` version regardless of the tag input.
+For the orchestrator, resolve both the full tag and the stripped version:
+
+```yaml
+- name: Set the release version
+  id: release
+  shell: bash
+  run: |
+    if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+      release_tag="${GITHUB_REF_NAME}"
+      release_version="${GITHUB_REF_NAME#v}"
+    else
+      release_tag="${{ github.event.inputs.tag }}"
+      release_tag="${release_tag#refs/tags/}"
+      release_version="${release_tag#v}"
+    fi
+
+    echo "RELEASE_TAG=${release_tag}" >> "$GITHUB_ENV"
+    echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+    echo "tag=${release_tag}" >> "$GITHUB_OUTPUT"
+```
+
+Never read the version from `Cargo.toml` with `sed` in the `else` branch. That quietly turns a tag-driven release into a whatever-is-on-branch release.
 
 ### Toolchain — always read from `rust-toolchain.toml`
 
@@ -112,30 +156,36 @@ Without a unique key, cache entries from different targets can collide and corru
 
 ### Idempotency — check before publishing
 
-Every publish step must be gated so re-runs do not fail on already-published versions.
+Every publish step must be safe to rerun.
 
-**crates.io:**
+**crates.io workspace release:**
+
+This repo no longer publishes a single crate with `cargo publish --package ...` in CI. The crates workflow uses `cargo workspaces plan --skip-published --json` to decide whether there is anything left to do.
 
 ```yaml
-- name: Check whether release already exists on crates.io
-  id: crates-check
+- name: Build unpublished crate plan
+  id: plan
   shell: bash
+  env:
+    CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
   run: |
-    if curl -fsS \
-      -H "User-Agent: smbcloud-cli-release-workflow" \
-      "https://crates.io/api/v1/crates/smbcloud-cli/${RELEASE_VERSION}" \
-      >/dev/null 2>&1; then
-      echo "exists=true" >> "$GITHUB_OUTPUT"
-    else
-      echo "exists=false" >> "$GITHUB_OUTPUT"
-    fi
+    cargo workspaces plan --skip-published --json --token "${CARGO_REGISTRY_TOKEN}" > plan.json
+    plan_count="$(jq 'length' plan.json)"
+    echo "count=${plan_count}" >> "$GITHUB_OUTPUT"
 
-- name: Publish to crates.io
-  if: steps.crates-check.outputs.exists != 'true'
-  ...
+- name: Publish workspace crates to crates.io
+  if: steps.plan.outputs.count != '0'
+  run: |
+    cargo workspaces publish \
+      --publish-as-is \
+      --yes \
+      --locked \
+      --allow-branch "*" \
+      --publish-interval 15 \
+      --token "${CARGO_REGISTRY_TOKEN}"
 ```
 
-The `User-Agent` header is required — crates.io rejects requests without one.
+If the plan is empty, stop cleanly and let the workflow say so.
 
 **PyPI:**
 
@@ -171,20 +221,11 @@ npm publish --access public
 
 The `exit 0` inside the `run` block is correct here because it prevents the `npm publish` line below it in the same script from executing. This is different from the PyPI anti-pattern where `exit 0` in a separate step does not prevent the next step from running.
 
-### Version guard — verify Cargo.toml matches the tag
+### Version guard — match the check to the workflow
 
-```yaml
-- name: Verify Cargo.toml version matches tag
-  shell: bash
-  run: |
-    CARGO_VERSION=$(cargo metadata --no-deps --format-version 1 \
-      | jq -r '.packages[] | select(.name == "smbcloud-cli") | .version')
+For single-package workflows, checking one package against the tag is still fine.
 
-    if [[ "${CARGO_VERSION}" != "${RELEASE_VERSION}" ]]; then
-      echo "::error::Version mismatch — bump version in Cargo.toml before releasing."
-      exit 1
-    fi
-```
+For the crates orchestrator, check the workspace members under `/crates` as a group and be honest about what you are guarding. The point is to catch a bad tag early, not to pretend this is a single-package publish flow.
 
 ### Artifact actions
 
@@ -192,25 +233,26 @@ Use `actions/upload-artifact@v7` and `actions/download-artifact@v7` consistently
 
 ---
 
-## Workspace scoping — always use `--package`
+## Workspace scoping — use `--package` for build jobs, not for the crates orchestrator
 
-The workspace root `Cargo.toml` is a **virtual manifest** (no `[package]` section). Running `cargo build` or `cargo publish` from the workspace root without `--package` will either fail or build every workspace member.
+For normal build jobs, do not build the whole workspace by accident.
 
-This workspace includes `smbcloud-auth-py`, a PyO3 `cdylib` that requires Python symbols at link time. Building the full workspace on platforms without a matching Python interpreter causes:
+This workspace includes `smbcloud-auth-sdk-py`, a PyO3 `cdylib` that requires Python symbols at link time. Building the full workspace on platforms without a matching Python interpreter causes:
 
 ```
 ld: symbol(s) not found for architecture arm64
 clang: error: linker command failed with exit code 1
 ```
 
-Always scope cargo commands:
+Scope cargo build commands like this:
 
 ```bash
 cargo build --release --locked --target <target> --package smbcloud-cli
-cargo publish --locked --package smbcloud-cli
 ```
 
-The PyPI workflow is exempt because maturin is already pointed at `crates/cli/Cargo.toml` via `manifest-path` in `pypi/pyproject.toml`.
+The crates release orchestrator is the exception. That workflow is supposed to operate at the workspace root with `cargo workspaces plan` and `cargo workspaces publish`.
+
+The PyPI workflow is also exempt because maturin is already pointed at the right crate via `manifest-path`.
 
 ---
 
@@ -349,13 +391,22 @@ The 404 on `npm publish` does not mean the package does not exist. npm returns 4
 ### crates.io — uses `CARGO_REGISTRY_TOKEN`
 
 ```yaml
-- name: Publish to crates.io
+- name: Publish workspace crates to crates.io
   env:
     CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-  run: cargo publish --locked --package smbcloud-cli
+  run: |
+    cargo workspaces publish \
+      --publish-as-is \
+      --yes \
+      --locked \
+      --allow-branch "*" \
+      --publish-interval 15 \
+      --token "${CARGO_REGISTRY_TOKEN}"
 ```
 
-crates.io also supports OIDC trusted publishing but the setup is separate from this workflow.
+This repo uses `cargo-workspaces` for the Rust release flow. CI is not doing the interactive version bump step. It is publishing the already-prepared tagged workspace state.
+
+crates.io also supports OIDC trusted publishing, but that is separate from the current workflow.
 
 ---
 
@@ -393,22 +444,33 @@ This ensures all platform binaries are collected before any are attached to the 
 
 ---
 
-## Chaining workflows — `GITHUB_TOKEN` cannot fire downstream events
+## Chaining workflows — use explicit dispatches
 
-GitHub intentionally does **not** fire `release`, `push`, `pull_request`, or any other repository events when the action that creates them is authenticated with `GITHUB_TOKEN`. This is a deliberate anti-loop safeguard.
+Do not rely on GitHub events magically fanning out through the release chain. Keep the chain explicit.
 
-**Symptom:** `release-github.yml` uses `softprops/action-gh-release` (with the implicit `GITHUB_TOKEN`) to publish a release. `release-homebrew.yml` has `on: release: types: [published]`. The Homebrew workflow never runs.
+GitHub does not fire downstream repository events the way people expect when the upstream action used `GITHUB_TOKEN`. If you want one release workflow to kick off another, dispatch it yourself.
 
-**Fix:** Have the upstream workflow dispatch the downstream one explicitly via the GitHub API after it completes. This requires `actions: write` in `permissions`.
+The current release chain is:
+
+- `release-crate.yml` publishes workspace crates
+- then dispatches CLI distribution workflows:
+  - `release-github.yml`
+  - `release-npm.yml`
+  - `release-nuget.yml`
+  - `release-pypi.yml`
+- then conditionally dispatches SDK workflows based on the crate publish plan:
+  - `release-sdk-pypi.yml`
+  - `release-sdk-npm.yml`
+  - `release-sdk-gem.yml`
+- `release-github.yml` dispatches `release-homebrew.yml` after the GitHub Release assets exist
+
+This pattern needs `actions: write` in the upstream workflow permissions.
 
 ```yaml
-# release-github.yml
-
 permissions:
   contents: write
-  actions: write   # required for createWorkflowDispatch
+  actions: write
 
-# At the end of the release job, after softprops/action-gh-release:
 - name: Trigger Homebrew release
   uses: actions/github-script@v7
   with:
@@ -417,16 +479,21 @@ permissions:
         owner: context.repo.owner,
         repo: context.repo.repo,
         workflow_id: 'release-homebrew.yml',
-        ref: 'main',
+        ref: context.payload.repository.default_branch,
         inputs: {
           tag: '${{ steps.tag.outputs.tag }}'
         }
       })
 ```
 
-The downstream workflow (`release-homebrew.yml`) must expose a `workflow_dispatch` trigger with a `tag` input — it no longer needs `on: release: types: [published]` (which is dead code in this pattern).
+A few practical rules:
 
-**Alternative:** Use a Personal Access Token (PAT) with `repo` scope in `softprops/action-gh-release` via `token: ${{ secrets.RELEASE_TOKEN }}`. A PAT is treated as a real user action and does fire the `release` event. This avoids changing permissions but requires managing an extra secret.
+- downstream workflows must expose `workflow_dispatch` with a `tag` input
+- dispatch from the repo default branch so the workflow definition comes from the current release lane
+- still check out the requested tag inside the downstream workflow so the built code matches the release
+- do not dispatch Homebrew until the GitHub Release job has uploaded the assets it needs
+
+This is a fire-and-forget chain. If you want one green check to mean the whole release tree passed, you need a more involved callback or polling design. Right now the pattern is good enough, but it is not magic.
 
 ---
 
@@ -479,20 +546,25 @@ Both the `.tar.gz` and the `.sha256` file are downloaded in the release job and 
   run: |
     mkdir -p artifacts
 
-    # Download only the tiny .sha256 text files — not the full tarballs
-    gh release download "${{ steps.release.outputs.tag }}" \
-      --repo "${{ env.REPO }}" \
-      --pattern "smb-macos-*.tar.gz.sha256" \
-      --dir artifacts/
+    for attempt in 1 2 3 4 5; do
+      if gh release download "${{ steps.release.outputs.tag }}" \
+        --repo "${{ env.REPO }}" \
+        --pattern "smb-macos-*.tar.gz.sha256" \
+        --dir artifacts/; then
+        break
+      fi
 
-    ARM64_SHA=$(cat artifacts/smb-macos-arm64.tar.gz.sha256)
-    AMD64_SHA=$(cat artifacts/smb-macos-amd64.tar.gz.sha256)
+      if [ "$attempt" -eq 5 ]; then
+        echo "Failed to download Homebrew checksum artifacts from the GitHub release." >&2
+        exit 1
+      fi
 
-    echo "arm64=${ARM64_SHA}" >> "$GITHUB_OUTPUT"
-    echo "amd64=${AMD64_SHA}" >> "$GITHUB_OUTPUT"
+      echo "Release assets are not visible yet. Waiting 10 seconds..."
+      sleep 10
+    done
 ```
 
-`gh` (GitHub CLI) is pre-installed on all GitHub-hosted runners. `GH_TOKEN: ${{ github.token }}` is sufficient for downloading from a public repo's releases.
+`gh` is pre-installed on GitHub-hosted runners. Add a small retry loop here because the GitHub Release exists first and the Homebrew workflow arrives a moment later. Usually that gap is tiny. Sometimes it is not.
 
 ### Formula URL convention
 
@@ -587,10 +659,39 @@ The platform package template uses `${node_pkg}` as a shell-style variable. This
 
 ---
 
+## SDK trigger rules
+
+Use the crates publish plan to decide whether an SDK release should run.
+
+Current mappings:
+
+- **SDK PyPI** runs when the plan includes any of:
+  - `smbcloud-auth-sdk-py`
+  - `smbcloud-auth-sdk`
+  - `smbcloud-model`
+  - `smbcloud-network`
+- **SDK npm** runs when the plan includes any of:
+  - `smbcloud-auth-sdk-wasm`
+  - `smbcloud-auth-sdk`
+  - `smbcloud-network`
+  - `smbcloud-networking`
+- **SDK Ruby gem** runs when the plan includes any of:
+  - `smbcloud-auth-sdk`
+  - `smbcloud-model`
+  - `smbcloud-network`
+
+These are based on the actual wrappers in `sdk/`:
+
+- `sdk/python/pyproject.toml` points maturin at `crates/smbcloud-auth-sdk-py/Cargo.toml`
+- `sdk/npm/smbcloud-auth/prepare-package.mjs` builds from `crates/smbcloud-auth-sdk-wasm`
+- `sdk/gems/auth/ext/auth/Cargo.toml` pulls published crates from crates.io
+
+One practical warning: the Ruby gem release depends on crates.io propagation. If crates were just published, wait for them to appear before building the gem.
+
 ## Common mistakes
 
 **Building the full workspace in release workflows**
-Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
+Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-sdk-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
 
 **`exit 0` in a separate step does not skip the next step**
 `exit 0` only terminates the current `run` shell. The following step runs regardless. Use `$GITHUB_OUTPUT` + `if:` conditions for inter-step flow control.
@@ -622,14 +723,55 @@ When the main `README.MD` changes its tagline, logo URL, quick start commands, o
 **Platform support table missing new targets**
 When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
 
+**Use workflow-level `env:` for compile-time secrets, not `$GITHUB_ENV` export steps**
+Compile-time secrets like `CLI_CLIENT_SECRET` (read by `env!()`) must be available to every `cargo` invocation across all platforms. Writing to `$GITHUB_ENV` in a separate step is unreliable: it does not propagate into Docker containers, and on Windows runners the default PowerShell shell does not expand `"$GITHUB_ENV"` correctly.
+
+Declare the secret in the workflow-level `env:` block:
+
+```yaml
+env:
+  CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
+  CARGO_TERM_COLOR: always
+```
+
+Never add a dedicated "Export build secret" step for this purpose.
+
+**manylinux Docker containers require `docker-options` to forward env vars**
+Even with the secret in the workflow-level `env:` block, maturin-action's manylinux builds run inside a Docker container that does not automatically inherit the runner's environment. The secret is visible to the action process (shown as `CLI_CLIENT_SECRET: ***` in the step log) but is not forwarded into the container unless explicitly requested.
+
+Fix: add `docker-options: -e CLI_CLIENT_SECRET` to the `Build wheel` step:
+
+```yaml
+- name: Build wheel
+  uses: PyO3/maturin-action@v1
+  with:
+    target: ${{ matrix.build.TARGET }}
+    manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
+    working-directory: pypi
+    args: --release --locked --compatibility pypi --out dist
+    before-script-linux: yum install -y perl-core
+    docker-options: -e CLI_CLIENT_SECRET
+```
+
+`-e CLI_CLIENT_SECRET` tells `docker run` to forward that variable from the runner process into the container. Windows and macOS legs are unaffected (they do not use Docker). Without this, `env!("CLI_CLIENT_SECRET")` fails only on Linux manylinux legs while all other platforms succeed — making the root cause easy to miss.
+
 **PyPI blocks short and protocol-reserved package names**
 PyPI maintains a blocklist of names that are too generic or conflict with well-known protocols and tools. `smb` is blocked because it is the name of the Windows SMB/CIFS file sharing protocol. Attempting to publish a package named `smb` returns `400 The name 'smb' isn't allowed`. There is no workaround — the name cannot be registered regardless of who owns it. If you need `uvx <name>` to work without `--from`, the package name and binary name must match AND the package name must not be on the blocklist. For this repo, `uvx --from smbcloud-cli smb` is the correct form.
 
+**Multiple release workflows all listening to tag pushes**
+Only `release-crate.yml` should run directly from a release tag. The downstream workflows should be `workflow_dispatch` only. If they all listen to `push.tags`, they race each other and you lose control of the order.
+
 **`on: release: types: [published]` does not fire when the release is created by automation**
-When `softprops/action-gh-release` (or any action) creates a GitHub Release using the implicit `GITHUB_TOKEN`, GitHub does not dispatch the `release` event to other workflows. The downstream workflow simply never runs — no error, no log entry. Use `workflow_dispatch` via `actions/github-script@v7` to chain workflows explicitly, and add `actions: write` to the upstream workflow's `permissions`.
+When `softprops/action-gh-release` creates a GitHub Release using the implicit `GITHUB_TOKEN`, GitHub does not dispatch the `release` event to other workflows. The downstream workflow just never runs. Use `workflow_dispatch` via `actions/github-script@v7` instead, and give the upstream workflow `actions: write`.
 
 **Downloading full tarballs in the Homebrew workflow to compute SHA256**
-The Homebrew formula only needs the SHA256 hash — Homebrew itself downloads the tarball at install time. Compute the SHA256 during the build in `release-github.yml`, save it as a `.sha256` file, attach it to the GitHub Release, and then have `release-homebrew.yml` download only those tiny text files with `gh release download --pattern "*.sha256"`. Do not re-download multi-megabyte binaries and do not re-run Rust compilation.
+The Homebrew formula only needs the SHA256 hash. Compute it during the build in `release-github.yml`, attach the `.sha256` files to the GitHub Release, and have `release-homebrew.yml` download only those tiny files. Do not re-download full binaries and do not rebuild Rust code there.
+
+**Forgetting that Homebrew depends on the GitHub Release assets**
+Homebrew cannot run first. It needs the `.sha256` files attached by `release-github.yml`. Keep that dependency explicit.
+
+**Starting the Ruby gem release before crates.io has caught up**
+`sdk/gems/auth/ext/auth/Cargo.toml` pulls `smbcloud-auth-sdk`, `smbcloud-model`, and `smbcloud-network` from crates.io. If the gem workflow starts immediately after the crates publish job, the index may not be ready yet. Add a small wait-and-retry loop against the crates.io API before the gem build starts.
 
 **Rebuilding macOS binaries in `release-homebrew.yml`**
 `release-github.yml` already builds macOS binaries. Running a second Rust compilation in `release-homebrew.yml` wastes two macOS runner slots and risks producing binaries with different checksums if the environment differs. Build once, reuse the output.

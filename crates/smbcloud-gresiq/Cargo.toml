@@ -1,13 +1,13 @@
 [package]
-name = "gresiq"
+name = "smbcloud-gresiq"
 description = "GresIQ is a serverless PostgreSQL client on the smbCloud platform."
-version = "0.3.34"
+version = "0.3.41"
 edition = "2024"
 readme = "README.md"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
-documentation = "https://docs.smbcloud.xyz/cli"
+documentation = "https://smbcloud.xyz/posts"
 keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
 categories = [
     "command-line-utilities",
@@ -17,6 +17,15 @@ categories = [
     "wasm",
 ]
 
+[lib]
+path = "src/gresiq.rs"
+
 [dependencies]
+native-tls = "0.2"
+postgres-native-tls = "0.5"
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-postgres = { workspace = true }

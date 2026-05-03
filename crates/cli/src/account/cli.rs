@@ -2,12 +2,12 @@ use clap::Subcommand;
 
 #[derive(Subcommand)]
 pub enum Commands {
-    #[clap(about = "Create an account. Use your email as your username.")]
+    #[clap(about = "Create an account with your email address.")]
     Signup {},
-    #[clap(about = "Login to your account. To create an account, use smb signup.")]
+    #[clap(about = "Log in to your account. If you need one first, run `smb signup`.")]
     Login {},
-    #[clap(about = "Logout all session.")]
+    #[clap(about = "Log out of your current session.")]
     Logout {},
-    #[clap(about = "Forgot email? Use this command to reset your password.")]
+    #[clap(about = "Start the password reset flow.")]
     Forgot {},
 }

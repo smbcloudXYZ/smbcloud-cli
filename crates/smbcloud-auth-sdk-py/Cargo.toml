@@ -1,0 +1,26 @@
+[package]
+name = "smbcloud-auth-sdk-py"
+version = "0.3.41"
+edition = "2024"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+description = "Python bindings for the smbCloud Auth SDK."
+license = "Apache-2.0"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://smbcloud.xyz/posts"
+keywords = ["smbcloud", "auth", "sdk", "python", "pyo3"]
+categories = ["api-bindings", "authentication", "development-tools"]
+readme = "README.md"
+
+[lib]
+name = "smbcloud_auth_sdk_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.22.6", features = ["abi3-py38", "extension-module"] }
+pythonize = "0.22.0"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+smbcloud-auth-sdk = { workspace = true }
+smbcloud-model = { workspace = true }
+smbcloud-network = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }

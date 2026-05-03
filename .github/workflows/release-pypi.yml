@@ -1,10 +1,11 @@
-name: PyPI Release
+name: PyPI CLI Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.39)"
+        required: true
 
 permissions:
   id-token: write
@@ -12,14 +13,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  SMB_CLIENT_ID: ${{ secrets.SMB_CLIENT_ID }}
-  SMB_CLIENT_SECRET: ${{ secrets.SMB_CLIENT_SECRET }}
-  SMB_API_HOST: ${{ secrets.SMB_API_HOST }}
-  SMB_API_PROTOCOL: ${{ secrets.SMB_API_PROTOCOL }}
-  GH_OAUTH_CLIENT_ID: ${{ secrets.GH_OAUTH_CLIENT_ID }}
-  GH_OAUTH_CLIENT_SECRET: ${{ secrets.GH_OAUTH_CLIENT_SECRET }}
-  GH_OAUTH_REDIRECT_HOST: ${{ secrets.GH_OAUTH_REDIRECT_HOST }}
-  GH_OAUTH_REDIRECT_PORT: ${{ secrets.GH_OAUTH_REDIRECT_PORT }}
+  CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
 
 jobs:
   build-wheels:
@@ -97,9 +91,6 @@ jobs:
           rustup target add ${{ matrix.build.TARGET }} --toolchain ${{ env.RUST_TOOLCHAIN }}
           rustup target list --installed
 
-      - name: Export build secret
-        run: echo "CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }}" >> "$GITHUB_ENV"
-
       - name: Build wheel
         uses: PyO3/maturin-action@v1
         with:
@@ -108,6 +99,7 @@ jobs:
           working-directory: pypi
           args: --release --locked --compatibility pypi --out dist
           before-script-linux: yum install -y perl-core
+          docker-options: -e CLI_CLIENT_SECRET
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v7
@@ -151,9 +143,6 @@ jobs:
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-
-      - name: Export build secret
-        run: echo "CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }}" >> "$GITHUB_ENV"
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1

@@ -3,37 +3,13 @@ use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
-    ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+    ui::{fail_message, fail_symbol, me_view::show_user_tui, succeed_message, succeed_symbol},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use smbcloud_auth::me::me;
-use smbcloud_model::account::User;
+
 use smbcloud_network::environment::Environment;
 use spinners::Spinner;
-use tabled::{Table, Tabled};
-
-#[derive(Tabled)]
-struct UserRow {
-    #[tabled(rename = "ID")]
-    id: i32,
-    #[tabled(rename = "Email")]
-    email: String,
-    #[tabled(rename = "Created At")]
-    created_at: String,
-    #[tabled(rename = "Updated At")]
-    updated_at: String,
-}
-
-fn show_user(user: &User) {
-    let row = UserRow {
-        id: user.id,
-        email: user.email.clone(),
-        created_at: user.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-        updated_at: user.updated_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-    };
-    let table = Table::new(vec![row]);
-    println!("{table}");
-}
 
 pub async fn process_me(env: Environment) -> Result<CommandResult> {
     if !is_logged_in(env) {
@@ -54,14 +30,14 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
     match me(env, client(), &token).await {
         Ok(user) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
-            show_user(&user);
+            show_user_tui(&user).map_err(|e| anyhow!(e))?;
             Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
                     succeed_message("Loading"),
                 ),
                 symbol: succeed_symbol(),
-                msg: succeed_message("User info loaded."),
+                msg: succeed_message("Done."),
             })
         }
         Err(e) => {

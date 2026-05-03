@@ -1,3 +1,11 @@
+pub mod confirm_dialog;
+pub mod deployment_detail_view;
+pub mod deployment_table;
+pub mod me_view;
+pub mod project_detail_view;
+pub mod project_table;
+pub mod theme;
+
 use console::style;
 
 pub fn succeed_symbol() -> String {

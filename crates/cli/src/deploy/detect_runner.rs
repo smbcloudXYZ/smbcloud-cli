@@ -21,7 +21,7 @@ pub(crate) async fn detect_runner(config: &Config) -> Result<Runner> {
                 fail_message("Could not get the current path."),
             );
             anyhow::bail!(
-                "Could not detect project runner: no package.json, Gemfile, or Package.swift found"
+                "Could not detect project runner: no package.json, Gemfile, Package.swift, or Cargo.toml found"
             );
         }
     };
@@ -36,11 +36,11 @@ pub(crate) async fn detect_runner(config: &Config) -> Result<Runner> {
             spinner.stop_and_persist(
                 &fail_symbol(),
                 fail_message(
-                    "Could not detect project runner: no package.json, Gemfile, or Package.swift found",
+                    "Could not detect project runner: no package.json, Gemfile, Package.swift, or Cargo.toml found",
                 ),
             );
             anyhow::bail!(
-                "Could not detect project runner: no package.json, Gemfile, or Package.swift found"
+                "Could not detect project runner: no package.json, Gemfile, Package.swift, or Cargo.toml found"
             );
         }
     };
@@ -77,6 +77,14 @@ pub(crate) async fn detect_runner(config: &Config) -> Result<Runner> {
                 spinner.stop_and_persist(
                     &succeed_symbol(),
                     succeed_message("Swift 🟧 runner with Vapor app detected"),
+                );
+            }
+        }
+        Runner::Rust => {
+            if Path::new("Cargo.toml").exists() {
+                spinner.stop_and_persist(
+                    &succeed_symbol(),
+                    succeed_message("Rust 🦀 runner with Cargo project detected"),
                 );
             }
         }

@@ -1,10 +1,10 @@
-name: Homebrew Release
+name: Homebrew CLI Release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v0.3.36)"
+        description: "Release tag (e.g. v0.3.39)"
         required: true
 
 permissions:
@@ -37,10 +37,22 @@ jobs:
         run: |
           mkdir -p artifacts
 
-          gh release download "${{ steps.release.outputs.tag }}" \
-            --repo "${{ env.REPO }}" \
-            --pattern "smb-macos-*.tar.gz.sha256" \
-            --dir artifacts/
+          for attempt in 1 2 3 4 5; do
+            if gh release download "${{ steps.release.outputs.tag }}" \
+              --repo "${{ env.REPO }}" \
+              --pattern "smb-macos-*.tar.gz.sha256" \
+              --dir artifacts/; then
+              break
+            fi
+
+            if [ "$attempt" -eq 5 ]; then
+              echo "Failed to download Homebrew checksum artifacts from the GitHub release." >&2
+              exit 1
+            fi
+
+            echo "Release assets not visible yet. Retrying in 10 seconds..."
+            sleep 10
+          done
 
           ARM64_SHA=$(cat artifacts/smb-macos-arm64.tar.gz.sha256)
           AMD64_SHA=$(cat artifacts/smb-macos-amd64.tar.gz.sha256)

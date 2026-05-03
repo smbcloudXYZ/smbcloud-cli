@@ -14,7 +14,6 @@ use {
 };
 
 pub async fn process_logout(env: Environment) -> Result<CommandResult> {
-    // Logout if user confirms
     if let Some(token_path) = smb_token_file_path(env) {
         let confirm = match Confirm::with_theme(&ColorfulTheme::default())
             .with_prompt("Do you want to logout? y/n")
@@ -30,10 +29,10 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
             return Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
-                    succeed_message("Cancel operation"),
+                    succeed_message("Cancelled."),
                 ),
                 symbol: succeed_symbol(),
-                msg: succeed_message("Doing nothing."),
+                msg: succeed_message("Cancelled."),
             });
         }
 
@@ -42,7 +41,6 @@ pub async fn process_logout(env: Environment) -> Result<CommandResult> {
             succeed_message("Logging you out"),
         );
 
-        // Call backend
         match do_process_logout(env).await {
             Ok(_) => {
                 fs::remove_file(token_path)?;
@@ -70,6 +68,14 @@ async fn do_process_logout(env: Environment) -> Result<()> {
     let token = get_smb_token(env)?;
     match logout(env, client(), token).await {
         Ok(_) => Ok(()),
-        Err(e) => Err(anyhow!("{e}")),
+        Err(e) => {
+            // A 401 means the session is already expired on the server.
+            // Treat this as success — the session is gone either way.
+            if e.to_string().contains("Unauthorized") {
+                Ok(())
+            } else {
+                Err(anyhow!("{e}"))
+            }
+        }
     }
 }

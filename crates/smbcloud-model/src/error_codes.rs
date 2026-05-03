@@ -39,7 +39,7 @@ pub enum ErrorCode {
     MissingConfig = 4,
     // #[error("Missing id in repository. Please regenerate with 'smb init'.")]
     // MissingId,
-    #[error("Cancel operation.")]
+    #[error("Cancelled.")]
     Cancel = 5,
     // Account
     #[error("Unauthorized access.")]
@@ -122,7 +122,7 @@ impl ErrorCode {
             // CLI Generic errors
             ErrorCode::InputError => "Input error.",
             ErrorCode::MissingConfig => "Missing config.",
-            ErrorCode::Cancel => "Cancelled operation.",
+            ErrorCode::Cancel => "Cancelled.",
             // Projects
             ErrorCode::ProjectNotFound => "Project not found.",
             ErrorCode::UnsupportedRunner => "Unsupported runner.",

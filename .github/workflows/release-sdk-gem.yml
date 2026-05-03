@@ -1,0 +1,244 @@
+name: SDK Ruby Gem Release
+
+# Publishes the smbcloud-auth Ruby gem (sdk/gems/auth) to RubyGems.
+# Builds pre-compiled native gems for each supported platform, plus a source
+# gem as a fallback for unsupported platforms.
+#
+# Required secrets:
+#   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.35)"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # ── Build native gems ──────────────────────────────────────────────────────
+  build-gems:
+    name: Build gem (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux-x64, runner: ubuntu-latest, platform: x86_64-linux }
+          - {
+              name: linux-arm64,
+              runner: ubuntu-24.04-arm,
+              platform: aarch64-linux,
+            }
+          - { name: darwin-arm64, runner: macos-latest, platform: arm64-darwin }
+          - {
+              name: darwin-x64,
+              runner: macos-15-intel,
+              platform: x86_64-darwin,
+            }
+          - { name: win-x64, runner: windows-2022, platform: x64-mingw-ucrt }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Wait for Rust crate dependencies on crates.io
+        shell: bash
+        run: |
+          for crate_name in smbcloud-auth-sdk smbcloud-model smbcloud-network; do
+            for attempt in 1 2 3 4 5 6; do
+              if curl -fsS "https://crates.io/api/v1/crates/${crate_name}/${RELEASE_VERSION}" >/dev/null 2>&1; then
+                echo "${crate_name} ${RELEASE_VERSION} is available on crates.io"
+                break
+              fi
+
+              if [ "$attempt" -eq 6 ]; then
+                echo "Timed out waiting for ${crate_name} ${RELEASE_VERSION} on crates.io" >&2
+                exit 1
+              fi
+
+              echo "Waiting for ${crate_name} ${RELEASE_VERSION} to appear on crates.io..."
+              sleep 15
+            done
+          done
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      # Scope the Rust cache to the gem's own Cargo workspace so its registry
+      # deps are cached independently from the main workspace.
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: sdk-gem-${{ matrix.name }}
+          workspaces: sdk/gems/auth
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.2"
+          bundler-cache: true
+          working-directory: sdk/gems/auth
+
+      - name: Build native gem
+        working-directory: sdk/gems/auth
+        shell: bash
+        run: bundle exec rake native gem
+
+      - name: Upload gem artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: gem-${{ matrix.name }}
+          path: sdk/gems/auth/pkg/*.gem
+
+  # ── Build source gem (fallback for unsupported platforms) ──────────────────
+  build-source-gem:
+    name: Build source gem
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Verify gem version matches tag
+        shell: bash
+        run: |
+          GEM_VERSION=$(sed -n "s/.*VERSION = '\\(.*\\)'/\\1/p" sdk/gems/auth/lib/auth/version.rb)
+
+          echo "Gem version : ${GEM_VERSION}"
+          echo "Tag version : ${RELEASE_VERSION}"
+
+          if [[ "${GEM_VERSION}" != "${RELEASE_VERSION}" ]]; then
+            echo "::error::Version mismatch — bump Auth::VERSION in sdk/gems/auth/lib/auth/version.rb before releasing."
+            exit 1
+          fi
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.2"
+          bundler-cache: true
+          working-directory: sdk/gems/auth
+
+      - name: Build source gem
+        working-directory: sdk/gems/auth
+        run: bundle exec rake build
+
+      - name: Upload source gem artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: gem-source
+          path: sdk/gems/auth/pkg/*.gem
+
+  # ── Push all gems to RubyGems ──────────────────────────────────────────────
+  push-gems:
+    name: Push to RubyGems
+    needs: [build-gems, build-source-gem]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Check whether release already exists on RubyGems
+        id: rubygems-check
+        shell: bash
+        run: |
+          if curl -fsS \
+            "https://rubygems.org/api/v2/rubygems/smbcloud-auth/versions/${RELEASE_VERSION}.json" \
+            >/dev/null 2>&1; then
+            echo "smbcloud-auth ${RELEASE_VERSION} already exists on RubyGems, skipping publish"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all gem artifacts
+        if: steps.rubygems-check.outputs.exists != 'true'
+        uses: actions/download-artifact@v7
+        with:
+          pattern: "gem-*"
+          path: gems
+          merge-multiple: true
+
+      - name: Setup Ruby
+        if: steps.rubygems-check.outputs.exists != 'true'
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.2"
+
+      - name: Configure RubyGems credentials
+        if: steps.rubygems-check.outputs.exists != 'true'
+        shell: bash
+        run: |
+          mkdir -p "${HOME}/.gem"
+          echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" > "${HOME}/.gem/credentials"
+          chmod 0600 "${HOME}/.gem/credentials"
+
+      # Push each .gem file individually. Platform-specific gems that are already
+      # published (e.g. from a re-run) emit a warning and continue rather than
+      # failing the whole job.
+      - name: Push gems to RubyGems
+        if: steps.rubygems-check.outputs.exists != 'true'
+        shell: bash
+        run: |
+          for gem_file in gems/*.gem; do
+            echo "Pushing $(basename "${gem_file}")…"
+            gem push "${gem_file}" \
+              || echo "::warning::$(basename "${gem_file}") may already exist for this version — skipping."
+          done

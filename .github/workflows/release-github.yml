@@ -1,13 +1,10 @@
-name: GitHub Release
+name: GitHub CLI Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v0.3.35)"
+        description: "Release tag (e.g. v0.3.39)"
         required: true
 
 permissions:
@@ -17,6 +14,7 @@ permissions:
 env:
   PROJECT_NAME: smb
   CARGO_TERM_COLOR: always
+  CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
 
 jobs:
   build:
@@ -85,9 +83,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           key: github-${{ matrix.target }}
-
-      - name: Export build secrets
-        run: echo "CLI_CLIENT_SECRET=${{ secrets.CLI_CLIENT_SECRET }}" >> "$GITHUB_ENV"
 
       - name: Build binary
         shell: bash
@@ -184,7 +179,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-homebrew.yml',
-              ref: 'main',
+              ref: '${{ steps.tag.outputs.tag }}',
               inputs: {
                 tag: '${{ steps.tag.outputs.tag }}'
               }
