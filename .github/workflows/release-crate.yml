@@ -169,7 +169,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-github.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
               }
@@ -183,7 +183,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-npm.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
               }
@@ -197,7 +197,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-nuget.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
               }
@@ -211,7 +211,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-pypi.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
               }
@@ -232,7 +232,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-sdk-pypi.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
               }
@@ -253,7 +253,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-sdk-npm.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
               }
@@ -274,7 +274,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-sdk-gem.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
               }

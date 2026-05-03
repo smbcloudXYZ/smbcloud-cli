@@ -179,7 +179,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-homebrew.yml',
-              ref: context.payload.repository.default_branch,
+              ref: '${{ steps.tag.outputs.tag }}',
               inputs: {
                 tag: '${{ steps.tag.outputs.tag }}'
               }
