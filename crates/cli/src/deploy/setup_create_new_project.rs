@@ -74,7 +74,13 @@ pub(crate) async fn create_new_project(
         }
     };
 
-    let runners = vec![Runner::NodeJs, Runner::Static, Runner::Ruby, Runner::Swift];
+    let runners = vec![
+        Runner::NodeJs,
+        Runner::Static,
+        Runner::Ruby,
+        Runner::Swift,
+        Runner::Rust,
+    ];
     let runner = Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)
