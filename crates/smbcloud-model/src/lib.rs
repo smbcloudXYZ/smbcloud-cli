@@ -4,6 +4,7 @@ pub mod error_codes;
 pub mod forgot;
 pub mod frontend_app;
 pub mod login;
+pub mod mail;
 pub mod oauth;
 pub mod project;
 pub mod repository;

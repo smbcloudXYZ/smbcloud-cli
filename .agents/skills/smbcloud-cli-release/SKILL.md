@@ -85,7 +85,7 @@ From `npm/`:
 
 Example:
 
-- `node ./scripts/render-platform-package.cjs cli-darwin-arm64 0.3.33 darwin arm64`
+- `node ./scripts/render-platform-package.cjs cli-darwin-arm64 0.3.39 darwin arm64`
 
 ### Publish order
 

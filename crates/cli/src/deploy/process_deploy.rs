@@ -9,6 +9,7 @@ use {
             git::remote_deployment_setup,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
+            process_deploy_rust::process_deploy_rust,
             process_deploy_vite_spa::process_deploy_vite_spa,
             remote_messages::{build_next_app, start_server},
             rsync_deploy::rsync_deploy,
@@ -133,6 +134,11 @@ pub async fn process_deploy(
     // Route Rails projects: rsync shared lib, SSH compile native gem, git force-push sub-project.
     if config.project.kind.as_deref() == Some("rails") {
         return process_deploy_rails(env, config).await;
+    }
+
+    // Route Rust service projects: rsync source tree, then run a remote Cargo build script.
+    if config.project.kind.as_deref() == Some("rust") {
+        return process_deploy_rust(env, config).await;
     }
 
     match config.project.deployment_method {

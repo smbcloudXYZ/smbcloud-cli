@@ -117,6 +117,8 @@ jobs:
         with:
           key: sdk-pypi-${{ matrix.build.NAME }}
 
+      # manylinux containers are CentOS-based and use yum; perl-core is required
+      # by the openssl-sys vendored build to compile OpenSSL from source.
       - name: Build wheel
         uses: PyO3/maturin-action@v1
         with:

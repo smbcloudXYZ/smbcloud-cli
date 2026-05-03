@@ -7,6 +7,7 @@ use {
         clear_smb_token,
         cli::{Cli, CommandResult, Commands},
         deploy::process_deploy::process_deploy,
+        mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
     },
     smbcloud_network::{environment::Environment, network::check_internet_connection},
@@ -125,6 +126,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         | Some(Commands::Login {})
         | Some(Commands::Logout {})
         | Some(Commands::Account { .. })
+        | Some(Commands::Mail { .. })
         | Some(Commands::Project { .. })
         | None => true,
         Some(Commands::Init {}) => true,
@@ -144,6 +146,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
         Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
+        Some(Commands::Mail { command }) => process_mail(cli.environment, command).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
         None => process_deploy(cli.environment, None).await,
     }

@@ -1,0 +1,26 @@
+[package]
+name = "smbcloud-gresiq-sdk"
+version = "0.3.41"
+edition = "2021"
+description = "Rust client for the smbCloud GresIQ REST gateway — API-key auth, app management, and model assignment for Onde Inference."
+license = "Apache-2.0"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+homepage = "https://smbcloud.xyz"
+documentation = "https://docs.rs/smbcloud-gresiq-sdk"
+readme = "README.md"
+keywords = ["smbcloud", "gresiq", "inference", "api", "onde"]
+categories = ["api-bindings", "network-programming", "web-programming::http-client"]
+
+[lib]
+path = "src/smbcloud_gresiq_sdk.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+log = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+smbcloud-network = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }

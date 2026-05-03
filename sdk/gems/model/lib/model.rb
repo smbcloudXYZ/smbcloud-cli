@@ -5,5 +5,4 @@ require_relative 'model/model'
 
 module Model
   class Error < StandardError; end
-  # Your code goes here...
 end

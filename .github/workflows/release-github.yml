@@ -1,13 +1,10 @@
-name: GitHub Release
+name: GitHub CLI Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v0.3.35)"
+        description: "Release tag (e.g. v0.3.39)"
         required: true
 
 permissions:
@@ -182,7 +179,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-homebrew.yml',
-              ref: 'main',
+              ref: '${{ steps.tag.outputs.tag }}',
               inputs: {
                 tag: '${{ steps.tag.outputs.tag }}'
               }

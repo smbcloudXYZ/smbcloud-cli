@@ -19,6 +19,7 @@
   <p align="center">
     <a href="https://crates.io/crates/smbcloud-cli"><img alt="Crates.io" src="https://img.shields.io/crates/v/smbcloud-cli"></a>
     <a href="https://www.npmjs.com/package/@smbcloud/cli"><img alt="npm" src="https://img.shields.io/npm/v/@smbcloud/cli"></a>
+    <a href="https://www.nuget.org/packages/SmbCloud.Cli"><img alt="NuGet" src="https://img.shields.io/nuget/v/SmbCloud.Cli"></a>
     <a href="https://github.com/smbcloudXYZ/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew"></a>
     <a href="https://pypi.org/project/smbcloud-cli/"><img alt="PyPI" src="https://img.shields.io/pypi/v/smbcloud-cli"></a>
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/smbcloudXYZ/smbcloud-cli"></a>
@@ -46,6 +47,12 @@ brew install cli
 
 ```sh
 npm install -g @smbcloud/cli
+```
+
+### .NET tool
+
+```sh
+dotnet tool install --global SmbCloud.Cli
 ```
 
 ### pip
@@ -86,6 +93,12 @@ See the [`docs/`](./docs) directory for guides on authentication, project config
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started. All contributions are welcome.
 
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
 ## License
 
 [Apache-2.0](LICENSE)
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

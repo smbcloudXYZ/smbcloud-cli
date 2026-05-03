@@ -21,6 +21,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ── Build native gems ──────────────────────────────────────────────────────
   build-gems:
     name: Build gem (${{ matrix.name }})
     runs-on: ${{ matrix.runner }}
@@ -40,6 +41,7 @@ jobs:
               runner: macos-15-intel,
               platform: x86_64-darwin,
             }
+          - { name: win-x64, runner: windows-2022, platform: x64-mingw-ucrt }
 
     steps:
       - name: Checkout
@@ -93,6 +95,8 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      # Scope the Rust cache to the gem's own Cargo workspace so its registry
+      # deps are cached independently from the main workspace.
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -117,6 +121,7 @@ jobs:
           name: gem-${{ matrix.name }}
           path: sdk/gems/auth/pkg/*.gem
 
+  # ── Build source gem (fallback for unsupported platforms) ──────────────────
   build-source-gem:
     name: Build source gem
     runs-on: ubuntu-latest
@@ -140,7 +145,7 @@ jobs:
       - name: Verify gem version matches tag
         shell: bash
         run: |
-          GEM_VERSION=$(sed -n "s/.*VERSION = '\\(.*\\)'/\\1/p" sdk/gems/auth/lib/auth/version.rb)
+          GEM_VERSION=$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/auth/lib/auth/version.rb)
 
           echo "Gem version : ${GEM_VERSION}"
           echo "Tag version : ${RELEASE_VERSION}"
@@ -167,6 +172,7 @@ jobs:
           name: gem-source
           path: sdk/gems/auth/pkg/*.gem
 
+  # ── Push all gems to RubyGems ──────────────────────────────────────────────
   push-gems:
     name: Push to RubyGems
     needs: [build-gems, build-source-gem]
@@ -224,6 +230,9 @@ jobs:
           echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" > "${HOME}/.gem/credentials"
           chmod 0600 "${HOME}/.gem/credentials"
 
+      # Push each .gem file individually. Platform-specific gems that are already
+      # published (e.g. from a re-run) emit a warning and continue rather than
+      # failing the whole job.
       - name: Push gems to RubyGems
         if: steps.rubygems-check.outputs.exists != 'true'
         shell: bash

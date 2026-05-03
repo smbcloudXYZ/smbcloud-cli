@@ -5,6 +5,7 @@ mod known_hosts;
 pub mod process_deploy;
 pub mod process_deploy_nextjs_ssr;
 pub mod process_deploy_rails;
+pub mod process_deploy_rust;
 pub mod process_deploy_vite_spa;
 mod remote_messages;
 pub(crate) mod rsync_deploy;

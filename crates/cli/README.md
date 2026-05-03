@@ -22,7 +22,7 @@
 
 ## Installation
 
-One can install this program in different ways.
+You can install the CLI a few different ways.
 
 ### With Cargo
 
@@ -51,7 +51,7 @@ pip install smbcloud-cli
 
 ## Update
 
-Simply rerun the installation command.
+To update the CLI, run the same install command again.
 
 ## Uninstall
 
@@ -78,13 +78,23 @@ smb --help
 
 ## Contribution
 
-- Setup your Rust tooling.
+- Set up your Rust tooling.
 - Clone the repo.
-- Provide the environment variables in the .env.local.
+- Add the required environment variables to `.env.local`.
 - Run `cargo run`.
 
 ## Credits
 
-This repo is inspired by [Sugar](https://github.com/metaplex-foundation/sugar).
+This repo draws inspiration from [Sugar](https://github.com/metaplex-foundation/sugar).
 
-This repo tries to follow [the 12 factor CLI app](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46) principles by
+It also borrows ideas from [the 12 factor CLI app](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46).
+
+> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+
+## License
+
+[Apache-2.0](https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE)
+
+## Copyright
+
+© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).

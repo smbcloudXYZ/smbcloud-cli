@@ -5,18 +5,23 @@
 .zed
 .vscode
 
-# Secrets
-.env
-# Generated npm release artifacts
-/npm/cli-*/
-# Generated PyPI release artifacts
-/pypi/dist/
-/pypi/.venv/
-
 # Local .NET CLI state
 /.dotnet/
+
+# Secrets
+.env
+
+# Generated npm release artifacts
+/npm/cli-*/
+
+# Generated Python release artifacts
+/pypi/dist/
+/pypi/.venv/
+/sdk/python/dist/
+/sdk/python/.venv/
 
 # Generated .NET / NuGet build outputs
 /nuget/dist/
 /nuget/**/bin/
 /nuget/**/obj/
+/nuget/smbcloud-cli/native/
