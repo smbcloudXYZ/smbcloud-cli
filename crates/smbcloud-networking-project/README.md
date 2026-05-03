@@ -2,7 +2,7 @@
 
 Project-focused networking helpers for the smbCloud CLI.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+Project and deployment guides are in the [smbCloud docs](https://smbcloud.xyz/posts).
 
 ## License
 

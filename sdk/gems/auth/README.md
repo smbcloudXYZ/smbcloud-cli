@@ -1,6 +1,6 @@
 # smbcloud-auth Gem
 
-Ruby bindings for the smbCloud Auth SDK.
+Ruby bindings for smbCloud Auth.
 
 ## Install
 
@@ -42,7 +42,7 @@ me = client.me(access_token: login[:access_token])
 - `logout(access_token:)`
 - `remove(access_token:)`
 
-For simple scripting, module-level convenience wrappers are also available:
+Module-level helpers are also available:
 
 - `SmbCloud::Auth.signup_with_client(...)`
 - `SmbCloud::Auth.login_with_client(...)`
@@ -50,7 +50,7 @@ For simple scripting, module-level convenience wrappers are also available:
 - `SmbCloud::Auth.logout_with_client(...)`
 - `SmbCloud::Auth.remove_with_client(...)`
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More auth and SDK notes are in the [smbCloud docs](https://smbcloud.xyz/posts).
 
 ## License
 

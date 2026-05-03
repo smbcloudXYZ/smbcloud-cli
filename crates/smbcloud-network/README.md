@@ -2,7 +2,7 @@
 
 Environment and transport helpers for smbCloud clients.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More client and platform context is on [smbcloud.xyz](https://smbcloud.xyz/).
 
 ## License
 

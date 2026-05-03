@@ -5,7 +5,7 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    Deploy to the cloud in one command.
+    Deploy with smbCloud from your terminal.
     <br />
     <br />
     <a href="https://smbcloud.xyz/">Website</a>
@@ -22,19 +22,19 @@
     <a href="https://www.nuget.org/packages/SmbCloud.Cli"><img alt="NuGet" src="https://img.shields.io/nuget/v/SmbCloud.Cli"></a>
     <a href="https://github.com/smbcloudXYZ/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew"></a>
     <a href="https://pypi.org/project/smbcloud-cli/"><img alt="PyPI" src="https://img.shields.io/pypi/v/smbcloud-cli"></a>
-    <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/smbcloudXYZ/smbcloud-cli"></a>
+    <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="Apache-2.0 License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
   </p>
 </p>
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 
-Ship your Rust, Node.js, Ruby, or Swift app with a single, magical command.
+Deploy Rust, Node.js, Ruby, or Swift apps from your terminal.
 
 ## Install
 
-We highly recommend using our **pre-built native binaries** for the fastest, frictionless setup.
+If you want the quickest setup, use a pre-built native binary.
 
 ### Homebrew (macOS & Linux)
 
@@ -83,7 +83,7 @@ smb init
 smb deploy
 ```
 
-That's it. Your app is live.
+That gets you from login to first deploy.
 
 ## Documentation
 
@@ -91,9 +91,9 @@ See the [`docs/`](./docs) directory for guides on authentication, project config
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started. All contributions are welcome.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started. Contributions are welcome.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For the broader product, see [smbCloud](https://smbcloud.xyz/) and the [deployment docs](https://smbcloud.xyz/posts).
 
 ## License
 

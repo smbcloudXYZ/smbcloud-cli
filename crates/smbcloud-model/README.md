@@ -2,7 +2,7 @@
 
 Shared data models for smbCloud CLI services and SDKs.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+See the [smbCloud developer docs](https://smbcloud.xyz/posts) for the services that use these models.
 
 ## License
 
