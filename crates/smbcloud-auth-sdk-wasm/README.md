@@ -1,10 +1,8 @@
 # smbcloud-auth-sdk-wasm
 
-Wasm bindings for the smbCloud Auth SDK.
+Wasm bindings for smbCloud Auth.
 
-This crate is intended to be published as an npm package via `wasm-pack` and
-consumed by browser clients that need tenant auth-app signup, sign-in, profile
-lookup, and account deletion against the smbCloud Auth service.
+This crate is published as an npm package through `wasm-pack` and used by browser clients that need signup, sign-in, profile lookup, logout, and account deletion against smbCloud Auth.
 
 ## Exports
 
@@ -41,7 +39,7 @@ await signup_with_client(
 );
 ```
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More browser SDK context is available in the [smbCloud docs](https://smbcloud.xyz/posts).
 
 ## License
 

@@ -2,7 +2,7 @@
 
 Shared utility helpers for smbCloud CLI crates.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More about the platform is at [smbCloud](https://smbcloud.xyz/).
 
 ## License
 

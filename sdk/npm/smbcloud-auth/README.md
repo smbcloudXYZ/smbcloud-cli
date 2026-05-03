@@ -5,7 +5,7 @@
   <br>smbCloud SDK Auth
 </h1>
   <p align="center">
-    Browser authentication SDK for smbCloud, built from Rust and WebAssembly.
+    Browser auth SDK for smbCloud.
     <br />
     <a href="README.md#about">About</a>
     ·
@@ -19,9 +19,7 @@
 
 ## About
 
-`@smbcloud/sdk-auth` is the browser SDK for smbCloud Auth. It wraps the shared Rust
-Auth crate through WebAssembly so browser apps can use the same auth
-contract as desktop and mobile clients.
+`@smbcloud/sdk-auth` is the browser SDK for smbCloud Auth. It wraps the shared Rust auth crate through WebAssembly so browser apps can use the same auth API as other smbCloud clients.
 
 Current exported browser APIs include:
 
@@ -67,10 +65,9 @@ npm run prepare:package
 npm run pack:dry-run
 ```
 
-This builds the wasm crate, stages the generated artifacts into the npm package
-folder, and lets you verify the publish payload before release.
+This builds the wasm crate, stages the generated artifacts into the npm package folder, and lets you check the publish payload before release.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More browser and platform docs live in the [smbCloud developer docs](https://smbcloud.xyz/posts).
 
 ## License
 

@@ -1,11 +1,10 @@
 # smbCloud SDK Auth
 
-Python authentication SDK for smbCloud, built from Rust.
+Python auth SDK for smbCloud.
 
 ## About
 
-`smbcloud-sdk-auth` wraps the shared Rust Auth crate through PyO3 and maturin so
-Python apps can use the same tenant auth contract as the browser SDK.
+`smbcloud-sdk-auth` wraps the shared Rust auth crate through PyO3 so Python apps can use the same auth API as the browser SDK.
 
 Current exported Python APIs include:
 
@@ -47,7 +46,7 @@ From `sdk/python`:
 maturin build
 ```
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For the wider platform and docs, see [smbCloud](https://smbcloud.xyz/) and the [developer guides](https://smbcloud.xyz/posts).
 
 ## License
 

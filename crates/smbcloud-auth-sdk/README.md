@@ -1,6 +1,6 @@
 # smbcloud-auth-sdk
 
-Client SDK for [smbCloud Auth](https://smbcloud.xyz/) — lets you authenticate your users against the smbCloud Auth service using your app credentials (`client_id` / `client_secret`).
+Client SDK for [smbCloud Auth](https://smbcloud.xyz/). Use your app credentials (`client_id` and `client_secret`) to authenticate users against the smbCloud Auth service.
 
 ## Usage
 
@@ -28,7 +28,7 @@ let status = login_with_client(Environment::Production, client, email, password)
 let user = me_with_client(Environment::Production, client, &access_token).await?;
 ```
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+See the [smbCloud auth docs](https://smbcloud.xyz/posts) for the wider flow around app credentials and user sessions.
 
 ## License
 

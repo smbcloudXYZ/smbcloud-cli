@@ -1,5 +1,9 @@
 name: PyPI CLI Release
 
+# Windows arm64 wheels are intentionally not built here. GitHub's hosted
+# Windows runners provide x64 Python, and maturin refuses to build an arm64
+# wheel when the interpreter reports win-amd64.
+
 on:
   workflow_dispatch:
     inputs:
@@ -40,11 +44,7 @@ jobs:
               OS: windows-2022,
               TARGET: x86_64-pc-windows-msvc,
             }
-          - {
-              NAME: win32-arm64-msvc,
-              OS: windows-2022,
-              TARGET: aarch64-pc-windows-msvc,
-            }
+
           - { NAME: darwin-x64, OS: macos-latest, TARGET: x86_64-apple-darwin }
           - {
               NAME: darwin-arm64,

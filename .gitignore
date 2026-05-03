@@ -20,8 +20,8 @@
 /sdk/python/dist/
 /sdk/python/.venv/
 
-# Generated NuGet release artifacts
+# Generated .NET / NuGet build outputs
 /nuget/dist/
-/nuget/smbcloud-cli/bin/
-/nuget/smbcloud-cli/obj/
+/nuget/**/bin/
+/nuget/**/obj/
 /nuget/smbcloud-cli/native/

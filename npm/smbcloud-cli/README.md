@@ -5,7 +5,7 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    Deploy to the cloud in one command.
+    Deploy with smbCloud from your terminal.
     <br />
     <br />
     <a href="https://smbcloud.xyz/">Website</a>
@@ -26,9 +26,9 @@
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 
-Ship your Rust, Node.js, Ruby, or Swift app with a single, magical command.
+Install it with npm, then run the native `smb` binary for your platform.
 
 ## Install
 
@@ -36,7 +36,7 @@ Ship your Rust, Node.js, Ruby, or Swift app with a single, magical command.
 npm install -g @smbcloud/cli
 ```
 
-This package automatically downloads and installs the correct pre-built native binary for your platform.
+This package downloads the right pre-built native binary for your platform.
 
 ## Quick Start
 
@@ -46,7 +46,7 @@ smb init
 smb deploy
 ```
 
-That's it. Your app is live.
+That gets you from login to first deploy.
 
 ## Other Installation Methods
 
@@ -97,11 +97,11 @@ This package ships pre-built native binaries for:
 
 ## Source & Issues
 
-This is a native binary distributed via npm. The source code lives at
+This package ships the native `smb` binary through npm.
+Source code and issue tracker:
 [github.com/smbcloudXYZ/smbcloud-cli](https://github.com/smbcloudXYZ/smbcloud-cli).
-Please report bugs and feature requests there.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+You can find the main install and deploy guides in the [smbCloud CLI docs](https://smbcloud.xyz/posts).
 
 ## License
 

@@ -1,6 +1,6 @@
 # smbCloud CLI for .NET
 
-`smb` is the official command-line interface for [smbCloud](https://smbcloud.xyz/).
+`smb` is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 
 ## Install
 
@@ -43,7 +43,7 @@ This .NET tool bundles native `smb` binaries for:
 - Documentation: <https://smbcloud.xyz/posts>
 - Issues: <https://github.com/smbcloudXYZ/smbcloud-cli/issues>
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More about the product is on the [smbCloud website](https://smbcloud.xyz/).
 
 ## License
 

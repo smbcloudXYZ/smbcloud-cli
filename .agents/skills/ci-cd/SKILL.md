@@ -260,16 +260,16 @@ The PyPI workflow is also exempt because maturin is already pointed at the right
 
 ### Current runners and targets
 
-| Platform      | Runner             | Target                      | Notes                     |
-| ------------- | ------------------ | --------------------------- | ------------------------- |
-| Linux x86_64  | `ubuntu-latest`    | `x86_64-unknown-linux-gnu`  | Native                    |
-| Linux arm64   | `ubuntu-24.04-arm` | `aarch64-unknown-linux-gnu` | Native — do not use QEMU  |
-| Windows x64   | `windows-2022`     | `x86_64-pc-windows-msvc`    | Native                    |
-| Windows arm64 | `windows-2022`     | `aarch64-pc-windows-msvc`   | Cross-compile on x64 host |
-| macOS x64     | `macos-15-intel`   | `x86_64-apple-darwin`       | Native Intel runner       |
-| macOS arm64   | `macos-latest`     | `aarch64-apple-darwin`      | Native Apple Silicon      |
+| Platform      | Runner             | Target                      | Notes                      |
+| ------------- | ------------------ | --------------------------- | -------------------------- |
+| Linux x86_64  | `ubuntu-latest`    | `x86_64-unknown-linux-gnu`  | Native                     |
+| Linux arm64   | `ubuntu-24.04-arm` | `aarch64-unknown-linux-gnu` | Native — do not use QEMU   |
+| Windows x64   | `windows-2022`     | `x86_64-pc-windows-msvc`    | Native                     |
+| Windows arm64 | `windows-2022`     | `aarch64-pc-windows-msvc`   | Do not use for PyPI wheels |
+| macOS x64     | `macos-15-intel`   | `x86_64-apple-darwin`       | Native Intel runner        |
+| macOS arm64   | `macos-latest`     | `aarch64-apple-darwin`      | Native Apple Silicon       |
 
-For npm and GitHub Release, use native runners. For PyPI (maturin), the macOS x64 build uses `macos-latest` with cross-compilation because maturin handles it transparently inside its container.
+For npm and GitHub Release, use native runners. For PyPI (maturin), the macOS x64 build uses `macos-latest` with cross-compilation because maturin handles it transparently inside its container. Windows arm64 is the exception: GitHub's hosted Windows runners only provide x64 Python, so maturin will refuse to build an `aarch64-pc-windows-msvc` wheel when the interpreter reports `win-amd64`.
 
 ### Do not use QEMU for arm64 Linux
 
@@ -707,6 +707,9 @@ This reads whatever version is currently in `Cargo.toml` on the checked-out bran
 
 **QEMU for arm64 Linux**
 Using `ubuntu-latest` (x86_64) to build `aarch64-unknown-linux-gnu` via QEMU inside manylinux is slow and causes container mismatch errors. Use `ubuntu-24.04-arm`.
+
+**Windows arm64 PyPI wheels on hosted runners**
+Maturin needs a matching Python interpreter for wheel generation. On GitHub-hosted Windows runners, the available interpreter reports `win-amd64`, so an `aarch64-pc-windows-msvc` wheel build gets skipped and then fails. Unless you have an arm64 Windows runner with arm64 Python installed, leave Windows arm64 out of the PyPI wheel matrix.
 
 **`yum` vs `apt` in manylinux**
 manylinux2014 is CentOS 7. Use `yum`, not `apt`. For manylinux_2_28 (AlmaLinux 8) use `dnf`.

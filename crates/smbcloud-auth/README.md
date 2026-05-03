@@ -4,9 +4,9 @@ Rust authentication foundation for smbCloud.
 
 ## About
 
-`smbcloud-auth` provides the shared authentication flows used across the smbCloud CLI and SDK ecosystem.
+`smbcloud-auth` provides the shared authentication flows used across the smbCloud CLI and SDKs.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For product context, visit [smbCloud](https://smbcloud.xyz/) or read the [developer docs](https://smbcloud.xyz/posts).
 
 ## License
 

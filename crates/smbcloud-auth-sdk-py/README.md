@@ -1,8 +1,8 @@
 # smbcloud-auth-sdk-py
 
-PyO3 bindings for the smbCloud Auth SDK.
+PyO3 bindings for smbCloud Auth.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For higher-level SDK docs, see the [smbCloud developer guides](https://smbcloud.xyz/posts).
 
 ## License
 

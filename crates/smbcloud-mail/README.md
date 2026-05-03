@@ -6,7 +6,7 @@ Mail routing support crate for smbCloud Mail.
 
 `smbcloud-mail` provides the shared mail API client layer used by the smbCloud CLI for mail apps, inbox routes, test delivery, and inbound message inspection.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For the wider product story, visit [smbCloud](https://smbcloud.xyz/).
 
 ## License
 

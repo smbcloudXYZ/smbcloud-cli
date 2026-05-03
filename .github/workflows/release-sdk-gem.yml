@@ -1,8 +1,8 @@
 name: SDK Ruby Gem Release
 
 # Publishes the smbcloud-auth Ruby gem (sdk/gems/auth) to RubyGems.
-# Builds pre-compiled native gems for each supported platform, plus a source
-# gem as a fallback for unsupported platforms.
+# Builds pre-compiled native gems for the supported Unix platforms, plus a
+# source gem as a fallback for unsupported environments.
 #
 # Required secrets:
 #   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth
@@ -64,13 +64,13 @@ jobs:
         shell: bash
         run: |
           for crate_name in smbcloud-auth-sdk smbcloud-model smbcloud-network; do
-            for attempt in 1 2 3 4 5 6; do
+            for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
               if curl -fsS "https://crates.io/api/v1/crates/${crate_name}/${RELEASE_VERSION}" >/dev/null 2>&1; then
                 echo "${crate_name} ${RELEASE_VERSION} is available on crates.io"
                 break
               fi
 
-              if [ "$attempt" -eq 6 ]; then
+              if [ "$attempt" -eq 20 ]; then
                 echo "Timed out waiting for ${crate_name} ${RELEASE_VERSION} on crates.io" >&2
                 exit 1
               fi
@@ -145,7 +145,7 @@ jobs:
       - name: Verify gem version matches tag
         shell: bash
         run: |
-          GEM_VERSION=$(sed -n "s/.*VERSION = '\\(.*\\)'/\\1/p" sdk/gems/auth/lib/auth/version.rb)
+          GEM_VERSION=$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/auth/lib/auth/version.rb)
 
           echo "Gem version : ${GEM_VERSION}"
           echo "Tag version : ${RELEASE_VERSION}"
