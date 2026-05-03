@@ -36,7 +36,13 @@ pub async fn process_project_init(
         }
     };
 
-    let runners = vec![Runner::NodeJs, Runner::Static, Runner::Ruby, Runner::Swift];
+    let runners = vec![
+        Runner::NodeJs,
+        Runner::Static,
+        Runner::Ruby,
+        Runner::Swift,
+        Runner::Rust,
+    ];
     let runner = Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)
@@ -64,7 +70,7 @@ pub async fn process_project_init(
     };
 
     if should_init_project {
-        setup_smb_folder(&project_name, &description).await?;
+        setup_smb_folder(&project_name, &description, runner).await?;
     }
 
     let spinner = Spinner::new(
@@ -99,7 +105,7 @@ pub async fn process_project_init(
     }
 }
 
-async fn setup_smb_folder(name: &str, description: &str) -> Result<()> {
+async fn setup_smb_folder(name: &str, description: &str, runner: Runner) -> Result<()> {
     // Create .smb folder in the current directory
     std::fs::create_dir(".smb")?;
     // Create config.toml file in the .smb folder
@@ -114,13 +120,14 @@ description = "{description}"
 [project]
 id = 1
 name = "{repository_name}"
-runner = 0
+runner = {runner}
 deployment_method = 0
 repository = "{repository_name}"
 description = "{description}"
 created_at = "{now}"
 updated_at = "{now}"
 "#,
+            runner = runner as u8,
         ),
     )?;
     Ok(())
