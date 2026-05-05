@@ -55,8 +55,12 @@ pub struct SmbAuthorization {
 pub enum ErrorCode {
     EmailNotFound = 1000,
     EmailUnverified = 1001,
+    EmailConfirmationFailed = 1002,
     PasswordNotSet = 1003,
     GithubNotLinked = 1004,
+    EmailAlreadyExist = 1005,
+    InvalidPassword = 1006,
+    HostedMailAccountUnverified = 1007,
 }
 
 impl Display for ErrorCode {
@@ -64,8 +68,14 @@ impl Display for ErrorCode {
         match self {
             ErrorCode::EmailNotFound => write!(f, "Email not found."),
             ErrorCode::EmailUnverified => write!(f, "Email not verified."),
+            ErrorCode::EmailConfirmationFailed => write!(f, "Email confirmation failed."),
             ErrorCode::PasswordNotSet => write!(f, "Password not set."),
             ErrorCode::GithubNotLinked => write!(f, "Github not connected."),
+            ErrorCode::EmailAlreadyExist => write!(f, "Email already exists."),
+            ErrorCode::InvalidPassword => write!(f, "Invalid password."),
+            ErrorCode::HostedMailAccountUnverified => {
+                write!(f, "Hosted mail account not fully activated yet.")
+            }
         }
     }
 }
