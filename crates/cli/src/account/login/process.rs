@@ -100,10 +100,6 @@ async fn process_authorization(env: Environment, auth: SmbAuthorization) -> Resu
                 return Err(error);
             }
             GithubNotLinked => return connect_github_account(env, auth).await,
-            _ => {
-                let error = anyhow!(error_code.to_string());
-                return Err(error);
-            }
         }
     }
 
