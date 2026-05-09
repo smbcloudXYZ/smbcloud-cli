@@ -36,7 +36,7 @@ use {
 ///   4. rsync .next/standalone/  → server:path/          (server + bundled deps)
 ///   5. rsync .next/static/      → server:path/.next/static/  (static chunks)
 ///   6. rsync public/            → server:path/public/   (public assets)
-///   7. SSH: pm2 restart/start `node server.js`
+///   7. SSH: pm2 delete + start fresh (prefer server `ecosystem.config.js` if present)
 ///   8. PATCH deployment record as Done
 pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Result<CommandResult> {
     let source = config.project.source.as_deref().unwrap_or(".");
@@ -214,16 +214,37 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         }
     );
 
+    struct Transfer {
+        local_rel: &'static str,
+        remote_rel: &'static str,
+        protect_runtime_files: bool,
+    }
+
     // (local_source, remote_destination)
     // .next/standalone contents go to the root of remote_path.
     // .next/static and public go into their correct subdirectories within it.
-    let transfers: &[(&str, &str)] = &[
+    let transfers: &[Transfer] = &[
         // standalone contents → remote root (server.js lives here)
-        (".next/standalone/", ""),
+        Transfer {
+            local_rel: ".next/standalone/",
+            remote_rel: "",
+            // The server copy of ecosystem.config.js is operator-managed runtime
+            // config and must survive deploys. Without this protection, rsync
+            // `--delete` removes it because it does not exist in .next/standalone/.
+            protect_runtime_files: true,
+        },
         // static chunks → .next/static/ inside the standalone tree
-        (".next/static/", ".next/static/"),
+        Transfer {
+            local_rel: ".next/static/",
+            remote_rel: ".next/static/",
+            protect_runtime_files: false,
+        },
         // public assets → public/ inside the standalone tree
-        ("public/", "public/"),
+        Transfer {
+            local_rel: "public/",
+            remote_rel: "public/",
+            protect_runtime_files: false,
+        },
     ];
 
     let mut upload_spinner = Spinner::new(
@@ -231,24 +252,35 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         succeed_message(&format!("Uploading to {}…", remote_path)),
     );
 
-    for (local_rel, remote_rel) in transfers {
-        let local_path = format!("{}/{}", source, local_rel);
-        let destination = format!("{}{}", remote_base, remote_rel);
+    for transfer in transfers {
+        let local_path = format!("{}/{}", source, transfer.local_rel);
+        let destination = format!("{}{}", remote_base, transfer.remote_rel);
 
         // Skip optional directories that the project does not have.
         if !std::path::Path::new(&local_path).exists() {
             continue;
         }
 
+        let mut rsync_args = vec!["-az".to_string(), "--delete".to_string()];
+
+        if transfer.protect_runtime_files {
+            rsync_args.extend([
+                "--exclude".to_string(),
+                "ecosystem.config.js".to_string(),
+                "--exclude".to_string(),
+                "logs/".to_string(),
+            ]);
+        }
+
+        rsync_args.extend([
+            "-e".to_string(),
+            ssh_command.clone(),
+            local_path.clone(),
+            destination,
+        ]);
+
         let output = Command::new("rsync")
-            .args([
-                "-az",
-                "--delete",
-                "-e",
-                &ssh_command,
-                &local_path,
-                &destination,
-            ])
+            .args(&rsync_args)
             .output()
             .map_err(|e| anyhow!(fail_message(&format!("Failed to launch rsync: {}", e))))?;
 
@@ -265,7 +297,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
             .await;
             return Err(anyhow!(fail_message(&format!(
                 "rsync of '{}' failed (status {}): {}",
-                local_rel,
+                transfer.local_rel,
                 output.status.code().unwrap_or(-1),
                 stderr.trim()
             ))));
@@ -279,15 +311,17 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
 
     // ── Step 8: SSH remote restart ───────────────────────────────────────────
     //
-    // Runs `node server.js` via pm2 inside the deployed standalone directory.
-    // PORT and HOSTNAME are set so Next.js binds correctly behind nginx.
+    // Runs the deployed app via pm2 inside the standalone directory.
     //
-    // We always delete the existing pm2 process (if any) and start fresh with
-    // `node server.js`. A bare `pm2 restart` would re-execute the *old* command
-    // (e.g. `next start --port XXXX` from a previous git-push deploy), which
-    // fails when the working directory now contains standalone output instead of
-    // the full Next.js build tree. Deleting first guarantees the entry point
-    // and environment are always correct.
+    // We always delete the existing pm2 process (if any) and start fresh. A
+    // bare `pm2 restart` would re-execute the old command (e.g. `next start
+    // --port XXXX` from a previous git-push deploy), which fails when the
+    // working directory now contains standalone output instead of the full
+    // Next.js build tree.
+    //
+    // If the server has an operator-managed `ecosystem.config.js`, prefer it as
+    // the source of truth for runtime env and pm2 settings. Otherwise fall back
+    // to `node server.js` with the minimal inline env needed to bind the app.
     //
     // The port defaults to 3000 and can be overridden with `port = XXXX` in
     // .smb/config.toml — it must match the nginx upstream configuration.
@@ -296,24 +330,36 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
 
     let deploy_script = format!(
         r#"set -e
-APP_PATH="{remote_path}"
-PM2_APP="{pm2_app}"
+    APP_PATH="{remote_path}"
+    PM2_APP="{pm2_app}"
 
-if [ ! -d "$APP_PATH" ]; then
-    echo "Error: $APP_PATH is not a directory."
-    exit 1
-fi
+    case "$APP_PATH" in
+        /*) ;;
+        *) APP_PATH="$HOME/$APP_PATH" ;;
+    esac
 
-cd "$APP_PATH"
+    if [ ! -d "$APP_PATH" ]; then
+        echo "Error: $APP_PATH is not a directory."
+        exit 1
+    fi
 
-echo "Starting $PM2_APP with pm2..."
-if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
-    pm2 delete "$PM2_APP"
-fi
-NODE_ENV=production PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
-pm2 save
-echo "Done."
-"#,
+    cd "$APP_PATH"
+    mkdir -p logs
+
+    echo "Starting $PM2_APP with pm2..."
+    if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
+        pm2 delete "$PM2_APP"
+    fi
+
+    if [ -f ecosystem.config.js ]; then
+        pm2 start ecosystem.config.js --only "$PM2_APP" --env production
+    else
+        NODE_ENV=production PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
+    fi
+
+    pm2 save
+    echo "Done."
+    "#,
         remote_path = remote_path,
         pm2_app = pm2_app,
         port = port,
