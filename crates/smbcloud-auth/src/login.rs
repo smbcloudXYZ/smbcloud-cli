@@ -7,9 +7,9 @@ use {
     smbcloud_network::{environment::Environment, network::request_login},
     smbcloud_networking::{
         constants::{PATH_USERS_SIGN_IN, SMB_USER_AGENT},
-        smb_base_url_builder,
         smb_client::SmbClient,
     },
+    url_builder::URLBuilder,
 };
 
 pub async fn login(
@@ -31,8 +31,17 @@ pub async fn login(
     request_login(builder).await
 }
 
-pub(crate) fn build_smb_login_url(env: Environment, client: (&SmbClient, &str)) -> String {
-    let mut url_builder = smb_base_url_builder(env, client);
-    url_builder.add_route(PATH_USERS_SIGN_IN);
+pub fn build_login_url(env: Environment, client_id: &str, client_secret: &str) -> String {
+    let mut url_builder = URLBuilder::new();
+    url_builder
+        .set_protocol(&env.api_protocol())
+        .set_host(&env.api_host())
+        .add_param("client_id", client_id)
+        .add_param("client_secret", client_secret)
+        .add_route(PATH_USERS_SIGN_IN);
     url_builder.build()
+}
+
+pub(crate) fn build_smb_login_url(env: Environment, client: (&SmbClient, &str)) -> String {
+    build_login_url(env, client.0.id(), client.1)
 }
