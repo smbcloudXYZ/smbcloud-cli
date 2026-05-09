@@ -91,8 +91,12 @@ fn account_error_name(code: AccountErrorCode) -> &'static str {
     match code {
         AccountErrorCode::EmailNotFound => "email_not_found",
         AccountErrorCode::EmailUnverified => "email_unverified",
+        AccountErrorCode::EmailConfirmationFailed => "email_confirmation_failed",
         AccountErrorCode::PasswordNotSet => "password_not_set",
         AccountErrorCode::GithubNotLinked => "github_not_linked",
+        AccountErrorCode::EmailAlreadyExist => "email_already_exist",
+        AccountErrorCode::InvalidPassword => "invalid_password",
+        AccountErrorCode::HostedMailAccountUnverified => "hosted_mail_account_unverified",
     }
 }
 

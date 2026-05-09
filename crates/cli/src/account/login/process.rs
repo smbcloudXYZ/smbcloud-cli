@@ -23,8 +23,9 @@ use {
     smbcloud_model::{
         account::{
             ErrorCode::{
-                self as AccountErrorCode, EmailNotFound, EmailUnverified, GithubNotLinked,
-                PasswordNotSet,
+                self as AccountErrorCode, EmailAlreadyExist, EmailConfirmationFailed,
+                EmailNotFound, EmailUnverified, GithubNotLinked, HostedMailAccountUnverified,
+                InvalidPassword, PasswordNotSet,
             },
             GithubInfo, SmbAuthorization, User,
         },
@@ -100,6 +101,13 @@ async fn process_authorization(env: Environment, auth: SmbAuthorization) -> Resu
                 return Err(error);
             }
             GithubNotLinked => return connect_github_account(env, auth).await,
+            EmailConfirmationFailed
+            | EmailAlreadyExist
+            | InvalidPassword
+            | HostedMailAccountUnverified => {
+                let error = anyhow!(error_code.to_string());
+                return Err(error);
+            }
         }
     }
 
