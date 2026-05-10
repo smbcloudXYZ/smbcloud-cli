@@ -693,6 +693,15 @@ One practical warning: the Ruby gem release depends on crates.io propagation. If
 **SDK npm version out of sync with Rust crate version**
 `sdk/npm/smbcloud-auth/package.json` must have the same version as `crates/smbcloud-auth-sdk-wasm/Cargo.toml`. The `prepare-package.mjs` script compares them at build time and throws a hard error on mismatch. When bumping workspace crate versions for a release, always update the npm package version in the same commit. Forgetting this causes the `check-npm-sdk` CI job and the `release-sdk-npm` workflow to fail.
 
+**SDK Ruby gem versions out of sync with workspace crate versions**
+Three files must be bumped together for each gem in `sdk/gems/`:
+
+- `lib/<gem>/version.rb` — the gem version (`Auth::VERSION`, `Model::VERSION`)
+- `ext/<gem>/Cargo.toml` — the native extension crate version
+- `ext/<gem>/Cargo.toml` dependencies — the `smbcloud-*` version constraints (e.g. `"0.3"` → `"0.4"`)
+
+After bumping, regenerate lockfiles with `cargo generate-lockfile` and `bundle lock` inside each gem directory. The `release-sdk-gem` workflow checks `Auth::VERSION` against the tag and fails on mismatch.
+
 **Tagging a release on a feature branch instead of `development`**
 Always tag on `development` (the mainline branch). Tagging on a feature branch leaves `development` without the release commit, making git history confusing and future releases error-prone. Merge the feature branch into `development` first, then tag. If a tag was already placed on the wrong commit, move it with `git tag -f v<version>` and `git push origin v<version> --force`.
 

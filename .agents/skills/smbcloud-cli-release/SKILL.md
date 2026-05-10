@@ -36,6 +36,12 @@ The SDK npm package `@smbcloud/sdk-auth` must have its version in `sdk/npm/smbcl
 
 When bumping workspace crate versions for a release, always update `sdk/npm/smbcloud-auth/package.json` in the same commit.
 
+The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`):
+
+- `lib/<gem>/version.rb` — the gem version constant
+- `ext/<gem>/Cargo.toml` — the native extension crate version AND the `smbcloud-*` dependency version constraints (e.g. `"0.3"` → `"0.4"`)
+- Regenerate `Cargo.lock` with `cargo generate-lockfile` and `Gemfile.lock` with `bundle lock` inside the gem directory
+
 ## Tagging discipline
 
 Always tag releases on the `development` branch (the mainline). Never tag on a feature branch.
