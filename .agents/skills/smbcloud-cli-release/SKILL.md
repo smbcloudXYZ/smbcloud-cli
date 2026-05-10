@@ -29,12 +29,23 @@ Use these files as the release source of truth:
 - npm wrapper launcher: `npm/smbcloud-cli/src/index.ts`
 - PyPI package metadata: `pypi/pyproject.toml`
 - PyPI package README: `pypi/README.md`
+- SDK PyPI package metadata: `sdk/python/pyproject.toml`
+- SDK Ruby gem auth version: `sdk/gems/auth/lib/auth/version.rb`
+- SDK Ruby gem auth native extension: `sdk/gems/auth/ext/auth/Cargo.toml`
+- SDK Ruby gem model version: `sdk/gems/model/lib/model/version.rb`
+- SDK Ruby gem model native extension: `sdk/gems/model/ext/model/Cargo.toml`
 
 ## Version sync rules
 
 The SDK npm package `@smbcloud/sdk-auth` must have its version in `sdk/npm/smbcloud-auth/package.json` match the version in `crates/smbcloud-auth-sdk-wasm/Cargo.toml` exactly. The `prepare-package.mjs` script enforces this at build time and will fail CI if they diverge.
 
 When bumping workspace crate versions for a release, always update `sdk/npm/smbcloud-auth/package.json` in the same commit.
+
+The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`):
+
+- `lib/<gem>/version.rb` — the gem version constant
+- `ext/<gem>/Cargo.toml` — the native extension crate version AND the `smbcloud-*` dependency version constraints (e.g. `"0.3"` → `"0.4"`)
+- Regenerate `Cargo.lock` with `cargo generate-lockfile` and `Gemfile.lock` with `bundle lock` inside the gem directory
 
 ## Tagging discipline
 

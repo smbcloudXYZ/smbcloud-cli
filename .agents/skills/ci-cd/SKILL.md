@@ -370,6 +370,15 @@ permissions:
 
 No `PYPI_TOKEN` secret needed. The action exchanges the GitHub OIDC JWT for a short-lived PyPI token automatically.
 
+**Each PyPI package × workflow combination needs its own trusted publisher.** The CLI package (`smbcloud-cli`) is configured for `release-pypi.yml`, but the SDK package (`smbcloud-sdk-auth`) needs a separate trusted publisher pointing at `release-sdk-pypi.yml`. Configure it at `https://pypi.org/manage/project/<package>/settings/publishing/` with:
+
+- Owner: `smbcloudXYZ`
+- Repository: `smbcloud-cli`
+- Workflow name: the exact `.yml` filename that publishes that package
+- Environment: leave blank
+
+If the trusted publisher is missing, the publish step fails with `invalid-publisher: valid token, but no corresponding publisher`.
+
 ### npm — does NOT support trusted publishing natively
 
 npm has no OIDC-based trusted publishing equivalent to PyPI. The `id-token: write` permission in the npm workflow is unused for auth.
@@ -693,8 +702,20 @@ One practical warning: the Ruby gem release depends on crates.io propagation. If
 **SDK npm version out of sync with Rust crate version**
 `sdk/npm/smbcloud-auth/package.json` must have the same version as `crates/smbcloud-auth-sdk-wasm/Cargo.toml`. The `prepare-package.mjs` script compares them at build time and throws a hard error on mismatch. When bumping workspace crate versions for a release, always update the npm package version in the same commit. Forgetting this causes the `check-npm-sdk` CI job and the `release-sdk-npm` workflow to fail.
 
+**SDK Ruby gem versions out of sync with workspace crate versions**
+Three files must be bumped together for each gem in `sdk/gems/`:
+
+- `lib/<gem>/version.rb` — the gem version (`Auth::VERSION`, `Model::VERSION`)
+- `ext/<gem>/Cargo.toml` — the native extension crate version
+- `ext/<gem>/Cargo.toml` dependencies — the `smbcloud-*` version constraints (e.g. `"0.3"` → `"0.4"`)
+
+After bumping, regenerate lockfiles with `cargo generate-lockfile` and `bundle lock` inside each gem directory. The `release-sdk-gem` workflow checks `Auth::VERSION` against the tag and fails on mismatch.
+
 **Tagging a release on a feature branch instead of `development`**
 Always tag on `development` (the mainline branch). Tagging on a feature branch leaves `development` without the release commit, making git history confusing and future releases error-prone. Merge the feature branch into `development` first, then tag. If a tag was already placed on the wrong commit, move it with `git tag -f v<version>` and `git push origin v<version> --force`.
+
+**"Re-run all jobs" on an old workflow run rebuilds from the old commit**
+GitHub Actions workflow re-runs always use the commit the run was originally dispatched with. If you moved a tag after the run was created, the re-run still checks out the old commit. Use "Re-run failed jobs" only when the code on that commit is correct and only an external issue (e.g. missing trusted publisher) caused the failure. If the code itself was fixed, dispatch a fresh run instead: `gh workflow run <workflow>.yml -f tag=v<version>`.
 
 **Building the full workspace in release workflows**
 Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-sdk-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
