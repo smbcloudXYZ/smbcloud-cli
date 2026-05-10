@@ -41,7 +41,10 @@ jobs:
               runner: macos-15-intel,
               platform: x86_64-darwin,
             }
-          - { name: win-x64, runner: windows-2022, platform: x64-mingw-ucrt }
+          # Windows is excluded: rb-sys bindgen fails because RubyInstaller is
+          # MinGW-based and its rbconfig emits GCC flags that are incompatible
+          # with the MSVC clang used by bindgen. The source gem provides a
+          # fallback for Windows users (compiled at install time).
 
     steps:
       - name: Checkout
@@ -65,7 +68,7 @@ jobs:
         run: |
           for crate_name in smbcloud-auth-sdk smbcloud-model smbcloud-network; do
             for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-              if curl -fsS "https://crates.io/api/v1/crates/${crate_name}/${RELEASE_VERSION}" >/dev/null 2>&1; then
+              if curl -fsS -H "User-Agent: smbcloud-cli-release" "https://crates.io/api/v1/crates/${crate_name}/${RELEASE_VERSION}" >/dev/null 2>&1; then
                 echo "${crate_name} ${RELEASE_VERSION} is available on crates.io"
                 break
               fi
@@ -79,6 +82,10 @@ jobs:
               sleep 15
             done
           done
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -q && sudo apt-get install -y libclang-dev
 
       - name: Read Rust toolchain
         shell: bash
