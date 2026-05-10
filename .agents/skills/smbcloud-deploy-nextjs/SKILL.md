@@ -9,7 +9,7 @@ Use this skill when work touches Next.js deployment on smbCloud.
 
 Applies to:
 
-- `kind = "nextjs-ssr"` projects
+- `kind = "nextjs-ssr"` deploy targets
 - `.smb/config.toml` deploy configuration
 - `process_deploy_nextjs_ssr.rs`
 - PM2 process management for standalone builds
@@ -17,6 +17,13 @@ Applies to:
 - production-only issues caused by CORS, ports, or runtime mismatch
 
 ## Deployment model
+
+Keep the deploy hierarchy straight:
+
+- `Project` = umbrella workspace in smbCloud
+- `DeployRepo` = repo or monorepo root inside that workspace
+- Next.js deploy target in `.smb/config.toml` = the deployable app unit
+- deployment record = one release of that app
 
 For `nextjs-ssr`, smbCloud does not use git-push deploy.
 
@@ -62,20 +69,26 @@ Minimum `.smb/config.toml` for SSR:
 
 ```toml
 [project]
+id = 28                    # workspace id
+frontend_app_id = "uuid"   # deployable app id (preferred when available)
 deployment_method = 1
 kind = "nextjs-ssr"
 source = "."
 package_manager = "pnpm"
 pm2_app = "my-app"
 path = "apps/web/my-app"
+port = 3028
 ```
 
 Important rules:
 
 - `kind = "nextjs-ssr"` is what activates the SSR deploy path
+- `id` remains the umbrella workspace id used for auth and API routing
+- `frontend_app_id` should be present when the API exposes it so deployment tracking is app-specific
 - `source` is the local Next.js app directory
 - `path` is the remote destination directory on the server
 - `pm2_app` is mandatory because the CLI restarts PM2 by name
+- `port` should be set explicitly and must match nginx
 - `deployment_method = 1` may still be present, but the `kind` routing is what matters most
 
 ## Expected remote layout
@@ -90,15 +103,23 @@ Note that `server.js` is expected at the remote root because the CLI uploads the
 
 ## PM2 behavior
 
-The CLI's deploy path runs logic equivalent to:
+The CLI's deploy path now deletes and starts fresh, preferring the server's
+`ecosystem.config.js` when it exists.
+
+Conceptually it behaves like:
 
 ```sh
 cd "$APP_PATH"
+mkdir -p logs
 
 if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
-  pm2 restart "$PM2_APP"
+  pm2 delete "$PM2_APP"
+fi
+
+if [ -f ecosystem.config.js ]; then
+  pm2 start ecosystem.config.js --only "$PM2_APP" --env production
 else
-  PORT=3010 HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
+  NODE_ENV=production PORT=<port> HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
 fi
 
 pm2 save
@@ -107,7 +128,8 @@ pm2 save
 This has two consequences:
 
 - old git-based `post-receive` hooks are irrelevant for the SSR path
-- the port is currently hardcoded to `3010` in the CLI for fresh starts unless patched
+- the configured `port` in `.smb/config.toml` is used for the fallback start path
+- the live server `ecosystem.config.js` is the runtime source of truth when present
 
 ### Environment variables â ecosystem file (standard pattern)
 
@@ -141,7 +163,7 @@ The flow works like this:
    pm2 save
    ```
 
-2. Every subsequent CLI deploy runs `pm2 restart <pm2_app>`. Because `pm2 save` already persisted the env, PM2 restarts with the same environment â **the CLI does not need to know about the ecosystem file at all**.
+2. Every subsequent CLI deploy deletes the PM2 process and starts it fresh. If the server has `ecosystem.config.js`, the CLI starts PM2 from that file again. If not, it falls back to `node server.js` with inline `NODE_ENV`, `PORT`, and `HOSTNAME`.
 
 3. To change or add env vars, SSH in, edit `ecosystem.config.js`, then:
 
@@ -150,23 +172,26 @@ The flow works like this:
    pm2 save
    ```
 
-The ecosystem file is the server-side source of truth for each appâs runtime config. Future versions of the smbCloud web console will provide a UI to manage these vars per app, which will write to this file and trigger the restart remotely.
+The ecosystem file is the server-side source of truth for each app's runtime config. The CLI preserves the server copy during rsync and must not delete it.
 
 ### Manual PM2 operations (without ecosystem file)
 
-If the app is already deployed and `server.js` exists:
+If you are operating without an ecosystem file, prefer the same fresh-start model the CLI uses:
+
+```sh
+cd /home/git/apps/web/<app>
+if pm2 describe <pm2_app> > /dev/null 2>&1; then
+  pm2 delete <pm2_app>
+fi
+PORT=<port> HOSTNAME=127.0.0.1 pm2 start node --name <pm2_app> -- server.js
+pm2 save
+```
+
+If you are using an ecosystem file and only changed env vars manually, this is still valid:
 
 ```sh
 cd /home/git/apps/web/<app>
 pm2 restart <pm2_app> --update-env
-pm2 save
-```
-
-If starting from scratch without an ecosystem file:
-
-```sh
-cd /home/git/apps/web/<app>
-PORT=<port> HOSTNAME=127.0.0.1 pm2 start node --name <pm2_app> -- server.js
 pm2 save
 ```
 
@@ -181,9 +206,11 @@ If an older `ecosystem.config.js` exists and contains both:
 
 that is a broken configuration. Standardize on one port value.
 
-For the current SSR deploy code, the real runtime is controlled by the environment passed to `node server.js`, not by `next start` or an ecosystem file.
+Current rules:
 
-If the app must run on a port other than `3010`, patch the CLI or restart PM2 manually with the correct port.
+- fallback fresh-start path uses `port` from `.smb/config.toml`
+- ecosystem-managed apps should set the same port in `env_production.PORT`
+- nginx upstream must match that port
 
 ## Nginx for SSR
 
@@ -253,12 +280,12 @@ If the project has no `public/` directory, deploy may fail. Either:
 
 Cause:
 
-- CLI hardcodes `PORT=3010` for fresh starts
+- `port` in `.smb/config.toml`, server `ecosystem.config.js`, and nginx upstream disagree
 
 Fix:
 
-- manually restart with the correct port
-- or patch the CLI to read a configurable port from `.smb/config.toml`
+- standardize the same port in all three places
+- if using ecosystem config, make sure PM2 is actually starting from that file
 
 ### Misleading deploy output
 
@@ -325,6 +352,8 @@ Use the smallest checks that prove the contract.
 - forgetting `kind = "nextjs-ssr"`
 - keeping an old git `post-receive` hook and expecting it to manage SSR deploys
 - using static-file Nginx config for an SSR app
-- editing `ecosystem.config.js` but forgetting `pm2 restart <app> --update-env && pm2 save` â PM2 keeps the old env until explicitly refreshed
-- leaving port values inconsistent across PM2, Nginx, and CLI
+- editing the repo copy of `ecosystem.config.js` and expecting a normal CLI deploy to overwrite the server copy — it is preserved intentionally
+- editing the server `ecosystem.config.js` but the deploy script falling back to inline `node server.js` because the file path check is wrong
+- leaving port values inconsistent across PM2, Nginx, and `.smb/config.toml`
+- forgetting to set `frontend_app_id` on the deploy target once app-level deployment tracking is available
 - treating browser CORS failures as real internet outages

@@ -72,6 +72,7 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         DeploymentPayload {
             commit_hash: deploy_ref.clone(),
             status: DeploymentStatus::Started,
+            frontend_app_id: config.project.frontend_app_id.clone(),
         },
     )
     .await
@@ -233,6 +234,7 @@ echo \"Done.\"
             DeploymentPayload {
                 commit_hash: deploy_ref,
                 status: DeploymentStatus::Done,
+                frontend_app_id: config.project.frontend_app_id.clone(),
             },
         )
         .await
@@ -303,6 +305,7 @@ async fn mark_failed(
             DeploymentPayload {
                 commit_hash: deploy_ref.to_owned(),
                 status: DeploymentStatus::Failed,
+                frontend_app_id: config.project.frontend_app_id.clone(),
             },
         )
         .await;

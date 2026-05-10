@@ -44,6 +44,7 @@ pub struct Config {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[tsync]
 pub struct Project {
+    /// Umbrella smbCloud workspace ID.
     pub id: i32,
     pub name: String,
     pub runner: Runner,
@@ -53,6 +54,14 @@ pub struct Project {
     pub path: Option<String>,
     pub repository: Option<String>,
     pub description: Option<String>,
+    /// Deployable app ID for precise deployment tracking. Optional during the
+    /// migration away from project-as-app semantics.
+    pub frontend_app_id: Option<String>,
+    /// Repo ID backing this deploy target. Optional until the API exposes it
+    /// consistently to the CLI.
+    pub deploy_repo_id: Option<i64>,
+    /// Repo-relative app path for monorepo targets, e.g. "apps/web/console".
+    pub source_path: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     /// Deployment kind, e.g. "vite-spa". Absent for server-side runners.
@@ -101,6 +110,8 @@ pub struct ProjectCreate {
 pub struct Deployment {
     pub id: i32,
     pub project_id: i32,
+    pub frontend_app_id: Option<String>,
+    pub frontend_app_name: Option<String>,
     pub commit_hash: String,
     pub status: DeploymentStatus,
     #[serde(with = "ar_date_format")]
@@ -113,6 +124,7 @@ pub struct Deployment {
 pub struct DeploymentPayload {
     pub commit_hash: String,
     pub status: DeploymentStatus,
+    pub frontend_app_id: Option<String>,
 }
 
 #[derive(Deserialize_repr, Serialize_repr, Debug, Clone, Copy)] // Added Clone, Copy

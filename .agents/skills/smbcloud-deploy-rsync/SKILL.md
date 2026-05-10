@@ -48,6 +48,15 @@ When implementing in Rust, preserve these semantics explicitly. Do not assume pa
 
 Generic rsync deploy uses smbCloud config and runner metadata.
 
+Keep the deploy model straight:
+
+- `Project` = umbrella workspace in smbCloud
+- `DeployRepo` = the git/source repository inside that workspace
+- deploy target entry in `.smb/config.toml` = the deployable app unit
+- deployment record = one release event for that app
+
+The CLI config still uses `[project]` / `[[projects]]` entries for deploy targets during the migration, but they should be thought of as app targets, not umbrella workspaces.
+
 Expect these responsibilities:
 
 - get the logged-in smbCloud user
@@ -55,6 +64,7 @@ Expect these responsibilities:
 - determine the runner host, usually through `runner.rsync_host()`
 - build the remote destination from configured project `path`
 - deploy the current source tree or configured source directory
+- when present, pass `frontend_app_id` into deployment tracking payloads so the API can attribute the deploy to the correct app inside a repo or monorepo
 
 The user-visible output may still mention the SSH key path. Preserve useful diagnostics, but avoid misleading claims about git deploy.
 
@@ -127,6 +137,7 @@ If replacing subprocess `rsync`, confirm parity for:
 - deletion behavior, if smbCloud depends on it
 - stdout/stderr capture
 - non-zero status mapping
+- deploy tracking still posts against the workspace `project_id` while carrying the optional `frontend_app_id` for app-level attribution
 
 ## Validation
 
@@ -156,3 +167,4 @@ If it migrates to the embedding crate, validate equivalent output and error hand
 - assuming the embedding crate automatically supports ssh remote syntax without checking
 - hiding transport stderr that the user needs to debug deploy failures
 - hardcoding local paths instead of using smbCloud config and user-derived SSH identity
+- treating the workspace `project.id` as the deployable app identity once app-level deploy tracking is available

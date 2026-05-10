@@ -164,6 +164,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         DeploymentPayload {
             commit_hash: deploy_ref.clone(),
             status: DeploymentStatus::Started,
+            frontend_app_id: config.project.frontend_app_id.clone(),
         },
     )
     .await
@@ -463,6 +464,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
             DeploymentPayload {
                 commit_hash: deploy_ref,
                 status: DeploymentStatus::Done,
+                frontend_app_id: config.project.frontend_app_id.clone(),
             },
         )
         .await
@@ -498,6 +500,7 @@ async fn mark_failed(
             DeploymentPayload {
                 commit_hash: deploy_ref.to_owned(),
                 status: DeploymentStatus::Failed,
+                frontend_app_id: config.project.frontend_app_id.clone(),
             },
         )
         .await;
