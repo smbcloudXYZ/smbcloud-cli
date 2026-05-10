@@ -29,6 +29,11 @@ Use these files as the release source of truth:
 - npm wrapper launcher: `npm/smbcloud-cli/src/index.ts`
 - PyPI package metadata: `pypi/pyproject.toml`
 - PyPI package README: `pypi/README.md`
+- SDK PyPI package metadata: `sdk/python/pyproject.toml`
+- SDK Ruby gem auth version: `sdk/gems/auth/lib/auth/version.rb`
+- SDK Ruby gem auth native extension: `sdk/gems/auth/ext/auth/Cargo.toml`
+- SDK Ruby gem model version: `sdk/gems/model/lib/model/version.rb`
+- SDK Ruby gem model native extension: `sdk/gems/model/ext/model/Cargo.toml`
 
 ## Version sync rules
 

@@ -370,6 +370,15 @@ permissions:
 
 No `PYPI_TOKEN` secret needed. The action exchanges the GitHub OIDC JWT for a short-lived PyPI token automatically.
 
+**Each PyPI package × workflow combination needs its own trusted publisher.** The CLI package (`smbcloud-cli`) is configured for `release-pypi.yml`, but the SDK package (`smbcloud-sdk-auth`) needs a separate trusted publisher pointing at `release-sdk-pypi.yml`. Configure it at `https://pypi.org/manage/project/<package>/settings/publishing/` with:
+
+- Owner: `smbcloudXYZ`
+- Repository: `smbcloud-cli`
+- Workflow name: the exact `.yml` filename that publishes that package
+- Environment: leave blank
+
+If the trusted publisher is missing, the publish step fails with `invalid-publisher: valid token, but no corresponding publisher`.
+
 ### npm — does NOT support trusted publishing natively
 
 npm has no OIDC-based trusted publishing equivalent to PyPI. The `id-token: write` permission in the npm workflow is unused for auth.
@@ -704,6 +713,9 @@ After bumping, regenerate lockfiles with `cargo generate-lockfile` and `bundle l
 
 **Tagging a release on a feature branch instead of `development`**
 Always tag on `development` (the mainline branch). Tagging on a feature branch leaves `development` without the release commit, making git history confusing and future releases error-prone. Merge the feature branch into `development` first, then tag. If a tag was already placed on the wrong commit, move it with `git tag -f v<version>` and `git push origin v<version> --force`.
+
+**"Re-run all jobs" on an old workflow run rebuilds from the old commit**
+GitHub Actions workflow re-runs always use the commit the run was originally dispatched with. If you moved a tag after the run was created, the re-run still checks out the old commit. Use "Re-run failed jobs" only when the code on that commit is correct and only an external issue (e.g. missing trusted publisher) caused the failure. If the code itself was fixed, dispatch a fresh run instead: `gh workflow run <workflow>.yml -f tag=v<version>`.
 
 **Building the full workspace in release workflows**
 Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-sdk-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
