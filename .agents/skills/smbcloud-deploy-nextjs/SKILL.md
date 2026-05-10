@@ -20,10 +20,12 @@ Applies to:
 
 Keep the deploy hierarchy straight:
 
-- `Project` = umbrella workspace in smbCloud
-- `DeployRepo` = repo or monorepo root inside that workspace
-- Next.js deploy target in `.smb/config.toml` = the deployable app unit
-- deployment record = one release of that app
+- `Project` = umbrella workspace in smbCloud (not deployable)
+- `DeployRepo` = the git repository inside that workspace
+- `FrontendApp` = the deployable app unit, identified by `frontend_app_id` in config
+- `Deployment` = one release event, linked to a FrontendApp via `frontend_app_id`
+
+The canonical chain is: Deployment → FrontendApp → DeployRepo → Project
 
 For `nextjs-ssr`, smbCloud does not use git-push deploy.
 
@@ -69,8 +71,9 @@ Minimum `.smb/config.toml` for SSR:
 
 ```toml
 [project]
-id = 28                    # workspace id
-frontend_app_id = "uuid"   # deployable app id (preferred when available)
+id = 28                    # workspace id (for API routing)
+frontend_app_id = "uuid"   # FrontendApp id (for deployment tracking)
+deploy_repo_id = 123       # DeployRepo id (links to git repository record)
 deployment_method = 1
 kind = "nextjs-ssr"
 source = "."
@@ -83,8 +86,9 @@ port = 3028
 Important rules:
 
 - `kind = "nextjs-ssr"` is what activates the SSR deploy path
-- `id` remains the umbrella workspace id used for auth and API routing
-- `frontend_app_id` should be present when the API exposes it so deployment tracking is app-specific
+- `id` is the umbrella workspace ID, used for auth and API routing
+- `frontend_app_id` identifies the FrontendApp record for this deploy target — include it so deployments are attributed to the correct app, not just the workspace
+- `deploy_repo_id` identifies the DeployRepo record backing this app — include it when available
 - `source` is the local Next.js app directory
 - `path` is the remote destination directory on the server
 - `pm2_app` is mandatory because the CLI restarts PM2 by name
@@ -357,3 +361,4 @@ Use the smallest checks that prove the contract.
 - leaving port values inconsistent across PM2, Nginx, and `.smb/config.toml`
 - forgetting to set `frontend_app_id` on the deploy target once app-level deployment tracking is available
 - treating browser CORS failures as real internet outages
+- deploying without `frontend_app_id` in config — the API will try to infer the app, but explicit is better than implicit

@@ -22,12 +22,14 @@ A monorepo is a repository where `[project]` has `runner = 255` (the `Monorepo` 
 
 Keep the deploy hierarchy straight:
 
-- root `[project]` = umbrella workspace in smbCloud
-- repo = the monorepo itself
-- each `[[projects]]` entry = one deployable app target inside that repo
-- each deployment record = one release of one app target
+- root `[project]` = umbrella workspace in smbCloud (not deployable)
+- repo = the monorepo itself, represented by a `DeployRepo` record
+- each `[[projects]]` entry = one deployable `FrontendApp` inside that repo, identified by `frontend_app_id`
+- each deployment record = one release of one `FrontendApp`, linked via `frontend_app_id`
 
-The config format still uses `[[projects]]` for historical reasons, but conceptually those entries are app targets, not separate umbrella workspaces.
+The canonical chain is: Deployment → FrontendApp → DeployRepo → Project
+
+The config format still uses `[[projects]]` for historical reasons, but conceptually those entries are app targets, not separate umbrella workspaces. Each entry should include `frontend_app_id` and `deploy_repo_id` so deployments are attributed to the correct app.
 
 The CLI detects this in `process_deploy.rs`:
 
@@ -123,27 +125,27 @@ updated_at = "2025-09-20T16:33:05.154Z"
 
 ## Sub-project field reference
 
-| Field               | Required | Description                                                                                 |
-| ------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| `id`                | yes      | umbrella workspace ID in smbCloud                                                           |
-| `frontend_app_id`   | no       | deployable app ID for precise deployment tracking                                           |
-| `deploy_repo_id`    | no       | repo ID backing the deploy target                                                           |
-| `name`              | yes      | unique identifier, used with `--project` flag and in the selection prompt                   |
-| `repository`        | yes      | remote repository name on the smbCloud server (used for git deploy and SSH paths)           |
-| `description`       | no       | human-readable description                                                                  |
-| `source`            | yes      | local path to the sub-project directory, relative to the monorepo root                      |
-| `path`              | depends  | remote directory on the server, relative to `~/` — required for `nextjs-ssr` and `vite-spa` |
-| `runner`            | yes      | server tier: `0` (NodeJs), `1` (Static), `2` (Ruby), `3` (Swift)                            |
-| `kind`              | depends  | deploy strategy: `"nextjs-ssr"`, `"vite-spa"`, `"rails"`, or omitted for generic deploy     |
-| `package_manager`   | depends  | `"pnpm"` or `"npm"` — required for `nextjs-ssr` and `vite-spa`                              |
-| `pm2_app`           | depends  | PM2 process name — required for `nextjs-ssr`                                                |
-| `port`              | depends  | runtime port — required for `nextjs-ssr`, defaults to `3000` if omitted                     |
-| `output`            | depends  | build output directory — required for `vite-spa`, typically `"dist"`                        |
-| `shared_lib`        | no       | path to shared library directory to rsync before deploy — used by `rails`                   |
-| `compile_cmd`       | no       | SSH command to run on the server after syncing shared libs — used by `rails`                |
-| `deployment_method` | no       | `0` (Git) or `1` (Rsync) — only matters when `kind` is not set                              |
-| `created_at`        | yes      | ISO 8601 timestamp                                                                          |
-| `updated_at`        | yes      | ISO 8601 timestamp                                                                          |
+| Field               | Required    | Description                                                                                 |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| `id`                | yes         | umbrella workspace ID in smbCloud                                                           |
+| `frontend_app_id`   | recommended | FrontendApp UUID — include so deployments are attributed to the correct app                 |
+| `deploy_repo_id`    | recommended | DeployRepo ID — links the deploy target to its git repository record                        |
+| `name`              | yes         | unique identifier, used with `--project` flag and in the selection prompt                   |
+| `repository`        | yes         | remote repository name on the smbCloud server (used for git deploy and SSH paths)           |
+| `description`       | no          | human-readable description                                                                  |
+| `source`            | yes         | local path to the sub-project directory, relative to the monorepo root                      |
+| `path`              | depends     | remote directory on the server, relative to `~/` — required for `nextjs-ssr` and `vite-spa` |
+| `runner`            | yes         | server tier: `0` (NodeJs), `1` (Static), `2` (Ruby), `3` (Swift)                            |
+| `kind`              | depends     | deploy strategy: `"nextjs-ssr"`, `"vite-spa"`, `"rails"`, or omitted for generic deploy     |
+| `package_manager`   | depends     | `"pnpm"` or `"npm"` — required for `nextjs-ssr` and `vite-spa`                              |
+| `pm2_app`           | depends     | PM2 process name — required for `nextjs-ssr`                                                |
+| `port`              | depends     | runtime port — required for `nextjs-ssr`, defaults to `3000` if omitted                     |
+| `output`            | depends     | build output directory — required for `vite-spa`, typically `"dist"`                        |
+| `shared_lib`        | no          | path to shared library directory to rsync before deploy — used by `rails`                   |
+| `compile_cmd`       | no          | SSH command to run on the server after syncing shared libs — used by `rails`                |
+| `deployment_method` | no          | `0` (Git) or `1` (Rsync) — only matters when `kind` is not set                              |
+| `created_at`        | yes         | ISO 8601 timestamp                                                                          |
+| `updated_at`        | yes         | ISO 8601 timestamp                                                                          |
 
 ## Deploy routing
 

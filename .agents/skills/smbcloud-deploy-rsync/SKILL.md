@@ -50,10 +50,12 @@ Generic rsync deploy uses smbCloud config and runner metadata.
 
 Keep the deploy model straight:
 
-- `Project` = umbrella workspace in smbCloud
-- `DeployRepo` = the git/source repository inside that workspace
-- deploy target entry in `.smb/config.toml` = the deployable app unit
-- deployment record = one release event for that app
+- `Project` = umbrella workspace in smbCloud (not deployable)
+- `DeployRepo` = the git repository inside that workspace
+- `FrontendApp` = the deployable app unit, identified by `frontend_app_id` in config
+- `Deployment` = one release event, linked to a FrontendApp via `frontend_app_id`
+
+The canonical chain is: Deployment → FrontendApp → DeployRepo → Project
 
 The CLI config still uses `[project]` / `[[projects]]` entries for deploy targets during the migration, but they should be thought of as app targets, not umbrella workspaces.
 
@@ -64,7 +66,7 @@ Expect these responsibilities:
 - determine the runner host, usually through `runner.rsync_host()`
 - build the remote destination from configured project `path`
 - deploy the current source tree or configured source directory
-- when present, pass `frontend_app_id` into deployment tracking payloads so the API can attribute the deploy to the correct app inside a repo or monorepo
+- pass `frontend_app_id` into deployment tracking payloads so the API attributes the deploy to the correct FrontendApp — this should always be present in new configs
 
 The user-visible output may still mention the SSH key path. Preserve useful diagnostics, but avoid misleading claims about git deploy.
 
@@ -137,7 +139,7 @@ If replacing subprocess `rsync`, confirm parity for:
 - deletion behavior, if smbCloud depends on it
 - stdout/stderr capture
 - non-zero status mapping
-- deploy tracking still posts against the workspace `project_id` while carrying the optional `frontend_app_id` for app-level attribution
+- deploy tracking posts against the workspace `project_id` and includes `frontend_app_id` for app-level attribution — both should be present
 
 ## Validation
 
@@ -167,4 +169,4 @@ If it migrates to the embedding crate, validate equivalent output and error hand
 - assuming the embedding crate automatically supports ssh remote syntax without checking
 - hiding transport stderr that the user needs to debug deploy failures
 - hardcoding local paths instead of using smbCloud config and user-derived SSH identity
-- treating the workspace `project.id` as the deployable app identity once app-level deploy tracking is available
+- treating the workspace `project.id` as the deployable app identity — always use `frontend_app_id` for app-level deploy tracking
