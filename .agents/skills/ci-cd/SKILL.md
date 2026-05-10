@@ -690,6 +690,12 @@ One practical warning: the Ruby gem release depends on crates.io propagation. If
 
 ## Common mistakes
 
+**SDK npm version out of sync with Rust crate version**
+`sdk/npm/smbcloud-auth/package.json` must have the same version as `crates/smbcloud-auth-sdk-wasm/Cargo.toml`. The `prepare-package.mjs` script compares them at build time and throws a hard error on mismatch. When bumping workspace crate versions for a release, always update the npm package version in the same commit. Forgetting this causes the `check-npm-sdk` CI job and the `release-sdk-npm` workflow to fail.
+
+**Tagging a release on a feature branch instead of `development`**
+Always tag on `development` (the mainline branch). Tagging on a feature branch leaves `development` without the release commit, making git history confusing and future releases error-prone. Merge the feature branch into `development` first, then tag. If a tag was already placed on the wrong commit, move it with `git tag -f v<version>` and `git push origin v<version> --force`.
+
 **Building the full workspace in release workflows**
 Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-sdk-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
 

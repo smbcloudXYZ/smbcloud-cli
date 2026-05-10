@@ -19,6 +19,9 @@ Use this skill when work touches any part of the smbCloud CLI distribution flow:
 Use these files as the release source of truth:
 
 - Rust crate version and binary name: `crates/cli/Cargo.toml`
+- SDK WASM crate version: `crates/smbcloud-auth-sdk-wasm/Cargo.toml`
+- SDK npm package version: `sdk/npm/smbcloud-auth/package.json`
+- SDK npm build script: `sdk/npm/smbcloud-auth/prepare-package.mjs`
 - npm release workflow: `.github/workflows/release-npm.yml`
 - PyPI release workflow: `.github/workflows/release-pypi.yml`
 - npm platform package generator: `npm/scripts/render-platform-package.cjs`
@@ -26,6 +29,36 @@ Use these files as the release source of truth:
 - npm wrapper launcher: `npm/smbcloud-cli/src/index.ts`
 - PyPI package metadata: `pypi/pyproject.toml`
 - PyPI package README: `pypi/README.md`
+
+## Version sync rules
+
+The SDK npm package `@smbcloud/sdk-auth` must have its version in `sdk/npm/smbcloud-auth/package.json` match the version in `crates/smbcloud-auth-sdk-wasm/Cargo.toml` exactly. The `prepare-package.mjs` script enforces this at build time and will fail CI if they diverge.
+
+When bumping workspace crate versions for a release, always update `sdk/npm/smbcloud-auth/package.json` in the same commit.
+
+## Tagging discipline
+
+Always tag releases on the `development` branch (the mainline). Never tag on a feature branch.
+
+Reasoning:
+
+- The release commit history stays clean and linear on the default branch.
+- `cargo workspaces publish --allow-branch "*"` accepts any branch, but downstream workflows dispatch from the tag ref, so the tagged commit must contain all intended changes.
+- Tagging on a feature branch leaves `development` without the release commit and makes git history confusing.
+
+Workflow:
+
+1. Merge the feature branch into `development` with `--no-ff`.
+2. Tag on `development`: `git tag v<version>`.
+3. Push both: `git push origin development && git push origin v<version>`.
+
+If a tag was placed on the wrong commit (e.g. before a last-minute fix), move it:
+
+1. Merge the fix into `development`.
+2. Force-move the tag: `git tag -f v<version>`.
+3. Force-push the tag: `git push origin v<version> --force`.
+
+The `release-crate.yml` orchestrator triggers on `push.tags: "v*.*.*"`, so the force-push will re-trigger the full release chain.
 
 ## Release model
 
