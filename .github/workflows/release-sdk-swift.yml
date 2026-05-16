@@ -1,0 +1,420 @@
+name: SDK Swift Release
+
+# Builds the Apple-platform XCFramework for the smbCloud Auth Swift package,
+# updates the standalone `smbcloud-auth-swift` repo, tags it with the release
+# version, and publishes the XCFramework zip as a GitHub Release asset.
+#
+# Required secrets:
+#   SMBCLOUD_SWIFT_REPO_TOKEN — GitHub token/PAT with contents:write access to
+#                               smbcloudXYZ/smbcloud-auth-swift
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.4.1)"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  SWIFT_SDK_REPOSITORY: smbcloudXYZ/smbcloud-auth-swift
+  SWIFT_XCFRAMEWORK_NAME: smbcloud_authFFI.xcframework
+  SWIFT_XCFRAMEWORK_ZIP: smbcloud_authFFI.xcframework.zip
+
+jobs:
+  publish-sdk-swift:
+    name: Build and publish SmbCloudAuth Swift SDK
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout smbcloud-cli
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Checkout smbcloud-auth-swift
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.SWIFT_SDK_REPOSITORY }}
+          path: swift-sdk
+          fetch-depth: 0
+          token: ${{ secrets.SMBCLOUD_SWIFT_REPO_TOKEN }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Prepare smbcloud-auth-swift working tree
+        id: swift-repo
+        shell: bash
+        working-directory: swift-sdk
+        run: |
+          set -euo pipefail
+
+          git fetch origin --tags
+
+          default_branch="$(git remote show origin | sed -n '/HEAD branch/s/.*: //p')"
+          if [[ -z "${default_branch}" ]]; then
+            echo "Failed to determine default branch for ${SWIFT_SDK_REPOSITORY}" >&2
+            exit 1
+          fi
+
+          git checkout -B "${default_branch}" "origin/${default_branch}"
+          echo "default_branch=${default_branch}" >> "$GITHUB_OUTPUT"
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [[ -z "${rust_toolchain}" ]]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install stable Rust with Apple targets
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim,aarch64-apple-darwin
+
+      - name: Install nightly Rust with Apple targets
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: nightly
+          targets: aarch64-apple-tvos,aarch64-apple-tvos-sim,aarch64-apple-visionos,aarch64-apple-visionos-sim
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: sdk-swift
+
+      - name: Verify Rust crate versions match tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cargo metadata --no-deps --format-version 1 > metadata.json
+
+          for crate_name in smbcloud-auth-sdk smbcloud-auth-sdk-apple; do
+            cargo_version="$(jq -r --arg crate_name "${crate_name}" '.packages[] | select(.name == $crate_name) | .version' metadata.json)"
+
+            echo "${crate_name} version : ${cargo_version}"
+            echo "Release tag version   : ${RELEASE_VERSION}"
+
+            if [[ -z "${cargo_version}" || "${cargo_version}" == "null" ]]; then
+              echo "::error::Unable to find ${crate_name} in cargo metadata."
+              exit 1
+            fi
+
+            if [[ "${cargo_version}" != "${RELEASE_VERSION}" ]]; then
+              echo "::error::Version mismatch — ${crate_name} must be ${RELEASE_VERSION} before releasing Swift SDK."
+              exit 1
+            fi
+          done
+
+      - name: Build XCFramework and generated Swift bindings
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cli_repo="${GITHUB_WORKSPACE}"
+          swift_repo="${GITHUB_WORKSPACE}/swift-sdk"
+          build_root="${RUNNER_TEMP}/smbcloud-auth-swift-build"
+          generated_dir="${build_root}/generated"
+          headers_dir="${build_root}/Headers"
+          frameworks_dir="${build_root}/frameworks"
+          output_xcframework="${swift_repo}/${SWIFT_XCFRAMEWORK_NAME}"
+          output_zip="${swift_repo}/dist/${SWIFT_XCFRAMEWORK_ZIP}"
+          bindgen_bin="${cli_repo}/target/release/uniffi-bindgen"
+          apple_manifest="${cli_repo}/crates/smbcloud-auth-sdk-apple/Cargo.toml"
+          workspace_manifest="${cli_repo}/Cargo.toml"
+          static_lib_name="libsmbcloud_auth.a"
+
+          rm -rf "${build_root}" "${output_xcframework}" "${swift_repo}/dist"
+          mkdir -p "${generated_dir}" "${headers_dir}" "${frameworks_dir}" "${swift_repo}/dist"
+
+          cargo +"${RUST_TOOLCHAIN}" build \
+            --manifest-path "${apple_manifest}" \
+            --features bindgen \
+            --bin uniffi-bindgen \
+            --release
+
+          IPHONEOS_DEPLOYMENT_TARGET=16.0 cargo +"${RUST_TOOLCHAIN}" rustc \
+            --manifest-path "${workspace_manifest}" \
+            --package smbcloud-auth-sdk-apple \
+            --target aarch64-apple-ios \
+            --release \
+            --lib \
+            --crate-type staticlib
+
+          IPHONEOS_DEPLOYMENT_TARGET=16.0 cargo +"${RUST_TOOLCHAIN}" rustc \
+            --manifest-path "${workspace_manifest}" \
+            --package smbcloud-auth-sdk-apple \
+            --target aarch64-apple-ios-sim \
+            --release \
+            --lib \
+            --crate-type staticlib
+
+          MACOSX_DEPLOYMENT_TARGET=14.0 cargo +"${RUST_TOOLCHAIN}" rustc \
+            --manifest-path "${workspace_manifest}" \
+            --package smbcloud-auth-sdk-apple \
+            --target aarch64-apple-darwin \
+            --release \
+            --lib \
+            --crate-type staticlib
+
+          TVOS_DEPLOYMENT_TARGET=16.0 cargo +nightly rustc -Z build-std \
+            --manifest-path "${workspace_manifest}" \
+            --package smbcloud-auth-sdk-apple \
+            --target aarch64-apple-tvos \
+            --release \
+            --lib \
+            --crate-type staticlib
+
+          TVOS_DEPLOYMENT_TARGET=16.0 cargo +nightly rustc -Z build-std \
+            --manifest-path "${workspace_manifest}" \
+            --package smbcloud-auth-sdk-apple \
+            --target aarch64-apple-tvos-sim \
+            --release \
+            --lib \
+            --crate-type staticlib
+
+          XROS_DEPLOYMENT_TARGET=1.0 cargo +nightly rustc -Z build-std \
+            --manifest-path "${workspace_manifest}" \
+            --package smbcloud-auth-sdk-apple \
+            --target aarch64-apple-visionos \
+            --release \
+            --lib \
+            --crate-type staticlib
+
+          XROS_DEPLOYMENT_TARGET=1.0 cargo +nightly rustc -Z build-std \
+            --manifest-path "${workspace_manifest}" \
+            --package smbcloud-auth-sdk-apple \
+            --target aarch64-apple-visionos-sim \
+            --release \
+            --lib \
+            --crate-type staticlib
+
+          "${bindgen_bin}" generate \
+            --library "${cli_repo}/target/aarch64-apple-ios/release/${static_lib_name}" \
+            --language swift \
+            --out-dir "${generated_dir}"
+
+          cp "${generated_dir}/smbcloud_auth.swift" "${swift_repo}/Sources/SmbCloudAuth/smbcloud_auth.swift"
+          cp "${generated_dir}/smbcloud_authFFI.h" "${headers_dir}/smbcloud_authFFI.h"
+
+          stage_framework() {
+            lib_input="$1"
+            framework_output="$2"
+
+            rm -rf "${framework_output}"
+            mkdir -p "${framework_output}/Headers" "${framework_output}/Modules"
+
+            cp "${lib_input}" "${framework_output}/smbcloud_authFFI"
+            cp "${headers_dir}/smbcloud_authFFI.h" "${framework_output}/Headers/smbcloud_authFFI.h"
+
+            cat > "${framework_output}/Modules/module.modulemap" <<'EOF'
+            framework module smbcloud_authFFI {
+                header "smbcloud_authFFI.h"
+                export *
+                use "Darwin"
+                use "_Builtin_stdbool"
+                use "_Builtin_stdint"
+            }
+            EOF
+
+            cat > "${framework_output}/Info.plist" <<EOF
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0">
+            <dict>
+              <key>CFBundleIdentifier</key>
+              <string>xyz.smbcloud.smbcloud-auth-ffi</string>
+              <key>CFBundleName</key>
+              <string>smbcloud_authFFI</string>
+              <key>CFBundleExecutable</key>
+              <string>smbcloud_authFFI</string>
+              <key>CFBundlePackageType</key>
+              <string>FMWK</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${RELEASE_VERSION}</string>
+              <key>CFBundleVersion</key>
+              <string>1</string>
+            </dict>
+            </plist>
+            EOF
+          }
+
+          stage_framework \
+            "${cli_repo}/target/aarch64-apple-ios/release/${static_lib_name}" \
+            "${frameworks_dir}/ios/smbcloud_authFFI.framework"
+          stage_framework \
+            "${cli_repo}/target/aarch64-apple-ios-sim/release/${static_lib_name}" \
+            "${frameworks_dir}/ios-sim/smbcloud_authFFI.framework"
+          stage_framework \
+            "${cli_repo}/target/aarch64-apple-darwin/release/${static_lib_name}" \
+            "${frameworks_dir}/macos/smbcloud_authFFI.framework"
+          stage_framework \
+            "${cli_repo}/target/aarch64-apple-tvos/release/${static_lib_name}" \
+            "${frameworks_dir}/tvos/smbcloud_authFFI.framework"
+          stage_framework \
+            "${cli_repo}/target/aarch64-apple-tvos-sim/release/${static_lib_name}" \
+            "${frameworks_dir}/tvos-sim/smbcloud_authFFI.framework"
+          stage_framework \
+            "${cli_repo}/target/aarch64-apple-visionos/release/${static_lib_name}" \
+            "${frameworks_dir}/visionos/smbcloud_authFFI.framework"
+          stage_framework \
+            "${cli_repo}/target/aarch64-apple-visionos-sim/release/${static_lib_name}" \
+            "${frameworks_dir}/visionos-sim/smbcloud_authFFI.framework"
+
+          xcodebuild -create-xcframework \
+            -framework "${frameworks_dir}/ios/smbcloud_authFFI.framework" \
+            -framework "${frameworks_dir}/ios-sim/smbcloud_authFFI.framework" \
+            -framework "${frameworks_dir}/macos/smbcloud_authFFI.framework" \
+            -framework "${frameworks_dir}/tvos/smbcloud_authFFI.framework" \
+            -framework "${frameworks_dir}/tvos-sim/smbcloud_authFFI.framework" \
+            -framework "${frameworks_dir}/visionos/smbcloud_authFFI.framework" \
+            -framework "${frameworks_dir}/visionos-sim/smbcloud_authFFI.framework" \
+            -output "${output_xcframework}"
+
+          ditto -c -k --sequesterRsrc --keepParent \
+            "${output_xcframework}" \
+            "${output_zip}"
+
+          framework_checksum="$(cd "${swift_repo}" && swift package compute-checksum "dist/${SWIFT_XCFRAMEWORK_ZIP}")"
+
+          echo "FRAMEWORK_CHECKSUM=${framework_checksum}" >> "$GITHUB_ENV"
+          echo "framework_zip=${output_zip}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload XCFramework zip artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sdk-swift-xcframework
+          path: ${{ steps.build.outputs.framework_zip }}
+
+      - name: Update smbcloud-auth-swift package metadata
+        shell: bash
+        working-directory: swift-sdk
+        run: |
+          set -euo pipefail
+
+          python3 <<'PY'
+          from pathlib import Path
+          import os
+          import re
+
+          package_path = Path("Package.swift")
+          text = package_path.read_text()
+          release_version = os.environ["RELEASE_VERSION"]
+          checksum = os.environ["FRAMEWORK_CHECKSUM"]
+          url = f"https://github.com/smbcloudXYZ/smbcloud-auth-swift/releases/download/{release_version}/smbcloud_authFFI.xcframework.zip"
+
+          text = re.sub(
+              r'https://github\.com/smbcloudXYZ/smbcloud-auth-swift/releases/download/[^"]+/smbcloud_authFFI\.xcframework\.zip',
+              url,
+              text,
+          )
+          text = re.sub(
+              r'let releaseFrameworkChecksum =\n\s+"[0-9a-f]{64}"',
+              f'let releaseFrameworkChecksum =\n    "{checksum}"',
+              text,
+          )
+
+          package_path.write_text(text)
+          PY
+
+      - name: Commit and tag smbcloud-auth-swift release
+        shell: bash
+        working-directory: swift-sdk
+        run: |
+          set -euo pipefail
+
+          git fetch origin --tags
+
+          if git ls-remote --tags origin "refs/tags/${RELEASE_VERSION}" | grep -q .; then
+            echo "::error::${SWIFT_SDK_REPOSITORY} tag ${RELEASE_VERSION} already exists."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add Package.swift Sources/SmbCloudAuth/smbcloud_auth.swift
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Release ${RELEASE_VERSION}"
+            git push origin HEAD:${{ steps.swift-repo.outputs.default_branch }}
+          else
+            echo "Swift repo metadata already up to date on ${RELEASE_VERSION}."
+          fi
+
+          git tag "${RELEASE_VERSION}"
+          git push origin "${RELEASE_VERSION}"
+
+      - name: Create GitHub Release in smbcloud-auth-swift
+        shell: bash
+        working-directory: swift-sdk
+        env:
+          GH_TOKEN: ${{ secrets.SMBCLOUD_SWIFT_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          release_notes_file="${RUNNER_TEMP}/smbcloud-auth-swift-release-notes.md"
+          cat > "${release_notes_file}" <<EOF
+          ## smbCloud Auth Swift ${RELEASE_VERSION}
+
+          ### Installation
+
+          Add the Swift package dependency:
+
+          \`\`\`swift
+          .package(url: "https://github.com/smbcloudXYZ/smbcloud-auth-swift", from: "${RELEASE_VERSION}")
+          \`\`\`
+
+          ### Platforms
+
+          | Platform | Minimum Version |
+          |----------|-----------------|
+          | iOS      | 16.0            |
+          | macOS    | 14.0            |
+          | tvOS     | 16.0            |
+          | visionOS | 1.0             |
+          EOF
+
+          if gh release view "${RELEASE_VERSION}" --repo "${SWIFT_SDK_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_VERSION}" "dist/${SWIFT_XCFRAMEWORK_ZIP}" \
+              --clobber \
+              --repo "${SWIFT_SDK_REPOSITORY}"
+          else
+            gh release create "${RELEASE_VERSION}" "dist/${SWIFT_XCFRAMEWORK_ZIP}" \
+              --repo "${SWIFT_SDK_REPOSITORY}" \
+              --title "smbCloud Auth Swift ${RELEASE_VERSION}" \
+              --notes-file "${release_notes_file}"
+          fi
+
+      - name: Publish summary
+        shell: bash
+        run: |
+          cat <<EOF >> "$GITHUB_STEP_SUMMARY"
+          ## Swift SDK Release
+
+          - Source tag: ${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}
+          - Swift repo: ${SWIFT_SDK_REPOSITORY}
+          - Swift tag: ${RELEASE_VERSION}
+          - XCFramework: ${SWIFT_XCFRAMEWORK_NAME}
+          - Checksum: ${FRAMEWORK_CHECKSUM}
+          EOF

@@ -28,6 +28,7 @@ jobs:
       publish_cli_sdk_pypi: ${{ steps.downstream.outputs.publish_cli_sdk_pypi }}
       publish_cli_sdk_npm: ${{ steps.downstream.outputs.publish_cli_sdk_npm }}
       publish_cli_sdk_gem: ${{ steps.downstream.outputs.publish_cli_sdk_gem }}
+      publish_cli_sdk_swift: ${{ steps.downstream.outputs.publish_cli_sdk_swift }}
 
     steps:
       - name: Checkout
@@ -128,14 +129,17 @@ jobs:
           publish_cli_sdk_pypi="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk-py" or . == "smbcloud-auth-sdk" or . == "smbcloud-model" or . == "smbcloud-network")' plan.json)"
           publish_cli_sdk_npm="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk-wasm" or . == "smbcloud-auth-sdk" or . == "smbcloud-network" or . == "smbcloud-networking")' plan.json)"
           publish_cli_sdk_gem="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk" or . == "smbcloud-model" or . == "smbcloud-network")' plan.json)"
+          publish_cli_sdk_swift="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk" or . == "smbcloud-auth-sdk-apple" or . == "smbcloud-model" or . == "smbcloud-network")' plan.json)"
 
           echo "publish_cli_sdk_pypi=${publish_cli_sdk_pypi}" >> "$GITHUB_OUTPUT"
           echo "publish_cli_sdk_npm=${publish_cli_sdk_npm}" >> "$GITHUB_OUTPUT"
           echo "publish_cli_sdk_gem=${publish_cli_sdk_gem}" >> "$GITHUB_OUTPUT"
+          echo "publish_cli_sdk_swift=${publish_cli_sdk_swift}" >> "$GITHUB_OUTPUT"
 
           echo "SDK PyPI trigger: ${publish_cli_sdk_pypi}"
           echo "SDK npm trigger: ${publish_cli_sdk_npm}"
           echo "SDK gem trigger: ${publish_cli_sdk_gem}"
+          echo "SDK Swift trigger: ${publish_cli_sdk_swift}"
 
       - name: Publish workspace crates to crates.io
         if: steps.plan.outputs.count != '0'
@@ -274,6 +278,27 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'release-sdk-gem.yml',
+              ref: '${{ needs.publish.outputs.tag }}',
+              inputs: {
+                tag: '${{ needs.publish.outputs.tag }}'
+              }
+            })
+
+  dispatch-sdk-swift:
+    name: Trigger SDK Swift release
+    needs: publish
+    if: needs.publish.outputs.publish_cli_sdk_swift == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger SDK Swift release workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-sdk-swift.yml',
               ref: '${{ needs.publish.outputs.tag }}',
               inputs: {
                 tag: '${{ needs.publish.outputs.tag }}'
