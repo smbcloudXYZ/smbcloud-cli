@@ -347,6 +347,14 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     cd "$APP_PATH"
     mkdir -p logs
 
+    # Backward compatibility: older operator-managed ecosystem.config.js files
+    # still point PM2 at `.next/standalone/server.js`. The current deploy flow
+    # rsyncs the *contents* of `.next/standalone/` into the app root, so the
+    # real entrypoint is `server.js`. Create a compatibility symlink so both
+    # layouts work and old PM2 configs do not crash after deploy.
+    mkdir -p .next/standalone
+    ln -sfn ../../server.js .next/standalone/server.js
+
     echo "Starting $PM2_APP with pm2..."
     if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
         pm2 delete "$PM2_APP"
