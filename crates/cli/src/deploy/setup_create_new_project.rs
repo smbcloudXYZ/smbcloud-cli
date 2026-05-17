@@ -1,5 +1,8 @@
 use {
-    crate::{client, token::get_smb_token::get_smb_token},
+    crate::{
+        client, project::deploy_target::ensure_default_frontend_app_for_project,
+        token::get_smb_token::get_smb_token,
+    },
     dialoguer::{console::Term, theme::ColorfulTheme, Input, Select},
     regex::Regex,
     smbcloud_model::{
@@ -101,7 +104,7 @@ pub(crate) async fn create_new_project(
     match create_project(
         env,
         client(),
-        access_token,
+        access_token.clone(),
         ProjectCreate {
             name,
             runner,
@@ -112,7 +115,10 @@ pub(crate) async fn create_new_project(
     )
     .await
     {
-        Ok(project) => Ok(project),
+        Ok(project) => {
+            let _ = ensure_default_frontend_app_for_project(env, &access_token, &project).await;
+            Ok(project)
+        }
         Err(e) => Err(e),
     }
 }

@@ -4,6 +4,10 @@ use {
         deploy::{
             setup_create_new_project::create_new_project, setup_select_project::select_project,
         },
+        project::deploy_target::{
+            ensure_default_frontend_app_for_project, merge_project_with_frontend_app,
+            resolve_frontend_app_for_project,
+        },
         token::get_smb_token::get_smb_token,
         ui::highlight,
     },
@@ -58,18 +62,38 @@ pub(crate) async fn setup_project(
 
     let projects = get_projects(env, client(), access_token.to_string()).await?;
 
-    let project: Project = if !projects.is_empty() {
+    let workspace_project: Project = if !projects.is_empty() {
         select_project(env, projects, &path_str).await?
     } else {
         create_new_project(env, &path_str).await?
     };
 
-    let name = project.name.clone();
-    let description = project.description.clone();
+    let deploy_target =
+        match resolve_frontend_app_for_project(env, &access_token, &workspace_project, true).await?
+        {
+            Some(frontend_app) => {
+                merge_project_with_frontend_app(&workspace_project, &frontend_app)
+            }
+            None => match ensure_default_frontend_app_for_project(
+                env,
+                &access_token,
+                &workspace_project,
+            )
+            .await
+            {
+                Ok(frontend_app) => {
+                    merge_project_with_frontend_app(&workspace_project, &frontend_app)
+                }
+                Err(_) => workspace_project.clone(),
+            },
+        };
+
+    let name = workspace_project.name.clone();
+    let description = workspace_project.description.clone();
 
     // Create config struct
     let config = Config {
-        project,
+        project: deploy_target,
         name,
         description,
         projects: None,

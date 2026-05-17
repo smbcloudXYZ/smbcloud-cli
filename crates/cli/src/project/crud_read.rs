@@ -4,6 +4,7 @@ use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
+    project::deploy_target::resolve_frontend_app_for_project,
     ui::{
         fail_message, fail_symbol, project_detail_view::show_project_detail_tui,
         project_table::show_projects_tui, succeed_message, succeed_symbol,
@@ -91,11 +92,12 @@ pub(crate) fn show_project_detail(project: &Project) -> Result<()> {
 
 pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<CommandResult> {
     let access_token = get_smb_token(env)?;
-    let project = get_project(env, client(), access_token, id).await?;
+    let project = get_project(env, client(), access_token.clone(), id).await?;
+    let frontend_app = resolve_frontend_app_for_project(env, &access_token, &project, true).await?;
 
     let config = Config {
         current_project: Some(project),
-        current_frontend_app: None,
+        current_frontend_app: frontend_app,
         current_auth_app: None,
     };
 

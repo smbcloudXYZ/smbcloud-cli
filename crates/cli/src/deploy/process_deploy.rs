@@ -136,7 +136,7 @@ pub async fn process_deploy(
         return process_deploy_rails(env, config).await;
     }
 
-    // Route Rust service projects: rsync source tree, then run a remote Cargo build script.
+    // Route Rust service projects: build a Linux binary locally, upload it over rsync, then restart it over SSH.
     if config.project.kind.as_deref() == Some("rust") {
         return process_deploy_rust(env, config).await;
     }
@@ -215,9 +215,12 @@ async fn git_deploy(
         Err(_) => return Err(anyhow!("Cannot resolve main branch.")),
     };
 
+    let frontend_app_id = config.project.frontend_app_id.clone();
+
     let payload = DeploymentPayload {
         commit_hash: commit_hash.to_string(),
         status: DeploymentStatus::Started,
+        frontend_app_id: frontend_app_id.clone(),
     };
 
     let created_deployment =
@@ -254,6 +257,7 @@ async fn git_deploy(
         let access_token_for_update_cb = update_access_token.clone();
         let project_id_for_update_cb = update_project_id;
         let deployment_id_for_update_cb = update_deployment_id;
+        let frontend_app_id_for_update_cb = frontend_app_id.clone();
 
         move |_refname, status_message| {
             if let Some(e) = status_message {
@@ -267,6 +271,7 @@ async fn git_deploy(
                     let update_payload = DeploymentPayload {
                         commit_hash: commit_hash.to_string(),
                         status: DeploymentStatus::Failed,
+                        frontend_app_id: frontend_app_id_for_update_cb.clone(),
                     };
 
                     // We are in a sync callback, so we need to block on the async task.
@@ -307,6 +312,7 @@ async fn git_deploy(
             let update_payload = DeploymentPayload {
                 commit_hash: commit_hash.to_string(),
                 status: DeploymentStatus::Done,
+                frontend_app_id: frontend_app_id.clone(),
             };
             let result = update(
                 env,
