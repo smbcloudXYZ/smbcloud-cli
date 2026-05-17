@@ -64,10 +64,11 @@ pub struct Project {
     pub source_path: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    /// Deployment kind, e.g. "vite-spa". Absent for server-side runners.
+    /// Deployment kind, e.g. "vite-spa", "nextjs-ssr", or "rust".
     pub kind: Option<String>,
-    /// Local source directory to build from, e.g. "frontend/connected-devices".
-    /// Used by vite-spa deploys as the working directory for the build step.
+    /// Local source directory to build from, e.g. "frontend/connected-devices"
+    /// or a Rust crate root like ".".
+    /// Used by local-build deploys such as vite-spa, nextjs-ssr, and rust.
     /// Distinct from `path`, which is the remote destination on the server.
     pub source: Option<String>,
     /// Build output directory relative to `source`, e.g. "dist".
@@ -87,6 +88,12 @@ pub struct Project {
     /// SSH command to run on the server after rsyncing the shared lib,
     /// e.g. "cd ~/lib/gems/gem_error_codes && rbenv local 3.4.2 && bundle install && bundle exec rake compile".
     pub compile_cmd: Option<String>,
+    /// Rust binary filename to upload and restart, e.g. "onde-cloud".
+    /// When absent, the CLI falls back to the Cargo package name.
+    pub binary_name: Option<String>,
+    /// Rust target triple used for local cross-compilation before upload,
+    /// e.g. "x86_64-unknown-linux-gnu".
+    pub rust_target: Option<String>,
 }
 
 impl Display for Project {

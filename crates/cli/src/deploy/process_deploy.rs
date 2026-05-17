@@ -136,7 +136,7 @@ pub async fn process_deploy(
         return process_deploy_rails(env, config).await;
     }
 
-    // Route Rust service projects: rsync source tree, then run a remote Cargo build script.
+    // Route Rust service projects: build a Linux binary locally, upload it over rsync, then restart it over SSH.
     if config.project.kind.as_deref() == Some("rust") {
         return process_deploy_rust(env, config).await;
     }

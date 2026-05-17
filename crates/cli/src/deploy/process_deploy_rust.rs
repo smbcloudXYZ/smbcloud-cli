@@ -16,32 +16,33 @@ use {
     smbcloud_utils::config::Config,
     spinners::{Spinner, Spinners},
     std::{
+        fs,
         io::Write,
-        path::Path,
-        process::{Command, Stdio},
+        path::{Path, PathBuf},
+        process::{Command, Output, Stdio},
     },
     tempfile::NamedTempFile,
+    toml::Value,
 };
 
-/// Deploys a Rust service by syncing source to the server and running a remote
-/// Cargo build step.
+const DEFAULT_RUST_TARGET: &str = "x86_64-unknown-linux-gnu";
+
+/// Deploys a Rust service by cross-compiling a Linux binary locally, uploading
+/// only the executable, and restarting it on the remote host.
 ///
 /// Required config fields:
 ///   - `kind = "rust"`
-///   - `path`   — remote app directory on the server
+///   - `path`        — remote app directory on the server
 ///
 /// Optional config fields:
-///   - `source`      — local source directory (defaults to current directory)
-///   - `compile_cmd` — remote command sequence to run inside `path` after the
-///     upload. When omitted, the CLI runs `cargo build --release`.
-///
-/// Typical `compile_cmd` for a systemd-managed service:
-///   cargo build --release && sudo systemctl restart smbcloud-mail-imap
+///   - `source`      — local crate directory (defaults to current directory)
+///   - `binary_name` — binary filename to upload; falls back to Cargo package name
+///   - `rust_target` — local cross-compilation target triple; defaults to `x86_64-unknown-linux-gnu`
 pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<CommandResult> {
     let source = config.project.source.as_deref().unwrap_or(".");
     let remote_path = config.project.path.as_deref().ok_or_else(|| {
         anyhow!(fail_message(
-            "path not set in .smb/config.toml (e.g. path = \"apps/mail/smbcloud-mail-imap\")"
+            "path not set in .smb/config.toml (e.g. path = \"apps/rest-api/my-rust-app\")"
         ))
     })?;
 
@@ -53,17 +54,21 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         ))));
     }
 
+    let binary_name = resolve_binary_name(&config, source_dir)?;
+    let rust_target = config
+        .project
+        .rust_target
+        .as_deref()
+        .unwrap_or(DEFAULT_RUST_TARGET);
+
+    let binary_path = build_local_binary(source, rust_target, &binary_name)?;
+
     let access_token = crate::token::get_smb_token::get_smb_token(env)?;
     let user = me(env, client(), &access_token).await?;
     let runner = config.project.runner;
     let rsync_host = runner.rsync_host();
 
-    let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
-    let identity_file = home.join(".ssh").join(format!("id_{}@smbcloud", user.id));
-    let identity_file_str = identity_file.to_string_lossy().into_owned();
-
     let deploy_ref = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
-
     let created_deployment = create_deployment(
         env,
         client(),
@@ -78,51 +83,38 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
     .await
     .ok();
 
+    let home = dirs::home_dir().ok_or_else(|| anyhow!("Could not determine home directory"))?;
+    let identity_file = home.join(".ssh").join(format!("id_{}@smbcloud", user.id));
+    let identity_file_str = identity_file.to_string_lossy().into_owned();
+
     let mut known_hosts_file = NamedTempFile::new()
         .map_err(|error| anyhow!("Failed to create temp known_hosts file: {}", error))?;
     writeln!(known_hosts_file, "{}", known_hosts::for_host(&rsync_host))
         .map_err(|error| anyhow!("Failed to write known_hosts: {}", error))?;
 
-    let ssh_command = build_ssh_command(&identity_file_str, &known_hosts_file);
-
-    let source_with_slash = if source.ends_with('/') {
-        source.to_owned()
-    } else {
-        format!("{}/", source)
-    };
-
-    let remote_with_slash = if remote_path.ends_with('/') {
-        remote_path.to_owned()
-    } else {
-        format!("{}/", remote_path)
-    };
-
-    let destination = format!("git@{}:{}", rsync_host, remote_with_slash);
-
-    let mut upload_spinner = Spinner::new(
-        Spinners::Hamburger,
-        succeed_message(&format!("Uploading Rust project {}…", source)),
+    let mut prepare_spinner = Spinner::new(
+        Spinners::SimpleDotsScrolling,
+        succeed_message(&format!("Preparing {} on server…", remote_path)),
     );
 
-    let upload_output = Command::new("rsync")
-        .args([
-            "-az",
-            "--delete",
-            "--exclude=.git",
-            "--exclude=.smb",
-            "--exclude=target",
-            "-e",
-            &ssh_command,
-            &source_with_slash,
-            &destination,
-        ])
-        .output()
-        .map_err(|error| anyhow!(fail_message(&format!("Failed to launch rsync: {}", error))))?;
+    let prepare_script = build_remote_prepare_script(remote_path);
+    let prepare_output = run_remote_script(
+        &identity_file_str,
+        &known_hosts_file,
+        &rsync_host,
+        &prepare_script,
+    )
+    .map_err(|error| {
+        anyhow!(fail_message(&format!(
+            "Failed to prepare remote directory: {}",
+            error
+        )))
+    })?;
 
-    if !upload_output.status.success() {
+    if !prepare_output.status.success() {
+        prepare_spinner.stop_and_persist(&fail_symbol(), fail_message("Remote prepare failed."));
+        print_output_details(&prepare_output);
         drop(known_hosts_file);
-        upload_spinner.stop_and_persist(&fail_symbol(), fail_message("Upload failed."));
-        let stderr = String::from_utf8_lossy(&upload_output.stderr);
         mark_failed(
             &deploy_ref,
             &created_deployment,
@@ -132,79 +124,81 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         )
         .await;
         return Err(anyhow!(fail_message(&format!(
-            "rsync exited with status {}: {}",
-            upload_output.status.code().unwrap_or(-1),
-            stderr.trim()
+            "Failed to prepare remote directory '{}'",
+            remote_path
+        ))));
+    }
+
+    prepare_spinner.stop_and_persist(
+        &succeed_symbol(),
+        succeed_message("Remote directory ready."),
+    );
+
+    let ssh_command = build_ssh_command(&identity_file_str, &known_hosts_file);
+    let remote_with_slash = if remote_path.ends_with('/') {
+        remote_path.to_owned()
+    } else {
+        format!("{}/", remote_path)
+    };
+    let destination = format!("git@{}:{}", rsync_host, remote_with_slash);
+    let binary_path_str = binary_path.to_string_lossy().into_owned();
+
+    let mut upload_spinner = Spinner::new(
+        Spinners::Hamburger,
+        succeed_message(&format!("Uploading {}…", binary_name)),
+    );
+
+    let upload_output = Command::new("rsync")
+        .args([
+            "-az",
+            "--chmod=755",
+            "-e",
+            &ssh_command,
+            &binary_path_str,
+            &destination,
+        ])
+        .output()
+        .map_err(|error| anyhow!(fail_message(&format!("Failed to launch rsync: {}", error))))?;
+
+    if !upload_output.status.success() {
+        upload_spinner.stop_and_persist(&fail_symbol(), fail_message("Upload failed."));
+        print_output_details(&upload_output);
+        drop(known_hosts_file);
+        mark_failed(
+            &deploy_ref,
+            &created_deployment,
+            &config,
+            env,
+            &access_token,
+        )
+        .await;
+        return Err(anyhow!(fail_message(&format!(
+            "Failed to upload '{}' to '{}'",
+            binary_name, remote_path
         ))));
     }
 
     upload_spinner.stop_and_persist(&succeed_symbol(), succeed_message("Upload complete."));
 
-    let remote_script_body = match config.project.compile_cmd.as_deref() {
-        Some(command) => command.to_owned(),
-        None => "cargo build --release".to_owned(),
-    };
-
-    let deploy_script = format!(
-        r#"set -e
-source ~/.profile 2>/dev/null || true
-source ~/.bashrc 2>/dev/null || true
-APP_PATH=\"{remote_path}\"
-
-if [ ! -d \"$APP_PATH\" ]; then
-    echo \"Error: $APP_PATH is not a directory.\"
-    exit 1
-fi
-
-cd \"$APP_PATH\"
-{remote_script_body}
-echo \"Done.\"
-"#,
-        remote_path = remote_path,
-        remote_script_body = remote_script_body,
-    );
-
     let mut remote_spinner = Spinner::new(
         Spinners::SimpleDotsScrolling,
-        succeed_message("Running remote Rust deploy script…"),
+        succeed_message(&format!("Starting {} on server…", binary_name)),
     );
 
-    let mut child = Command::new("ssh")
-        .args(build_ssh_args(
-            &identity_file_str,
-            &known_hosts_file,
-            &rsync_host,
-        ))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|error| anyhow!(fail_message(&format!("Failed to spawn SSH: {}", error))))?;
-
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(deploy_script.as_bytes())
-            .map_err(|error| anyhow!("Failed to write deploy script to SSH stdin: {}", error))?;
-    }
-
-    let ssh_output = child
-        .wait_with_output()
-        .map_err(|error| anyhow!("Failed to wait for SSH process: {}", error))?;
+    let deploy_script = build_remote_start_script(remote_path, &binary_name);
+    let ssh_output = run_remote_script(
+        &identity_file_str,
+        &known_hosts_file,
+        &rsync_host,
+        &deploy_script,
+    )
+    .map_err(|error| anyhow!(fail_message(&format!("Failed to spawn SSH: {}", error))))?;
 
     drop(known_hosts_file);
 
     if !ssh_output.status.success() {
         remote_spinner.stop_and_persist(&fail_symbol(), fail_message("Remote deploy failed."));
-        let stderr = String::from_utf8_lossy(&ssh_output.stderr);
-        let stdout = String::from_utf8_lossy(&ssh_output.stdout);
-        let details = if !stderr.trim().is_empty() {
-            stderr
-        } else {
-            stdout
-        };
-        if !details.trim().is_empty() {
-            eprintln!("{}", details.trim());
-        }
+        print_output_details(&ssh_output);
         mark_failed(
             &deploy_ref,
             &created_deployment,
@@ -251,6 +245,217 @@ echo \"Done.\"
     })
 }
 
+fn resolve_binary_name(config: &Config, source_dir: &Path) -> Result<String> {
+    if let Some(binary_name) = config.project.binary_name.as_deref() {
+        let binary_name = binary_name.trim();
+        if binary_name.is_empty() {
+            return Err(anyhow!(fail_message(
+                "binary_name in .smb/config.toml cannot be empty."
+            )));
+        }
+        return Ok(binary_name.to_owned());
+    }
+
+    let cargo_toml_path = source_dir.join("Cargo.toml");
+    if !cargo_toml_path.exists() {
+        return Err(anyhow!(fail_message(&format!(
+            "Cargo.toml not found at '{}'. Set 'source' to the crate directory or add 'binary_name' to .smb/config.toml.",
+            cargo_toml_path.display()
+        ))));
+    }
+
+    let cargo_toml = fs::read_to_string(&cargo_toml_path).map_err(|error| {
+        anyhow!(fail_message(&format!(
+            "Failed to read '{}': {}",
+            cargo_toml_path.display(),
+            error
+        )))
+    })?;
+
+    let manifest: Value = toml::from_str(&cargo_toml).map_err(|error| {
+        anyhow!(fail_message(&format!(
+            "Failed to parse '{}': {}",
+            cargo_toml_path.display(),
+            error
+        )))
+    })?;
+
+    let package_name = manifest
+        .get("package")
+        .and_then(Value::as_table)
+        .and_then(|package| package.get("name"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| {
+            anyhow!(fail_message(
+                "Could not determine Rust binary name from Cargo.toml. Add 'binary_name' to .smb/config.toml."
+            ))
+        })?;
+
+    Ok(package_name.to_owned())
+}
+
+fn build_local_binary(source: &str, rust_target: &str, binary_name: &str) -> Result<PathBuf> {
+    println!();
+
+    let mut build_command;
+    let build_tool;
+    let is_native = native_linux_target() == Some(rust_target);
+
+    if !is_native && command_exists("cargo-zigbuild") {
+        build_tool = "cargo zigbuild";
+        build_command = Command::new("cargo");
+        build_command.args([
+            "zigbuild",
+            "--release",
+            "--target",
+            rust_target,
+            "--bin",
+            binary_name,
+        ]);
+    } else if !is_native && command_exists("cross") {
+        build_tool = "cross";
+        build_command = Command::new("cross");
+        build_command.args([
+            "build",
+            "--release",
+            "--target",
+            rust_target,
+            "--bin",
+            binary_name,
+        ]);
+    } else if is_native {
+        build_tool = "cargo";
+        build_command = Command::new("cargo");
+        build_command.args([
+            "build",
+            "--release",
+            "--target",
+            rust_target,
+            "--bin",
+            binary_name,
+        ]);
+    } else {
+        return Err(anyhow!(fail_message(&format!(
+            "Cross-compilation tooling is required to build target '{}'. Install `cargo-zigbuild` (recommended) or `cross`, or run deploy from a matching Linux host.",
+            rust_target
+        ))));
+    }
+
+    let status = build_command
+        .current_dir(source)
+        .status()
+        .map_err(|error| {
+            anyhow!(fail_message(&format!(
+                "Failed to spawn '{} build' for target '{}': {}",
+                build_tool, rust_target, error
+            )))
+        })?;
+
+    println!();
+
+    if !status.success() {
+        return Err(anyhow!(fail_message(&format!(
+            "'{} build --release --target {} --bin {}' exited with status {}",
+            build_tool, rust_target, binary_name, status
+        ))));
+    }
+
+    let binary_path = Path::new(source)
+        .join("target")
+        .join(rust_target)
+        .join("release")
+        .join(binary_name);
+
+    if !binary_path.exists() {
+        return Err(anyhow!(fail_message(&format!(
+            "Built binary not found at '{}'.",
+            binary_path.display()
+        ))));
+    }
+
+    println!(
+        "{} {}",
+        succeed_symbol(),
+        succeed_message(&format!("Built {} for {}.", binary_name, rust_target))
+    );
+
+    Ok(binary_path)
+}
+
+fn build_remote_prepare_script(remote_path: &str) -> String {
+    format!(
+        r#"set -e
+APP_PATH={remote_path}
+
+case "$APP_PATH" in
+    /*) ;;
+    *) APP_PATH="$HOME/$APP_PATH" ;;
+esac
+
+mkdir -p "$APP_PATH"
+echo "Prepared $APP_PATH"
+"#,
+        remote_path = shell_single_quote(remote_path),
+    )
+}
+
+fn build_remote_start_script(remote_path: &str, binary_name: &str) -> String {
+    format!(
+        r#"set -e
+APP_PATH={remote_path}
+PROCESS_NAME={binary_name}
+
+case "$APP_PATH" in
+    /*) ;;
+    *) APP_PATH="$HOME/$APP_PATH" ;;
+esac
+
+if [ ! -d "$APP_PATH" ]; then
+    echo "Error: $APP_PATH is not a directory."
+    exit 1
+fi
+
+cd "$APP_PATH"
+
+if [ ! -f "$PROCESS_NAME" ]; then
+    echo "Error: $PROCESS_NAME does not exist in $APP_PATH."
+    exit 1
+fi
+
+chmod +x "$PROCESS_NAME"
+
+PID=$(pidof "$PROCESS_NAME" 2>/dev/null || true)
+
+if [ -n "$PID" ]; then
+    echo "Stopping $PROCESS_NAME ($PID)..."
+    kill "$PID" 2>/dev/null || true
+    sleep 2
+    if kill -0 "$PID" 2>/dev/null; then
+        echo "Force-killing $PROCESS_NAME ($PID)..."
+        kill -9 "$PID" 2>/dev/null || true
+    fi
+fi
+
+echo "Starting $PROCESS_NAME..."
+nohup "./$PROCESS_NAME" >> "$APP_PATH/$PROCESS_NAME.log" 2>&1 &
+sleep 1
+
+NEW_PID=$(pidof "$PROCESS_NAME" 2>/dev/null || true)
+if [ -z "$NEW_PID" ]; then
+    echo "Error: failed to start $PROCESS_NAME."
+    exit 1
+fi
+
+echo "Started $PROCESS_NAME as $NEW_PID"
+echo "Done."
+"#,
+        remote_path = shell_single_quote(remote_path),
+        binary_name = shell_single_quote(binary_name),
+    )
+}
+
 fn build_ssh_command(identity_file: &str, known_hosts_file: &NamedTempFile) -> String {
     format!(
         "ssh -i {identity} \\
@@ -286,6 +491,61 @@ fn build_ssh_args<'a>(
         "bash".to_owned(),
         "-s".to_owned(),
     ]
+}
+
+fn run_remote_script(
+    identity_file: &str,
+    known_hosts_file: &NamedTempFile,
+    rsync_host: &str,
+    script: &str,
+) -> Result<Output> {
+    let mut child = Command::new("ssh")
+        .args(build_ssh_args(identity_file, known_hosts_file, rsync_host))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| anyhow!("Failed to spawn SSH: {}", error))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin
+            .write_all(script.as_bytes())
+            .map_err(|error| anyhow!("Failed to write deploy script to SSH stdin: {}", error))?;
+    }
+
+    child
+        .wait_with_output()
+        .map_err(|error| anyhow!("Failed to wait for SSH process: {}", error))
+}
+
+fn print_output_details(output: &Output) {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let details = if !stderr.trim().is_empty() {
+        stderr
+    } else {
+        stdout
+    };
+
+    if !details.trim().is_empty() {
+        eprintln!("{}", details.trim());
+    }
+}
+
+fn command_exists(command: &str) -> bool {
+    Command::new(command).arg("--version").output().is_ok()
+}
+
+fn native_linux_target() -> Option<&'static str> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("linux", "x86_64") => Some("x86_64-unknown-linux-gnu"),
+        ("linux", "aarch64") => Some("aarch64-unknown-linux-gnu"),
+        _ => None,
+    }
+}
+
+fn shell_single_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
 async fn mark_failed(
