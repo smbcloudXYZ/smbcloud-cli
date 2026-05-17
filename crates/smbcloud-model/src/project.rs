@@ -7,6 +7,10 @@ use {
     tsync::tsync,
 };
 
+fn default_datetime() -> DateTime<Utc> {
+    DateTime::UNIX_EPOCH
+}
+
 /// How the project's files are delivered to the server.
 ///
 /// `Git`   — the classic smbCloud flow: push to a remote git repo, the server
@@ -46,7 +50,9 @@ pub struct Config {
 pub struct Project {
     /// Umbrella smbCloud workspace ID.
     pub id: i32,
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub runner: Runner,
     /// Defaults to `Git` when absent (older API responses won't include the field).
     #[serde(default)]
@@ -62,7 +68,9 @@ pub struct Project {
     pub deploy_repo_id: Option<i64>,
     /// Repo-relative app path for monorepo targets, e.g. "apps/web/console".
     pub source_path: Option<String>,
+    #[serde(default = "default_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(default = "default_datetime")]
     pub updated_at: DateTime<Utc>,
     /// Deployment kind, e.g. "vite-spa", "nextjs-ssr", or "rust".
     pub kind: Option<String>,
@@ -88,6 +96,9 @@ pub struct Project {
     /// SSH command to run on the server after rsyncing the shared lib,
     /// e.g. "cd ~/lib/gems/gem_error_codes && rbenv local 3.4.2 && bundle install && bundle exec rake compile".
     pub compile_cmd: Option<String>,
+    /// Install command override, e.g. "pnpm install --frozen-lockfile".
+    #[serde(default)]
+    pub install_command: Option<String>,
     /// Rust binary filename to upload and restart, e.g. "onde-cloud".
     /// When absent, the CLI falls back to the Cargo package name.
     pub binary_name: Option<String>,

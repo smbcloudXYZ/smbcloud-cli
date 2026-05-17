@@ -1,5 +1,6 @@
 pub mod account;
 pub mod app_auth;
+pub mod deploy_config;
 pub mod error_codes;
 pub mod forgot;
 pub mod frontend_app;

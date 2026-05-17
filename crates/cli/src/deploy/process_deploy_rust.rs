@@ -3,7 +3,7 @@ use {
         cli::CommandResult,
         client,
         deploy::known_hosts,
-        ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+        ui::{fail_message, fail_symbol, succeed_symbol},
     },
     anyhow::{anyhow, Result},
     chrono::Utc,
@@ -39,6 +39,8 @@ const DEFAULT_RUST_TARGET: &str = "x86_64-unknown-linux-gnu";
 ///   - `binary_name` — binary filename to upload; falls back to Cargo package name
 ///   - `rust_target` — local cross-compilation target triple; defaults to `x86_64-unknown-linux-gnu`
 pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<CommandResult> {
+    let deploy_start = std::time::Instant::now();
+
     let source = config.project.source.as_deref().unwrap_or(".");
     let remote_path = config.project.path.as_deref().ok_or_else(|| {
         anyhow!(fail_message(
@@ -61,6 +63,11 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         .as_deref()
         .unwrap_or(DEFAULT_RUST_TARGET);
 
+    // Header
+    println!();
+    println!("  {}", console::style(&config.name).white().bold());
+    println!();
+
     let binary_path = build_local_binary(source, rust_target, &binary_name)?;
 
     let access_token = crate::token::get_smb_token::get_smb_token(env)?;
@@ -68,7 +75,14 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
     let runner = config.project.runner;
     let rsync_host = runner.rsync_host();
 
-    let deploy_ref = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
+    let deploy_ref = git2::Repository::discover(source)
+        .ok()
+        .and_then(|repo| {
+            let head = repo.head().ok()?;
+            let commit = head.peel_to_commit().ok()?;
+            Some(commit.id().to_string())
+        })
+        .unwrap_or_else(|| Utc::now().format("%Y%m%dT%H%M%SZ").to_string());
     let created_deployment = create_deployment(
         env,
         client(),
@@ -94,7 +108,11 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
 
     let mut prepare_spinner = Spinner::new(
         Spinners::SimpleDotsScrolling,
-        succeed_message(&format!("Preparing {} on server…", remote_path)),
+        format!(
+            "  {} {}",
+            console::style("◼").cyan(),
+            console::style("Preparing server…").dim()
+        ),
     );
 
     let prepare_script = build_remote_prepare_script(remote_path);
@@ -112,7 +130,14 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
     })?;
 
     if !prepare_output.status.success() {
-        prepare_spinner.stop_and_persist(&fail_symbol(), fail_message("Remote prepare failed."));
+        prepare_spinner.stop_and_persist(
+            &fail_symbol(),
+            format!(
+                "  {} {}",
+                console::style("✘").red(),
+                fail_message("Server prepare failed")
+            ),
+        );
         print_output_details(&prepare_output);
         drop(known_hosts_file);
         mark_failed(
@@ -129,11 +154,6 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         ))));
     }
 
-    prepare_spinner.stop_and_persist(
-        &succeed_symbol(),
-        succeed_message("Remote directory ready."),
-    );
-
     let ssh_command = build_ssh_command(&identity_file_str, &known_hosts_file);
     let remote_with_slash = if remote_path.ends_with('/') {
         remote_path.to_owned()
@@ -143,25 +163,47 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
     let destination = format!("git@{}:{}", rsync_host, remote_with_slash);
     let binary_path_str = binary_path.to_string_lossy().into_owned();
 
+    let binary_size = fs::metadata(&binary_path).map(|m| m.len()).unwrap_or(0);
+    let upload_size = if binary_size > 1_000_000 {
+        format!("{} MB", binary_size / 1_000_000)
+    } else {
+        format!("{} KB", binary_size / 1_000)
+    };
+
+    prepare_spinner.stop_and_persist(
+        &format!("  {}", console::style("\u{25fc}").cyan()),
+        format!(
+            "{}    {} \u{2192} {} ({})",
+            console::style("Upload").white().bold(),
+            console::style(&binary_name).dim(),
+            console::style(format!("{}:{}", &rsync_host, remote_with_slash)).dim(),
+            console::style(&upload_size).dim(),
+        ),
+    );
+
     let mut upload_spinner = Spinner::new(
         Spinners::Hamburger,
-        succeed_message(&format!("Uploading {}…", binary_name)),
+        format!(
+            "  {} {}",
+            console::style("\u{25fc}").cyan(),
+            console::style("Uploading\u{2026}").dim()
+        ),
     );
 
     let upload_output = Command::new("rsync")
-        .args([
-            "-az",
-            "--chmod=755",
-            "-e",
-            &ssh_command,
-            &binary_path_str,
-            &destination,
-        ])
+        .args(["-az", "-e", &ssh_command, &binary_path_str, &destination])
         .output()
         .map_err(|error| anyhow!(fail_message(&format!("Failed to launch rsync: {}", error))))?;
 
     if !upload_output.status.success() {
-        upload_spinner.stop_and_persist(&fail_symbol(), fail_message("Upload failed."));
+        upload_spinner.stop_and_persist(
+            &fail_symbol(),
+            format!(
+                "  {} {}",
+                console::style("✘").red(),
+                fail_message("Upload failed")
+            ),
+        );
         print_output_details(&upload_output);
         drop(known_hosts_file);
         mark_failed(
@@ -178,11 +220,13 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         ))));
     }
 
-    upload_spinner.stop_and_persist(&succeed_symbol(), succeed_message("Upload complete."));
-
-    let mut remote_spinner = Spinner::new(
-        Spinners::SimpleDotsScrolling,
-        succeed_message(&format!("Starting {} on server…", binary_name)),
+    upload_spinner.stop_and_persist(
+        &format!("  {}", console::style("\u{25fc}").cyan()),
+        format!(
+            "{}    Starting {}\u{2026}",
+            console::style("Launch").white().bold(),
+            console::style(&binary_name).dim(),
+        ),
     );
 
     let deploy_script = build_remote_start_script(remote_path, &binary_name);
@@ -197,7 +241,11 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
     drop(known_hosts_file);
 
     if !ssh_output.status.success() {
-        remote_spinner.stop_and_persist(&fail_symbol(), fail_message("Remote deploy failed."));
+        println!(
+            "  {} {}",
+            console::style("\u{2718}").red(),
+            fail_message("Launch failed")
+        );
         print_output_details(&ssh_output);
         mark_failed(
             &deploy_ref,
@@ -213,13 +261,21 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         ))));
     }
 
-    remote_spinner.stop_and_persist(
-        &succeed_symbol(),
-        succeed_message("Remote Rust deploy script completed."),
+    let stdout_text = String::from_utf8_lossy(&ssh_output.stdout);
+    let pid_line = stdout_text
+        .lines()
+        .find(|line| line.starts_with("Started"))
+        .unwrap_or("Started");
+
+    println!(
+        "  {} {}    {}",
+        console::style("\u{25fc}").cyan(),
+        console::style("Launch").white().bold(),
+        console::style(pid_line).dim(),
     );
 
     if let Some(ref deployment) = created_deployment {
-        match update(
+        let _ = update(
             env,
             client(),
             access_token,
@@ -231,17 +287,26 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
                 frontend_app_id: config.project.frontend_app_id.clone(),
             },
         )
-        .await
-        {
-            Ok(_) => println!("App is running {}", succeed_symbol()),
-            Err(error) => eprintln!("Error updating deployment status to Done: {}", error),
-        }
+        .await;
     }
+
+    let elapsed = deploy_start.elapsed().as_secs();
+    let duration = if elapsed >= 60 {
+        format!("{}m {}s", elapsed / 60, elapsed % 60)
+    } else {
+        format!("{}s", elapsed)
+    };
+
+    println!();
 
     Ok(CommandResult {
         spinner: Spinner::new(Spinners::Hamburger, String::new()),
         symbol: succeed_symbol(),
-        msg: succeed_message("Deployment complete."),
+        msg: format!(
+            "Deployed {} in {}",
+            console::style(&config.name).white().bold(),
+            console::style(&duration).cyan(),
+        ),
     })
 }
 
@@ -297,8 +362,6 @@ fn resolve_binary_name(config: &Config, source_dir: &Path) -> Result<String> {
 }
 
 fn build_local_binary(source: &str, rust_target: &str, binary_name: &str) -> Result<PathBuf> {
-    println!();
-
     let mut build_command;
     let build_tool;
     let is_native = native_linux_target() == Some(rust_target);
@@ -345,6 +408,8 @@ fn build_local_binary(source: &str, rust_target: &str, binary_name: &str) -> Res
 
     let status = build_command
         .current_dir(source)
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
         .status()
         .map_err(|error| {
             anyhow!(fail_message(&format!(
@@ -352,8 +417,6 @@ fn build_local_binary(source: &str, rust_target: &str, binary_name: &str) -> Res
                 build_tool, rust_target, error
             )))
         })?;
-
-    println!();
 
     if !status.success() {
         return Err(anyhow!(fail_message(&format!(
@@ -375,10 +438,20 @@ fn build_local_binary(source: &str, rust_target: &str, binary_name: &str) -> Res
         ))));
     }
 
+    let binary_size = fs::metadata(&binary_path).map(|m| m.len()).unwrap_or(0);
+    let size_display = if binary_size > 1_000_000 {
+        format!("{} MB", binary_size / 1_000_000)
+    } else {
+        format!("{} KB", binary_size / 1_000)
+    };
+
     println!(
-        "{} {}",
-        succeed_symbol(),
-        succeed_message(&format!("Built {} for {}.", binary_name, rust_target))
+        "  {} {}    {} \u{2192} {} ({})",
+        console::style("\u{25fc}").cyan(),
+        console::style("Build").white().bold(),
+        console::style(binary_name).dim(),
+        console::style(rust_target).dim(),
+        console::style(&size_display).dim(),
     );
 
     Ok(binary_path)
@@ -458,14 +531,9 @@ echo "Done."
 
 fn build_ssh_command(identity_file: &str, known_hosts_file: &NamedTempFile) -> String {
     format!(
-        "ssh -i {identity} \\
-         -o StrictHostKeyChecking=yes \\
-         -o UserKnownHostsFile={known_hosts} \\
-         -o IdentitiesOnly=yes \\
-         -o PasswordAuthentication=no \\
-         -o BatchMode=yes",
-        identity = identity_file,
-        known_hosts = known_hosts_file.path().display(),
+        "ssh -i {} -o StrictHostKeyChecking=yes -o UserKnownHostsFile={} -o IdentitiesOnly=yes -o PasswordAuthentication=no -o BatchMode=yes",
+        identity_file,
+        known_hosts_file.path().display(),
     )
 }
 

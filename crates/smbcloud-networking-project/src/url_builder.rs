@@ -9,6 +9,18 @@ pub(crate) fn build_frontend_apps_url(env: Environment, client: (&SmbClient, &st
     url_builder.build()
 }
 
+pub(crate) fn build_frontend_app_deploy_config_url(
+    env: Environment,
+    client: (&SmbClient, &str),
+    frontend_app_id: &str,
+) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/frontend_apps");
+    url_builder.add_route(frontend_app_id);
+    url_builder.add_route("deploy_config");
+    url_builder.build()
+}
+
 // Private functions
 
 pub(crate) fn build_project_url(env: Environment, client: (&SmbClient, &str)) -> String {
