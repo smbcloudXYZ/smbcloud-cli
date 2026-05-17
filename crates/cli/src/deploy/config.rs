@@ -25,7 +25,11 @@ pub(crate) async fn get_config(
 ) -> Result<Config, ErrorResponse> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
-        succeed_message("Checking config"),
+        format!(
+            "  {} {}",
+            console::style("◼").cyan(),
+            console::style("Loading config…").dim()
+        ),
     );
 
     // Check .smb directory
@@ -38,7 +42,11 @@ pub(crate) async fn get_config(
         setup_project(env, access_token).await?;
         spinner = Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
-            succeed_message("Checking config"),
+            format!(
+                "  {} {}",
+                console::style("◼").cyan(),
+                console::style("Loading config…").dim()
+            ),
         );
     }
 
@@ -58,8 +66,13 @@ pub(crate) async fn get_config(
         }
     };
     spinner.stop_and_persist(
-        &succeed_symbol(),
-        succeed_message(&format!("Valid config for {}", config.name)),
+        " ",
+        format!(
+            "  {} {}    {}",
+            console::style("◼").cyan(),
+            console::style("Config").white().bold(),
+            console::style(&config.name).dim(),
+        ),
     );
 
     // Attempt to fetch server-side deploy config when we have both a token
@@ -73,8 +86,9 @@ pub(crate) async fn get_config(
 
                     if has_server_fields {
                         println!(
-                            "  {} Using server-side deploy config",
-                            console::style("ℹ").cyan()
+                            "  {}          {}",
+                            console::style(" ").dim(),
+                            console::style("Loaded from smbcloud.xyz").dim(),
                         );
 
                         if let Some(remote_kind) = deploy_config.kind {
@@ -121,15 +135,17 @@ pub(crate) async fn get_config(
                         config.project.deploy_repo_id = deploy_config.deploy_repo_id;
                     } else {
                         println!(
-                            "  {} Using local deploy config (.smb/config.toml)",
-                            console::style("ℹ").cyan()
+                            "  {}          {}",
+                            console::style(" ").dim(),
+                            console::style("Loaded from .smb/config.toml").dim(),
                         );
                     }
                 }
                 Err(_) => {
                     println!(
-                        "  {} Could not fetch server config, using local .smb/config.toml",
-                        console::style("ℹ").yellow()
+                        "  {}          {}",
+                        console::style(" ").dim(),
+                        console::style("Loaded from .smb/config.toml").dim(),
                     );
                 }
             }
@@ -150,7 +166,11 @@ pub(crate) async fn check_project(
 ) -> Result<(), ErrorResponse> {
     let mut spinner: Spinner = Spinner::new(
         spinners::Spinners::Hamburger,
-        succeed_message("Validate project"),
+        format!(
+            "  {} {}",
+            console::style("◼").cyan(),
+            console::style("Validating project…").dim()
+        ),
     );
     match get_project(
         env,
@@ -161,7 +181,7 @@ pub(crate) async fn check_project(
     .await
     {
         Ok(_) => {
-            spinner.stop_and_persist(&succeed_symbol(), succeed_message("Valid project"));
+            spinner.stop_and_persist(" ", String::new());
             Ok(())
         }
         Err(_) => {
