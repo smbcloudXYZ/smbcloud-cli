@@ -183,36 +183,36 @@ jobs:
             cp "${lib_input}" "${framework_output}/smbcloud_authFFI"
             cp "${headers_dir}/smbcloud_authFFI.h" "${framework_output}/Headers/smbcloud_authFFI.h"
 
-            cat > "${framework_output}/Modules/module.modulemap" <<'EOF'
-            framework module smbcloud_authFFI {
-                header "smbcloud_authFFI.h"
-                export *
-                use "Darwin"
-                use "_Builtin_stdbool"
-                use "_Builtin_stdint"
-            }
-            EOF
+            printf '%s\n' \
+              'framework module smbcloud_authFFI {' \
+              '    header "smbcloud_authFFI.h"' \
+              '    export *' \
+              '    use "Darwin"' \
+              '    use "_Builtin_stdbool"' \
+              '    use "_Builtin_stdint"' \
+              '}' \
+              > "${framework_output}/Modules/module.modulemap"
 
-            cat > "${framework_output}/Info.plist" <<'EOF'
-            <?xml version="1.0" encoding="UTF-8"?>
-            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
-            <plist version="1.0">
-            <dict>
-              <key>CFBundleIdentifier</key>
-              <string>xyz.smbcloud.smbcloud-auth-ffi</string>
-              <key>CFBundleName</key>
-              <string>smbcloud_authFFI</string>
-              <key>CFBundleExecutable</key>
-              <string>smbcloud_authFFI</string>
-              <key>CFBundlePackageType</key>
-              <string>FMWK</string>
-              <key>CFBundleShortVersionString</key>
-              <string>dev</string>
-              <key>CFBundleVersion</key>
-              <string>1</string>
-            </dict>
-            </plist>
-            EOF
+            printf '%s\n' \
+              '<?xml version="1.0" encoding="UTF-8"?>' \
+              '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+              '<plist version="1.0">' \
+              '<dict>' \
+              '  <key>CFBundleIdentifier</key>' \
+              '  <string>xyz.smbcloud.smbcloud-auth-ffi</string>' \
+              '  <key>CFBundleName</key>' \
+              '  <string>smbcloud_authFFI</string>' \
+              '  <key>CFBundleExecutable</key>' \
+              '  <string>smbcloud_authFFI</string>' \
+              '  <key>CFBundlePackageType</key>' \
+              '  <string>FMWK</string>' \
+              '  <key>CFBundleShortVersionString</key>' \
+              '  <string>dev</string>' \
+              '  <key>CFBundleVersion</key>' \
+              '  <string>1</string>' \
+              '</dict>' \
+              '</plist>' \
+              > "${framework_output}/Info.plist"
           }
 
           stage_framework \
