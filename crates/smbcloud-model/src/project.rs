@@ -88,6 +88,9 @@ pub struct Project {
     /// SSH command to run on the server after rsyncing the shared lib,
     /// e.g. "cd ~/lib/gems/gem_error_codes && rbenv local 3.4.2 && bundle install && bundle exec rake compile".
     pub compile_cmd: Option<String>,
+    /// Install command override, e.g. "pnpm install --frozen-lockfile".
+    #[serde(default)]
+    pub install_command: Option<String>,
     /// Rust binary filename to upload and restart, e.g. "onde-cloud".
     /// When absent, the CLI falls back to the Cargo package name.
     pub binary_name: Option<String>,

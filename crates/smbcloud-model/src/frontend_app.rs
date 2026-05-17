@@ -77,21 +77,45 @@ pub struct FrontendApp {
     // These are not persisted in the database; they are stored in the local
     // .smbcloud config file alongside the FrontendApp record.
     /// Deployment kind, e.g. "vite-spa". Absent for server-side runners.
+    #[serde(default)]
     pub kind: Option<String>,
     /// Local source directory to build from, e.g. "frontend/my-app".
+    #[serde(default)]
     pub source: Option<String>,
     /// Build output directory relative to `source`, e.g. "dist".
+    #[serde(default)]
     pub output: Option<String>,
     /// Package manager to use for the build step, e.g. "pnpm".
+    #[serde(default)]
     pub package_manager: Option<String>,
     /// PM2 process name to restart after a nextjs-ssr deploy.
+    #[serde(default)]
     pub pm2_app: Option<String>,
     /// Path to a shared lib directory to rsync before deploying.
+    #[serde(default)]
     pub shared_lib: Option<String>,
     /// SSH command to run on the server after rsyncing the shared lib.
+    #[serde(default)]
     pub compile_cmd: Option<String>,
     /// Remote destination path on the server.
+    #[serde(default)]
     pub path: Option<String>,
+    #[serde(default)]
+    pub remote_path: Option<String>,
+    #[serde(default)]
+    pub output_path: Option<String>,
+    #[serde(default)]
+    pub build_command: Option<String>,
+    #[serde(default)]
+    pub install_command: Option<String>,
+    #[serde(default)]
+    pub binary_name: Option<String>,
+    #[serde(default)]
+    pub build_target: Option<String>,
+    #[serde(default)]
+    pub port: Option<u16>,
+    #[serde(default)]
+    pub shared_lib_path: Option<String>,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
