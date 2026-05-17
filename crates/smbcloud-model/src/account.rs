@@ -32,9 +32,9 @@ pub struct Status {
 #[derive(Debug, Serialize, Deserialize)]
 #[tsync]
 pub struct Data {
-    id: i32,
-    email: String,
-    created_at: String,
+    pub id: i32,
+    pub email: String,
+    pub created_at: String,
 }
 
 /// This is smbCloud authorization model
