@@ -160,9 +160,8 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
             Ok(AccountStatus::NotFound)
         }
         (StatusCode::UNPROCESSABLE_ENTITY, _) => {
-            // Account found but email not verified / password not set.
-            let result: SmbAuthorization = match response.json().await {
-                Ok(res) => res,
+            let body_text = match response.text().await {
+                Ok(text) => text,
                 Err(_) => {
                     return Err(ErrorResponse::Error {
                         error_code: ErrorCode::NetworkError,
@@ -170,21 +169,42 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
                     });
                 }
             };
-            // println!("Result: {:#?}", &result);
+
+            let result: SmbAuthorization = match serde_json::from_str(&body_text) {
+                Ok(res) => res,
+                Err(_) => {
+                    // Try generic JSON for a useful message.
+                    let message = serde_json::from_str::<serde_json::Value>(&body_text)
+                        .ok()
+                        .and_then(|v| {
+                            v.get("message")
+                                .and_then(serde_json::Value::as_str)
+                                .map(ToOwned::to_owned)
+                        })
+                        .unwrap_or_else(|| ErrorCode::NetworkError.message(None).to_string());
+                    return Err(ErrorResponse::Error {
+                        error_code: ErrorCode::NetworkError,
+                        message,
+                    });
+                }
+            };
+
             let error_code = match result.error_code {
                 Some(code) => code,
                 None => {
+                    // No error_code but we have a message — return it as Incomplete with a
+                    // generic unverified status so the client can display the message.
                     return Err(ErrorResponse::Error {
                         error_code: ErrorCode::NetworkError,
-                        message: ErrorCode::NetworkError.message(None).to_string(),
+                        message: result.message,
                     });
                 }
             };
             Ok(AccountStatus::Incomplete { status: error_code })
         }
         (StatusCode::UNAUTHORIZED, _) => {
-            let result: SmbAuthorization = match response.json().await {
-                Ok(res) => res,
+            let body_text = match response.text().await {
+                Ok(text) => text,
                 Err(_) => {
                     return Err(ErrorResponse::Error {
                         error_code: ErrorCode::NetworkError,
@@ -192,18 +212,41 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
                     });
                 }
             };
-            let error_code = match result.error_code {
-                Some(code) => code,
-                None => {
-                    return Err(ErrorResponse::Error {
-                        error_code: ErrorCode::NetworkError,
-                        message: ErrorCode::NetworkError.message(None).to_string(),
-                    });
-                }
-            };
+
+            // Try parsing as SmbAuthorization first.
+            if let Ok(result) = serde_json::from_str::<SmbAuthorization>(&body_text) {
+                let error_code = match result.error_code {
+                    Some(code) => code,
+                    None => {
+                        // Response parsed but no error_code — surface the server's message.
+                        return Err(ErrorResponse::Error {
+                            error_code: ErrorCode::Unauthorized,
+                            message: result.message,
+                        });
+                    }
+                };
+                return Err(ErrorResponse::Error {
+                    error_code: ErrorCode::Unauthorized,
+                    message: error_code.to_string(),
+                });
+            }
+
+            // Fallback: try to extract message or error from a generic JSON object.
+            if let Ok(generic) = serde_json::from_str::<serde_json::Value>(&body_text) {
+                let extracted = generic
+                    .get("message")
+                    .or_else(|| generic.get("error"))
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("Sign in failed.");
+                return Err(ErrorResponse::Error {
+                    error_code: ErrorCode::Unauthorized,
+                    message: extracted.to_string(),
+                });
+            }
+
             Err(ErrorResponse::Error {
                 error_code: ErrorCode::Unauthorized,
-                message: error_code.to_string(),
+                message: "Sign in failed.".to_string(),
             })
         }
         (status, _) => parse_error_response(response)

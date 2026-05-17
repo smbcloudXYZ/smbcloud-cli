@@ -92,6 +92,7 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
     let start_payload = DeploymentPayload {
         commit_hash: deploy_ref.clone(),
         status: DeploymentStatus::Started,
+        frontend_app_id: config.project.frontend_app_id.clone(),
     };
 
     let created_deployment = create_deployment(
@@ -122,6 +123,7 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
                 let failed_payload = DeploymentPayload {
                     commit_hash: deploy_ref.clone(),
                     status: DeploymentStatus::Failed,
+                    frontend_app_id: config.project.frontend_app_id.clone(),
                 };
                 let _ = update(
                     env,
@@ -143,6 +145,7 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
         let done_payload = DeploymentPayload {
             commit_hash: deploy_ref,
             status: DeploymentStatus::Done,
+            frontend_app_id: config.project.frontend_app_id.clone(),
         };
         match update(
             env,
