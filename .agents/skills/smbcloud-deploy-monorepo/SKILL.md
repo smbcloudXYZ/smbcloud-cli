@@ -180,7 +180,7 @@ smb deploy --project <name>
 
 ### Strategy: `nextjs-ssr`
 
-Local build, rsync three directories, then SSH delete + fresh PM2 start (prefer server `ecosystem.config.js` when present). See `smbcloud-deploy-nextjs` skill for details.
+Local build, rsync three directories, then SSH delete + fresh PM2 start (prefer server `ecosystem.config.cjs` when present; falls back to legacy `.js`). The `.next/standalone/` upload should use `--copy-links` so `pnpm` symlinked dependencies land as real files in the deployed tree. If `outputFileTracingRoot` points above the sub-project directory, Next may preserve the sub-project path inside standalone output, and the deploy path must place `.next/static` and `public` under that nested runtime directory. See `smbcloud-deploy-nextjs` skill for details.
 
 Required fields: `kind`, `source`, `path`, `pm2_app`, `package_manager`, `port`
 
@@ -211,6 +211,7 @@ For `nextjs-ssr` and `vite-spa`, the CLI changes into the `source` directory bef
 - `pnpm install` runs inside `source/`
 - `pnpm build` runs inside `source/`
 - rsync sources are relative to `source/`
+- for Next.js SSR, standalone output may still preserve the `source/` path inside `.next/standalone/` when tracing is rooted above the app directory
 
 For `rails`, the CLI:
 
@@ -376,7 +377,7 @@ steps:
   - name: Upload
     run: |
       cd frontend/splitfire-web
-      rsync -az --delete --mkpath .next/standalone/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/
+      rsync -az --delete --copy-links --mkpath .next/standalone/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/
       rsync -az --delete --mkpath .next/static/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/.next/static/
       rsync -az --delete --mkpath public/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/public/
 
@@ -389,7 +390,9 @@ steps:
         if pm2 describe "splitfire-web" > /dev/null 2>&1; then
           pm2 delete "splitfire-web"
         fi
-        if [ -f ecosystem.config.js ]; then
+        if [ -f ecosystem.config.cjs ]; then
+          pm2 start ecosystem.config.cjs --only "splitfire-web" --env production
+        elif [ -f ecosystem.config.js ]; then
           pm2 start ecosystem.config.js --only "splitfire-web" --env production
         else
           PORT=3010 HOSTNAME=127.0.0.1 pm2 start node --name "splitfire-web" -- server.js
@@ -446,14 +449,22 @@ All CI rsync commands must include:
 - `--delete` — removes stale files on the remote (prevents serving old assets)
 - `-az` — archive mode with compression
 
+For Next.js SSR standalone uploads, also include:
+
+- `--copy-links` on `.next/standalone/` — dereferences `pnpm` symlinked dependencies so the server does not end up with broken `node_modules` links
+
 ### CI PM2 restart
 
 Current CI and CLI parity should use delete + fresh start, not restart-in-place:
 
 - `pm2 delete <app>` if it exists
-- `pm2 start ecosystem.config.js --only <app> --env production` when the server file exists
+- `pm2 start ecosystem.config.cjs --only <app> --env production` when the `.cjs` file exists (preferred)
+- fall back to `pm2 start ecosystem.config.js --only <app> --env production` if only the legacy `.js` file exists
 - otherwise fall back to `PORT=<port> HOSTNAME=127.0.0.1 pm2 start node --name <app> -- server.js`
 - `pm2 save`
+
+
+When a monorepo root `package.json` has `"type": "module"`, PM2 cannot load a `.js` ecosystem config because Node treats it as ESM. The CLI auto-migrates `.js` → `.cjs` on the server during deploy and checks `.cjs` first when starting PM2.
 
 This matches the standalone Next.js deploy model and avoids stale PM2 command state from older deploy methods.
 
@@ -527,12 +538,16 @@ Two `nextjs-ssr` apps have the same `port` value. PM2 will start both, but only 
 
 The Nginx `alias` directive for `/_next/static/` or the `root` for a Vite SPA points to the wrong directory or a stale deploy path. Verify the Nginx config matches the `path` field in `.smb/config.toml`.
 
+### `Cannot find module 'next'` after Next.js SSR deploy
+
+The remote app directory still contains broken `pnpm` symlinks from `.next/standalone/`, or the standalone output itself is missing traced runtime files. Use the current CLI or CI flow with `rsync --copy-links` for the standalone upload, verify `node .next/standalone/server.js` works locally, then redeploy and inspect `/home/git/apps/web/<app>/node_modules/next` on the server.
+
 ### PM2 not picking up new environment variables
 
 Current CLI parity is delete + fresh start. Check these in order:
 
-1. the server's `ecosystem.config.js` was edited, not just the repo copy
-2. the deploy script is actually starting from `ecosystem.config.js`
+1. the server's `ecosystem.config.cjs` (or legacy `.js`) was edited, not just the repo copy
+2. the deploy script is actually starting from `ecosystem.config.cjs` — if only a `.js` file exists and `"type": "module"` is set in `package.json`, PM2 will fail; rename to `.cjs`
 3. `pm2 save` ran after the fresh start
 
 If you are changing env manually outside the deploy flow, `pm2 restart <app> --update-env && pm2 save` is still a valid operator command.
@@ -567,6 +582,7 @@ If you are changing env manually outside the deploy flow, `pm2 restart <app> --u
 - using `kind = "nextjs-ssr"` on a project without `output: "standalone"` in its Next.js config
 - running `smb deploy` from a subdirectory instead of the monorepo root — `source` paths will not resolve
 - forgetting `--mkpath` on rsync in CI workflows — first deploys fail because the remote directory does not exist
+- forgetting `--copy-links` on `.next/standalone/` uploads — the server receives broken `pnpm` symlinks and PM2 crashes with `Cannot find module 'next'`
 - keeping stale Nginx configs pointing at old deploy paths after migrating to a new directory structure
 - mixing up `path` (remote destination) and `source` (local directory) — they serve different purposes
 - treating the root workspace id as the deployable app id

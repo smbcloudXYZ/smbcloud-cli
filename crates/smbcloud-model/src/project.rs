@@ -86,6 +86,10 @@ pub struct Project {
     /// PM2 process name to restart after a nextjs-ssr deploy, e.g. "my-app".
     /// Matches the name passed to `pm2 start` on the server.
     pub pm2_app: Option<String>,
+    /// Environment variables to seed into the PM2 ecosystem `env_production` block.
+    /// Populated from the server-side App record; not written to `.smb/config.toml`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pm2_env: Option<std::collections::HashMap<String, serde_json::Value>>,
     /// Port the standalone server binds to (default: 3000). Must match nginx upstream configuration.
     #[serde(default)]
     pub port: Option<u16>,

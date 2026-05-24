@@ -7,6 +7,7 @@ pub mod process_deploy_nextjs_ssr;
 pub mod process_deploy_rails;
 pub mod process_deploy_rust;
 pub mod process_deploy_vite_spa;
+pub mod process_migrate;
 mod remote_messages;
 pub(crate) mod rsync_deploy;
 pub(crate) mod setup_create_new_project;

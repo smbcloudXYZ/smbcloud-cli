@@ -27,7 +27,7 @@ use {
 /// Requires `output: 'standalone'` in next.config.js. This produces a
 /// self-contained `.next/standalone/` directory that includes only the
 /// production Node.js dependencies needed to run the server — no
-/// `node_modules` transfer required.
+/// project-level `node_modules` upload required.
 ///
 /// Steps:
 ///   1. `pnpm install --ignore-scripts`
@@ -36,7 +36,7 @@ use {
 ///   4. rsync .next/standalone/  → server:path/          (server + bundled deps)
 ///   5. rsync .next/static/      → server:path/.next/static/  (static chunks)
 ///   6. rsync public/            → server:path/public/   (public assets)
-///   7. SSH: pm2 delete + start fresh (prefer server `ecosystem.config.js` if present)
+///   7. SSH: pm2 delete + start fresh (prefer server `ecosystem.config.cjs` or `.js` if present)
 ///   8. PATCH deployment record as Done
 pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Result<CommandResult> {
     let source = config.project.source.as_deref().unwrap_or(".");
@@ -146,11 +146,19 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     // succeeds but .next/standalone/ is never created.
 
     let standalone_dir = format!("{}/.next/standalone", source);
-    if !std::path::Path::new(&standalone_dir).exists() {
+    let standalone_path = std::path::Path::new(&standalone_dir);
+    if !standalone_path.exists() {
         return Err(anyhow!(fail_message(
             ".next/standalone not found. Add `output: 'standalone'` to next.config.js and rebuild."
         )));
     }
+
+    let runtime_subdir = if source != "." && standalone_path.join(source).join("server.js").exists()
+    {
+        Some(source.trim_end_matches('/').to_owned())
+    } else {
+        None
+    };
 
     // ── Step 4: record deployment as Started ─────────────────────────────────
 
@@ -174,7 +182,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     //
     // Standalone mode produces everything needed to run the server:
     //
-    //   .next/standalone/  — server.js + bundled production deps (no node_modules needed)
+    //   .next/standalone/  — server.js + bundled production deps (no project node_modules upload)
     //   .next/static/      — client-side chunks (must be copied into standalone manually)
     //   public/            — static assets served directly by Next.js
     //
@@ -217,34 +225,49 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
 
     struct Transfer {
         local_rel: &'static str,
-        remote_rel: &'static str,
+        remote_rel: String,
         protect_runtime_files: bool,
+        copy_links: bool,
     }
+
+    let runtime_prefix = runtime_subdir
+        .as_ref()
+        .map(|path| format!("{}/", path))
+        .unwrap_or_default();
 
     // (local_source, remote_destination)
     // .next/standalone contents go to the root of remote_path.
-    // .next/static and public go into their correct subdirectories within it.
-    let transfers: &[Transfer] = &[
-        // standalone contents → remote root (server.js lives here)
+    // .next/static and public go into the runtime directory that contains
+    // server.js. When outputFileTracingRoot points above the app directory,
+    // Next preserves the source path inside `.next/standalone/`.
+    let transfers = vec![
+        // standalone contents → remote root
         Transfer {
             local_rel: ".next/standalone/",
-            remote_rel: "",
-            // The server copy of ecosystem.config.js is operator-managed runtime
-            // config and must survive deploys. Without this protection, rsync
-            // `--delete` removes it because it does not exist in .next/standalone/.
+            remote_rel: String::new(),
+            // pnpm leaves symlinked package entries in standalone output. The
+            // server only receives this tree, so those symlinks must be
+            // dereferenced during upload.
+            copy_links: true,
+            // The server copy of ecosystem.config.cjs (or .js) is operator-managed
+            // runtime config and must survive deploys. Without this protection,
+            // rsync `--delete` removes it because it does not exist in
+            // .next/standalone/.
             protect_runtime_files: true,
         },
-        // static chunks → .next/static/ inside the standalone tree
+        // static chunks → runtime/.next/static/
         Transfer {
             local_rel: ".next/static/",
-            remote_rel: ".next/static/",
+            remote_rel: format!("{}.next/static/", runtime_prefix),
             protect_runtime_files: false,
+            copy_links: false,
         },
-        // public assets → public/ inside the standalone tree
+        // public assets → runtime/public/
         Transfer {
             local_rel: "public/",
-            remote_rel: "public/",
+            remote_rel: format!("{}public/", runtime_prefix),
             protect_runtime_files: false,
+            copy_links: false,
         },
     ];
 
@@ -257,17 +280,22 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         let local_path = format!("{}/{}", source, transfer.local_rel);
         let destination = format!("{}{}", remote_base, transfer.remote_rel);
 
-        // Skip optional directories that the project does not have.
         if !std::path::Path::new(&local_path).exists() {
             continue;
         }
 
         let mut rsync_args = vec!["-az".to_string(), "--delete".to_string()];
 
+        if transfer.copy_links {
+            rsync_args.push("--copy-links".to_string());
+        }
+
         if transfer.protect_runtime_files {
             rsync_args.extend([
                 "--exclude".to_string(),
                 "ecosystem.config.js".to_string(),
+                "--exclude".to_string(),
+                "ecosystem.config.cjs".to_string(),
                 "--exclude".to_string(),
                 "logs/".to_string(),
             ]);
@@ -320,19 +348,66 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     // working directory now contains standalone output instead of the full
     // Next.js build tree.
     //
-    // If the server has an operator-managed `ecosystem.config.js`, prefer it as
-    // the source of truth for runtime env and pm2 settings. Otherwise fall back
+    // If the server has an operator-managed ecosystem config (.cjs or .js),
+    // prefer it as the source of truth for runtime env and pm2 settings. Otherwise fall back
     // to `node server.js` with the minimal inline env needed to bind the app.
     //
     // The port defaults to 3000 and can be overridden with `port = XXXX` in
     // .smb/config.toml — it must match the nginx upstream configuration.
 
     let port = config.project.port.unwrap_or(3000);
+    let runtime_subdir_for_shell = runtime_subdir.clone().unwrap_or_default();
+
+    // Build the ecosystem.config.cjs content from server-side pm2_env, if available.
+    // Injected into the deploy script and written only when no config file exists yet.
+    let ecosystem_config_content = {
+        let mut env_entries = format!(
+            r#"        NODE_ENV: "production",
+        PORT: {port},
+        HOSTNAME: "127.0.0.1",
+"#
+        );
+        if let Some(pm2_env) = &config.project.pm2_env {
+            for (key, value) in pm2_env {
+                // Skip keys already emitted above
+                if key == "NODE_ENV" || key == "PORT" || key == "HOSTNAME" {
+                    continue;
+                }
+                let val_str = match value {
+                    serde_json::Value::String(s) => {
+                        let escaped = s
+                            .replace('\\', "\\\\")
+                            .replace('"', "\\\"")
+                            .replace('\n', "\\n")
+                            .replace('\r', "\\r");
+                        format!(r#""{escaped}""#)
+                    }
+                    other => other.to_string(),
+                };
+                env_entries.push_str(&format!("        {key}: {val_str},\n"));
+            }
+        }
+        format!(
+            r#"module.exports = {{
+  apps: [
+    {{
+      name: "{pm2_app}",
+      script: "server.js",
+      cwd: "",  // filled at runtime via $APP_PATH
+      env_production: {{
+{env_entries}      }},
+    }},
+  ],
+}};
+"#
+        )
+    };
 
     let deploy_script = format!(
         r#"set -e
     APP_PATH="{remote_path}"
     PM2_APP="{pm2_app}"
+    RUNTIME_SUBDIR="{runtime_subdir}"
 
     case "$APP_PATH" in
         /*) ;;
@@ -347,20 +422,103 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     cd "$APP_PATH"
     mkdir -p logs
 
-    # Backward compatibility: older operator-managed ecosystem.config.js files
-    # still point PM2 at `.next/standalone/server.js`. The current deploy flow
-    # rsyncs the *contents* of `.next/standalone/` into the app root, so the
-    # real entrypoint is `server.js`. Create a compatibility symlink so both
-    # layouts work and old PM2 configs do not crash after deploy.
+    # Migrate legacy ecosystem.config.js to .cjs so it works when
+    # package.json has "type": "module".
+    if [ -f ecosystem.config.js ] && [ ! -f ecosystem.config.cjs ]; then
+        mv ecosystem.config.js ecosystem.config.cjs
+    fi
+
+    # Write ecosystem.config.cjs from smbCloud server config if none exists yet.
+    if [ ! -f ecosystem.config.cjs ] && [ ! -f ecosystem.config.js ]; then
+        cat > ecosystem.config.cjs << 'ECOSYSTEM_EOF'
+{ecosystem_config}
+ECOSYSTEM_EOF
+        # Patch the cwd field to the actual runtime path
+        node --input-type=commonjs -e "
+          var fs = require('fs');
+          var src = fs.readFileSync('ecosystem.config.cjs', 'utf8');
+          src = src.replace('cwd: \"\"', 'cwd: \"' + process.argv[1] + '\"');
+          fs.writeFileSync('ecosystem.config.cjs', src);
+        " "$APP_PATH" 2>/dev/null || true
+    fi
+
+    # The monorepo root package.json may declare "type": "module", which
+    # Next.js copies into .next/standalone/. Standalone server.js and our
+    # shims use require() (CJS). Strip the field so Node treats .js as CJS.
+    if [ -f package.json ] && grep -q '"type"' package.json; then
+        node --input-type=commonjs -e "
+          var fs = require('fs');
+          var p = JSON.parse(fs.readFileSync('package.json','utf8'));
+          delete p.type;
+          fs.writeFileSync('package.json', JSON.stringify(p,null,2)+'\\n');
+        " 2>/dev/null || sed -i '"'"'"type".*"module"'"'d' package.json
+    fi
+
+    # pnpm standalone output buries peer deps inside node_modules/.pnpm/
+    # without the top-level symlinks Node needs for require.resolve().
+    # Scan the .pnpm store and create flat symlinks. For scoped packages,
+    # always force-replace partial rsync copies with symlinks to the .pnpm
+    # store entry that has the most content (not just package.json).
+    if [ -d "node_modules/.pnpm" ]; then
+        find node_modules/.pnpm -mindepth 2 -maxdepth 2 -type d -name "node_modules" 2>/dev/null | while read pnpm_nm; do
+            for pkg_path in "$pnpm_nm"/*; do
+                [ -e "$pkg_path" ] || continue
+                pkg_name=$(basename "$pkg_path")
+                if [ "${{pkg_name:0:1}}" = "@" ] && [ -d "$pkg_path" ]; then
+                    mkdir -p "node_modules/$pkg_name"
+                    for sub_path in "$pkg_path"/*; do
+                        [ -e "$sub_path" ] || continue
+                        sub_name=$(basename "$sub_path")
+                        # Count files in this .pnpm store entry.
+                        entry_files=$(find "$sub_path" -maxdepth 2 -type f 2>/dev/null | wc -l | tr -d ' ')
+                        existing="node_modules/$pkg_name/$sub_name"
+                        if [ -e "$existing" ]; then
+                            # Only replace if existing has fewer files than the .pnpm store entry.
+                            existing_files=$(find "$existing" -maxdepth 2 -type f 2>/dev/null | wc -l | tr -d ' ')
+                            if [ "$entry_files" -gt "$existing_files" ]; then
+                                rm -rf "$existing"
+                                ln -sfn "$APP_PATH/$sub_path" "$existing"
+                            fi
+                        else
+                            ln -sfn "$APP_PATH/$sub_path" "$existing"
+                        fi
+                    done
+                else
+                    [ -e "node_modules/$pkg_name" ] || ln -sfn "$APP_PATH/$pkg_path" "node_modules/$pkg_name"
+                fi
+            done
+        done
+    fi
+
+    if [ -n "$RUNTIME_SUBDIR" ]; then
+        cat > server.js <<EOF
+import("./$RUNTIME_SUBDIR/server.js").catch(function(e){{console.error(e);process.exit(1)}})
+EOF
+    fi
+
+    # Backward compatibility: older operator-managed ecosystem config files
+    # may still point PM2 at `server.js` or `.next/standalone/server.js` in the
+    # app root even when standalone preserves the source path inside `web/`.
     mkdir -p .next/standalone
-    ln -sfn ../../server.js .next/standalone/server.js
+    rm -rf .next/standalone/node_modules
+    ln -sfn ../../node_modules .next/standalone/node_modules
+
+    if [ -n "$RUNTIME_SUBDIR" ]; then
+        cat > .next/standalone/server.js <<EOF
+import("../../$RUNTIME_SUBDIR/server.js").catch(function(e){{console.error(e);process.exit(1)}})
+EOF
+    else
+        ln -sfn ../../server.js .next/standalone/server.js
+    fi
 
     echo "Starting $PM2_APP with pm2..."
     if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
         pm2 delete "$PM2_APP"
     fi
 
-    if [ -f ecosystem.config.js ]; then
+    if [ -f ecosystem.config.cjs ]; then
+        pm2 start ecosystem.config.cjs --only "$PM2_APP" --env production
+    elif [ -f ecosystem.config.js ]; then
         pm2 start ecosystem.config.js --only "$PM2_APP" --env production
     else
         NODE_ENV=production PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
@@ -371,7 +529,9 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     "#,
         remote_path = remote_path,
         pm2_app = pm2_app,
+        runtime_subdir = runtime_subdir_for_shell,
         port = port,
+        ecosystem_config = ecosystem_config_content,
     );
 
     let mut restart_spinner = Spinner::new(

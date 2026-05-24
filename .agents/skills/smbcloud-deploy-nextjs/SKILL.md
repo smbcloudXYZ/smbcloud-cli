@@ -36,9 +36,11 @@ The CLI route in `process_deploy.rs` short-circuits on:
 That path builds locally, then:
 
 - rsyncs `.next/standalone/` into the remote app directory root
-- rsyncs `.next/static/` into `remote/.next/static/`
-- rsyncs `public/` into `remote/public/`
+- rsyncs `.next/static/` into the runtime directory's `.next/static/`
+- rsyncs `public/` into the runtime directory's `public/`
 - runs `ssh` and restarts the app with PM2
+
+When `outputFileTracingRoot` points above the app directory, Next may preserve the source path inside `.next/standalone/` (for example `.next/standalone/web/server.js`). The deploy path must keep that nested runtime layout intact.
 
 Do not describe this flow as git based unless the project is actually using the generic git deploy path.
 
@@ -97,18 +99,26 @@ Important rules:
 
 ## Expected remote layout
 
-After a successful deploy, the remote directory should look like:
+After a successful deploy, the remote directory should look like one of these layouts:
 
-- `/home/git/apps/web/<app>/server.js`
-- `/home/git/apps/web/<app>/.next/static/...`
-- `/home/git/apps/web/<app>/public/...`
+- flat runtime
+  - `/home/git/apps/web/<app>/server.js`
+  - `/home/git/apps/web/<app>/.next/static/...`
+  - `/home/git/apps/web/<app>/public/...`
+- nested runtime when standalone preserves the source path
+  - `/home/git/apps/web/<app>/node_modules/...`
+  - `/home/git/apps/web/<app>/web/server.js`
+  - `/home/git/apps/web/<app>/web/.next/static/...`
+  - `/home/git/apps/web/<app>/web/public/...`
 
-Note that `server.js` is expected at the remote root because the CLI uploads the contents of `.next/standalone/`, not the folder itself.
+The CLI uploads the contents of `.next/standalone/`, not the folder itself. In nested-runtime mode it also needs to keep PM2 compatibility for old root-level `server.js` and `.next/standalone/server.js` entrypoints.
 
 ## PM2 behavior
 
 The CLI's deploy path now deletes and starts fresh, preferring the server's
-`ecosystem.config.js` when it exists.
+ecosystem config file when it exists. The CLI checks for `ecosystem.config.cjs`
+first, then falls back to `ecosystem.config.js`. During deploy, the server-side
+migration auto-renames `.js` to `.cjs` when applicable.
 
 Conceptually it behaves like:
 
@@ -120,7 +130,9 @@ if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
   pm2 delete "$PM2_APP"
 fi
 
-if [ -f ecosystem.config.js ]; then
+if [ -f ecosystem.config.cjs ]; then
+  pm2 start ecosystem.config.cjs --only "$PM2_APP" --env production
+elif [ -f ecosystem.config.js ]; then
   pm2 start ecosystem.config.js --only "$PM2_APP" --env production
 else
   NODE_ENV=production PORT=<port> HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
@@ -133,11 +145,13 @@ This has two consequences:
 
 - old git-based `post-receive` hooks are irrelevant for the SSR path
 - the configured `port` in `.smb/config.toml` is used for the fallback start path
-- the live server `ecosystem.config.js` is the runtime source of truth when present
+- the live server `ecosystem.config.cjs` (or `.js`) is the runtime source of truth when present
 
-### Environment variables â ecosystem file (standard pattern)
+### Environment variables — ecosystem file (standard pattern)
 
-The server runs in a **multi-tenant setup**: multiple Next.js apps share one server, each managed as a separate PM2 process. The standard way to manage per-app environment variables is an `ecosystem.config.js` file kept **on the server only** (never committed to the app repo).
+The server runs in a **multi-tenant setup**: multiple Next.js apps share one server, each managed as a separate PM2 process. The standard way to manage per-app environment variables is an `ecosystem.config.cjs` file kept **on the server only** (never committed to the app repo).
+
+Use the `.cjs` extension. This is required when the project's `package.json` has `"type": "module"`, because Node treats `.js` files as ESM in that case and `module.exports` syntax will fail.
 
 The flow works like this:
 
@@ -147,7 +161,7 @@ The flow works like this:
    ssh git@<server>
    cd /home/git/apps/web/<app>
 
-   cat > ecosystem.config.js << 'EOF'
+   cat > ecosystem.config.cjs << 'EOF'
    module.exports = {
      apps: [{
        name: "<pm2_app>",
@@ -163,20 +177,20 @@ The flow works like this:
    }
    EOF
 
-   pm2 start ecosystem.config.js --env production
+   pm2 start ecosystem.config.cjs --env production
    pm2 save
    ```
 
-2. Every subsequent CLI deploy deletes the PM2 process and starts it fresh. If the server has `ecosystem.config.js`, the CLI starts PM2 from that file again. If not, it falls back to `node server.js` with inline `NODE_ENV`, `PORT`, and `HOSTNAME`.
+2. Every subsequent CLI deploy deletes the PM2 process and starts it fresh. The CLI checks for `ecosystem.config.cjs` first, then `ecosystem.config.js`. If neither exists, it falls back to `node server.js` with inline `NODE_ENV`, `PORT`, and `HOSTNAME`.
 
-3. To change or add env vars, SSH in, edit `ecosystem.config.js`, then:
+3. To change or add env vars, SSH in, edit `ecosystem.config.cjs`, then:
 
    ```sh
    pm2 restart <pm2_app> --update-env
    pm2 save
    ```
 
-The ecosystem file is the server-side source of truth for each app's runtime config. The CLI preserves the server copy during rsync and must not delete it.
+The ecosystem file is the server-side source of truth for each app's runtime config. The CLI preserves both `ecosystem.config.cjs` and `ecosystem.config.js` on the server during rsync and must not delete either.
 
 ### Manual PM2 operations (without ecosystem file)
 
@@ -203,7 +217,7 @@ pm2 save
 
 Use one source of truth for the runtime port.
 
-If an older `ecosystem.config.js` exists and contains both:
+If an older ecosystem config (`.cjs` or `.js`) exists and contains both:
 
 - `args: "start -p 3026"`
 - `env_production.PORT = 3025`
@@ -213,7 +227,7 @@ that is a broken configuration. Standardize on one port value.
 Current rules:
 
 - fallback fresh-start path uses `port` from `.smb/config.toml`
-- ecosystem-managed apps should set the same port in `env_production.PORT`
+- ecosystem-managed apps should set the same port in `env_production.PORT` (in `ecosystem.config.cjs`)
 - nginx upstream must match that port
 
 ## Nginx for SSR
@@ -273,23 +287,66 @@ Check:
 
 ### Missing `public/`
 
-The current deploy code tries to rsync `public/` unconditionally.
+`public/` is optional. The current deploy code skips it when the directory does not exist.
 
-If the project has no `public/` directory, deploy may fail. Either:
+If assets are missing in production, check whether the app actually has a `public/` directory locally and whether the expected files were copied into the remote `public/` directory.
 
-- create an empty `public/`
-- or patch the CLI to skip missing directories
+### `Cannot find module 'next'` or `502 Bad Gateway`
+
+Cause:
+
+- `.next/standalone/node_modules/*` contains `pnpm` symlinks
+- rsync preserved the symlinks instead of copying their targets
+- or the standalone output itself is incomplete and missing traced runtime files
+- PM2 starts `server.js`, Node cannot resolve `next`, and nginx returns `502 Bad Gateway`
+
+Fix:
+
+- use the dedicated `nextjs-ssr` CLI path in current `smbcloud-cli`
+- make sure the standalone upload uses `rsync --copy-links`
+- verify `node .next/standalone/server.js` works locally before deploy
+- if local standalone fails too, add `outputFileTracingIncludes` for the missing runtime files and rebuild
+- then restart PM2 and recheck `pm2 logs <pm2_app>`
+
+### `Cannot find module 'styled-jsx'`, `@swc/helpers`, or other pnpm peer deps
+
+Cause:
+
+- pnpm stores peer dependencies inside `node_modules/.pnpm/<pkg>@<version>/node_modules/<pkg>` with internal symlinks that Node's standard `require.resolve()` cannot follow
+- Next.js standalone traces the files into `.pnpm/` correctly, but does not create the flat `node_modules/<pkg>` entries needed for resolution
+- this affects `styled-jsx`, `@swc/helpers`, `@next/env`, and other packages that `next` requires at startup
+
+Fix:
+
+- the CLI deploy script now auto-hoists: after uploading standalone output, it scans `node_modules/.pnpm/*/node_modules/*` and creates symlinks at `node_modules/<pkg>` for any packages not already present
+- this restores the resolution structure that pnpm normally provides via its `.pnpm/node_modules/` virtual directory
+- no manual intervention needed for new deploys
+- to fix a server manually: `find node_modules/.pnpm -mindepth 2 -maxdepth 2 -type d -name node_modules` and symlink each child into the root `node_modules/`
 
 ### Wrong port after deploy
 
 Cause:
 
-- `port` in `.smb/config.toml`, server `ecosystem.config.js`, and nginx upstream disagree
+- `port` in `.smb/config.toml`, server ecosystem config (`.cjs` or `.js`), and nginx upstream disagree
 
 Fix:
 
 - standardize the same port in all three places
 - if using ecosystem config, make sure PM2 is actually starting from that file
+
+### PM2 "module is not defined" or "require is not defined"
+
+Cause:
+
+- the project's `package.json` has `"type": "module"`, which makes Node treat `.js` files as ESM
+- `ecosystem.config.js` uses `module.exports` (CommonJS), which is invalid under ESM
+- deploy shims that use `require()` will also fail under ESM
+
+Fix:
+
+- rename `ecosystem.config.js` to `ecosystem.config.cjs` on the server
+- deploy shims must use `import()` not `require()`
+- the CLI now handles both automatically: it checks for `.cjs` first and the server-side migration auto-renames `.js` to `.cjs` during deploy
 
 ### Misleading deploy output
 
@@ -336,7 +393,9 @@ Use the smallest checks that prove the contract.
 ### Next.js app
 
 - `pnpm build`
-- verify `.next/standalone/server.js` exists
+- verify standalone contains a runnable server entrypoint
+- if `.next/standalone/server.js` exists, verify `node .next/standalone/server.js` starts locally
+- if standalone preserves the source path, verify `node .next/standalone/<source>/server.js` starts locally
 
 ### smbcloud-cli
 
@@ -348,6 +407,7 @@ Use the smallest checks that prove the contract.
 - `pm2 list`
 - `pm2 logs <pm2_app>`
 - `ls -la /home/git/apps/web/<app>`
+- `ls -ld /home/git/apps/web/<app>/node_modules/next`
 - `sudo nginx -t`
 
 ## Common mistakes
@@ -356,8 +416,10 @@ Use the smallest checks that prove the contract.
 - forgetting `kind = "nextjs-ssr"`
 - keeping an old git `post-receive` hook and expecting it to manage SSR deploys
 - using static-file Nginx config for an SSR app
-- editing the repo copy of `ecosystem.config.js` and expecting a normal CLI deploy to overwrite the server copy — it is preserved intentionally
-- editing the server `ecosystem.config.js` but the deploy script falling back to inline `node server.js` because the file path check is wrong
+- rsyncing `.next/standalone/` without `--copy-links` and shipping broken `pnpm` symlinks to the server
+- editing the repo copy of `ecosystem.config.cjs` and expecting a normal CLI deploy to overwrite the server copy — it is preserved intentionally
+- editing the server `ecosystem.config.cjs` but the deploy script falling back to inline `node server.js` because the file path check is wrong
+- keeping an `ecosystem.config.js` when the project uses ESM (`"type": "module"` in `package.json`) — rename it to `.cjs` or let the CLI migration handle it
 - leaving port values inconsistent across PM2, Nginx, and `.smb/config.toml`
 - forgetting to set `frontend_app_id` on the deploy target once app-level deployment tracking is available
 - treating browser CORS failures as real internet outages
