@@ -34,6 +34,8 @@ pub struct DeployConfig {
     #[serde(default)]
     pub pm2_app: Option<String>,
     #[serde(default)]
+    pub pm2_env: Option<std::collections::HashMap<String, serde_json::Value>>,
+    #[serde(default)]
     pub port: Option<u16>,
     #[serde(default)]
     pub shared_lib_path: Option<String>,

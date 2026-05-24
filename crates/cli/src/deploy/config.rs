@@ -57,7 +57,7 @@ pub(crate) async fn get_config(
             message: ErrorCode::MissingConfig.message(None).to_string(),
         })?;
 
-    let mut config: Config = match toml::from_str(&config_content) {
+    let config: Config = match toml::from_str(&config_content) {
         Ok(value) => value,
         Err(e) => {
             println!("Error parsing config: {}", e);
@@ -75,88 +75,74 @@ pub(crate) async fn get_config(
         ),
     );
 
-    // Attempt to fetch server-side deploy config when we have both a token
-    // and a frontend_app_id. Falls back to local config silently on failure.
-    if let Some(token) = access_token {
-        if let Some(ref frontend_app_id) = config.project.frontend_app_id {
-            match get_deploy_config(env, client(), token.to_string(), frontend_app_id).await {
-                Ok(deploy_config) => {
-                    let has_server_fields =
-                        deploy_config.kind.is_some() || deploy_config.remote_path.is_some();
-
-                    if has_server_fields {
-                        println!(
-                            "  {}          {}",
-                            console::style(" ").dim(),
-                            console::style("Loaded from smbcloud.xyz").dim(),
-                        );
-
-                        if let Some(remote_kind) = deploy_config.kind {
-                            config.project.kind = Some(remote_kind);
-                        }
-                        if let Some(remote_path) = deploy_config.remote_path {
-                            config.project.path = Some(remote_path);
-                        }
-                        if let Some(remote_output_path) = deploy_config.output_path {
-                            config.project.output = Some(remote_output_path);
-                        }
-                        if let Some(remote_build_command) = deploy_config.build_command {
-                            config.project.compile_cmd = Some(remote_build_command);
-                        }
-                        if let Some(remote_install_command) = deploy_config.install_command {
-                            config.project.install_command = Some(remote_install_command);
-                        }
-                        if let Some(remote_binary_name) = deploy_config.binary_name {
-                            config.project.binary_name = Some(remote_binary_name);
-                        }
-                        if let Some(remote_build_target) = deploy_config.build_target {
-                            config.project.rust_target = Some(remote_build_target);
-                        }
-                        if let Some(remote_package_manager) = deploy_config.package_manager {
-                            config.project.package_manager = Some(remote_package_manager);
-                        }
-                        if let Some(remote_pm2_app) = deploy_config.pm2_app {
-                            config.project.pm2_app = Some(remote_pm2_app);
-                        }
-                        if let Some(remote_port) = deploy_config.port {
-                            config.project.port = Some(remote_port);
-                        }
-                        if let Some(remote_shared_lib_path) = deploy_config.shared_lib_path {
-                            config.project.shared_lib = Some(remote_shared_lib_path);
-                        }
-                        if let Some(remote_source_path) = deploy_config.source_path {
-                            config.project.source_path = Some(remote_source_path);
-                        }
-                        if let Some(remote_repository) = deploy_config.repository {
-                            config.project.repository = Some(remote_repository);
-                        }
-                        config.project.runner = deploy_config.runner;
-                        config.project.deployment_method = deploy_config.deployment_method;
-                        config.project.deploy_repo_id = deploy_config.deploy_repo_id;
-                    } else {
-                        println!(
-                            "  {}          {}",
-                            console::style(" ").dim(),
-                            console::style("Loaded from .smb/config.toml").dim(),
-                        );
-                    }
-                }
-                Err(_) => {
-                    println!(
-                        "  {}          {}",
-                        console::style(" ").dim(),
-                        console::style("Loaded from .smb/config.toml").dim(),
-                    );
-                }
-            }
-        }
-    }
-
     Ok(config)
 }
 
 fn handle_config_error() -> Result<Config, ErrorResponse> {
     todo!()
+}
+
+pub(crate) async fn overlay_server_config(
+    env: Environment,
+    access_token: &str,
+    config: &mut Config,
+) -> bool {
+    let frontend_app_id = match config.project.frontend_app_id {
+        Some(ref id) => id.clone(),
+        None => return false,
+    };
+
+    match get_deploy_config(env, client(), access_token.to_string(), &frontend_app_id).await {
+        Ok(deploy_config) => {
+            if let Some(remote_kind) = deploy_config.kind {
+                config.project.kind = Some(remote_kind);
+            }
+            if let Some(remote_path) = deploy_config.remote_path {
+                config.project.path = Some(remote_path);
+            }
+            if let Some(remote_output_path) = deploy_config.output_path {
+                config.project.output = Some(remote_output_path);
+            }
+            if let Some(remote_build_command) = deploy_config.build_command {
+                config.project.compile_cmd = Some(remote_build_command);
+            }
+            if let Some(remote_install_command) = deploy_config.install_command {
+                config.project.install_command = Some(remote_install_command);
+            }
+            if let Some(remote_binary_name) = deploy_config.binary_name {
+                config.project.binary_name = Some(remote_binary_name);
+            }
+            if let Some(remote_build_target) = deploy_config.build_target {
+                config.project.rust_target = Some(remote_build_target);
+            }
+            if let Some(remote_package_manager) = deploy_config.package_manager {
+                config.project.package_manager = Some(remote_package_manager);
+            }
+            if let Some(remote_pm2_app) = deploy_config.pm2_app {
+                config.project.pm2_app = Some(remote_pm2_app);
+            }
+            if let Some(remote_pm2_env) = deploy_config.pm2_env {
+                config.project.pm2_env = Some(remote_pm2_env);
+            }
+            if let Some(remote_port) = deploy_config.port {
+                config.project.port = Some(remote_port);
+            }
+            if let Some(remote_shared_lib_path) = deploy_config.shared_lib_path {
+                config.project.shared_lib = Some(remote_shared_lib_path);
+            }
+            if let Some(remote_source_path) = deploy_config.source_path {
+                config.project.source_path = Some(remote_source_path);
+            }
+            if let Some(remote_repository) = deploy_config.repository {
+                config.project.repository = Some(remote_repository);
+            }
+            config.project.runner = deploy_config.runner;
+            config.project.deployment_method = deploy_config.deployment_method;
+            config.project.deploy_repo_id = deploy_config.deploy_repo_id;
+            true
+        }
+        Err(_) => false,
+    }
 }
 
 pub(crate) async fn check_project(

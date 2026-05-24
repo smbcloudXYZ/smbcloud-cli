@@ -4,7 +4,7 @@ use {
         cli::CommandResult,
         client,
         deploy::{
-            config::{check_project, credentials, get_config},
+            config::{check_project, credentials, get_config, overlay_server_config},
             detect_runner::detect_runner,
             git::remote_deployment_setup,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
@@ -115,6 +115,8 @@ pub async fn process_deploy(
     if let Some(ref name) = resolved_name {
         config = resolve_sub_project(config, name)?;
     }
+
+    overlay_server_config(env, &access_token, &mut config).await;
 
     // Validate that the logged-in user has access to this project before doing
     // any work — applies to every deployment path including vite-spa.

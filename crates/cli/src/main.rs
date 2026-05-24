@@ -6,7 +6,7 @@ use {
         account::{login::process_login, logout::process_logout, me::process_me, process_account},
         clear_smb_token,
         cli::{Cli, CommandResult, Commands},
-        deploy::process_deploy::process_deploy,
+        deploy::{process_deploy::process_deploy, process_migrate::process_migrate},
         mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
     },
@@ -128,6 +128,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         | Some(Commands::Account { .. })
         | Some(Commands::Mail { .. })
         | Some(Commands::Project { .. })
+        | Some(Commands::Migrate {})
         | None => true,
         Some(Commands::Init {}) => true,
     };
@@ -148,6 +149,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
         Some(Commands::Mail { command }) => process_mail(cli.environment, command).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
+        Some(Commands::Migrate {}) => process_migrate(cli.environment).await,
         None => process_deploy(cli.environment, None).await,
     }
 }

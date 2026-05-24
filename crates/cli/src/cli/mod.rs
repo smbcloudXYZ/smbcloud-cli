@@ -70,4 +70,9 @@ pub enum Commands {
         #[clap(subcommand)]
         command: mail::cli::Commands,
     },
+    #[clap(
+        about = "Migrate local .smb/config.toml deploy fields to the smbCloud server.",
+        display_order = 4
+    )]
+    Migrate {},
 }
