@@ -19,6 +19,7 @@ Use this skill when work touches any part of the smbCloud CLI distribution flow:
 Use these files as the release source of truth:
 
 - Rust crate version and binary name: `crates/cli/Cargo.toml`
+- Workspace crate dependency versions: `Cargo.toml` under `[workspace.dependencies]`
 - SDK WASM crate version: `crates/smbcloud-auth-sdk-wasm/Cargo.toml`
 - SDK npm package version: `sdk/npm/smbcloud-auth/package.json`
 - SDK npm build script: `sdk/npm/smbcloud-auth/prepare-package.mjs`
@@ -27,6 +28,8 @@ Use these files as the release source of truth:
 - npm platform package generator: `npm/scripts/render-platform-package.cjs`
 - npm wrapper package generator: `npm/scripts/render-main-package.cjs`
 - npm wrapper launcher: `npm/smbcloud-cli/src/index.ts`
+- npm wrapper committed package metadata: `npm/smbcloud-cli/package.json`
+- npm wrapper committed lockfile: `npm/smbcloud-cli/package-lock.json`
 - PyPI package metadata: `pypi/pyproject.toml`
 - PyPI package README: `pypi/README.md`
 - SDK PyPI package metadata: `sdk/python/pyproject.toml`
@@ -39,7 +42,15 @@ Use these files as the release source of truth:
 
 The SDK npm package `@smbcloud/sdk-auth` must have its version in `sdk/npm/smbcloud-auth/package.json` match the version in `crates/smbcloud-auth-sdk-wasm/Cargo.toml` exactly. The `prepare-package.mjs` script enforces this at build time and will fail CI if they diverge.
 
+When bumping workspace crate versions for a release, also update the version constraints in the root `Cargo.toml` under `[workspace.dependencies]` so every `smbcloud-*` path dependency points at the same release version.
+
 When bumping workspace crate versions for a release, always update `sdk/npm/smbcloud-auth/package.json` in the same commit.
+
+The npm wrapper package is generated, but its checked-in files still need to match the release version before tagging:
+
+- rerender `npm/smbcloud-cli/package.json` with `node ../scripts/render-main-package.cjs ./package.json <version>`
+- refresh `npm/smbcloud-cli/package-lock.json` with `npm install`
+- commit both files so CI and local packaging agree on the wrapper version and optional dependency versions
 
 The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`):
 
@@ -66,8 +77,15 @@ Workflow:
 If a tag was placed on the wrong commit (e.g. before a last-minute fix), move it:
 
 1. Merge the fix into `development`.
-2. Force-move the tag: `git tag -f v<version>`.
+2. Recreate the annotated tag on the correct commit: `git tag -fa v<version> -m "v<version>"`.
 3. Force-push the tag: `git push origin v<version> --force`.
+
+When verifying the remote tag, remember that annotated tags have two refs. `git ls-remote --tags origin refs/tags/v<version>*` should show:
+
+- `refs/tags/v<version>` — the tag object
+- `refs/tags/v<version>^{}` — the peeled commit
+
+The peeled `^{}` ref is the one that must match the intended release commit.
 
 The `release-crate.yml` orchestrator triggers on `push.tags: "v*.*.*"`, so the force-push will re-trigger the full release chain.
 
@@ -109,6 +127,7 @@ It is built from `pypi/pyproject.toml` with `maturin` and `bindings = "bin"`, so
 1. Confirm npm auth with `npm whoami`.
 2. Confirm the crate version in `crates/cli/Cargo.toml`.
 3. Use the same version string for every npm package in that release.
+4. Rerender `npm/smbcloud-cli/package.json` and refresh `npm/smbcloud-cli/package-lock.json` before tagging if the wrapper version changed.
 
 ### Build platform binaries
 
