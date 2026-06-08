@@ -8,10 +8,7 @@ license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 documentation = "https://smbcloud.xyz/posts"
 keywords = ["cli", "cloud", "mail", "smbcloud", "email"]
-categories = [
-    "command-line-utilities",
-    "api-bindings",
-]
+categories = ["command-line-utilities", "api-bindings"]
 readme = "README.md"
 
 [lib]

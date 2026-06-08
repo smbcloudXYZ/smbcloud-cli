@@ -13,13 +13,13 @@ name = "smbcloud_auth"
 crate-type = ["lib", "cdylib", "staticlib"]
 path = "src/smbcloud_auth_sdk_apple.rs"
 
-[features]
-bindgen = ["uniffi/cli"]
-
 [[bin]]
 name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
 required-features = ["bindgen"]
+
+[features]
+bindgen = ["uniffi/cli"]
 
 [dependencies]
 smbcloud-auth-sdk = { workspace = true }
