@@ -5,7 +5,6 @@ use crate::{
     cli::CommandResult,
     project::deploy_target::{
         ensure_default_frontend_app_for_project, merge_project_with_frontend_app,
-        resolve_frontend_app_for_project,
     },
     ui::{fail_message, succeed_message, succeed_symbol},
 };
@@ -14,6 +13,7 @@ use console::style;
 use dialoguer::console::Term;
 use dialoguer::Select;
 use dialoguer::{theme::ColorfulTheme, Input};
+use smbcloud_model::frontend_app::FrontendApp;
 use smbcloud_model::project::{Project, ProjectCreate};
 use smbcloud_model::runner::Runner;
 use smbcloud_network::environment::Environment;
@@ -40,6 +40,8 @@ pub async fn process_project_init(
         }
     };
 
+    // Runner and repository describe the project's first app — the deployable
+    // unit inside the workspace — not the workspace itself.
     let runners = vec![
         Runner::NodeJs,
         Runner::Static,
@@ -47,18 +49,22 @@ pub async fn process_project_init(
         Runner::Swift,
         Runner::Rust,
     ];
-    let runner = Select::with_theme(&ColorfulTheme::default())
+    let runner = match Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)
         .interact_on_opt(&Term::stderr())
-        .map(|i| runners[i.unwrap()])
-        .unwrap();
+    {
+        Ok(Some(index)) => runners[index],
+        _ => {
+            return Err(anyhow!(fail_message("Invalid runner.")));
+        }
+    };
 
     let repository = match Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Repository name")
         .interact()
     {
-        Ok(project_name) => project_name,
+        Ok(repository) => repository,
         Err(_) => {
             return Err(anyhow!(fail_message("Invalid repository name.")));
         }
@@ -79,57 +85,55 @@ pub async fn process_project_init(
     );
 
     let access_token = get_smb_token(env)?;
-    match create_project(
+    let project = match create_project(
         env,
         client(),
         access_token.clone(),
         ProjectCreate {
             name: project_name.clone(),
-            runner,
-            repository,
             description: description.clone(),
-            deployment_method: Default::default(),
         },
     )
     .await
     {
-        Ok(project) => {
-            if should_init_project {
-                let _ = ensure_default_frontend_app_for_project(env, &access_token, &project).await;
-                write_smb_config(env, &access_token, project.clone()).await?;
-            }
-
-            Ok(CommandResult {
-                spinner,
-                symbol: succeed_symbol(),
-                msg: succeed_message(&format!("{project_name} has been created.")),
-            })
-        }
+        Ok(project) => project,
         Err(e) => {
             println!("Error: {e:#?}");
-            Err(anyhow!(fail_message("Failed to create project.")))
+            return Err(anyhow!(fail_message("Failed to create project.")));
         }
-    }
-}
+    };
 
-async fn write_smb_config(
-    env: Environment,
-    access_token: &str,
-    workspace_project: Project,
-) -> Result<()> {
-    let deploy_target = match resolve_frontend_app_for_project(
+    let frontend_app = match ensure_default_frontend_app_for_project(
         env,
-        access_token,
-        &workspace_project,
-        false,
+        &access_token,
+        &project,
+        runner,
+        Some(repository),
     )
     .await
     {
-        Ok(Some(frontend_app)) => {
-            merge_project_with_frontend_app(&workspace_project, &frontend_app)
+        Ok(frontend_app) => frontend_app,
+        Err(e) => {
+            println!("Error: {e:#?}");
+            return Err(anyhow!(fail_message(
+                "Project created, but failed to create its app."
+            )));
         }
-        _ => workspace_project.clone(),
     };
+
+    if should_init_project {
+        write_smb_config(&project, &frontend_app)?;
+    }
+
+    Ok(CommandResult {
+        spinner,
+        symbol: succeed_symbol(),
+        msg: succeed_message(&format!("{project_name} has been created.")),
+    })
+}
+
+fn write_smb_config(workspace_project: &Project, frontend_app: &FrontendApp) -> Result<()> {
+    let deploy_target = merge_project_with_frontend_app(workspace_project, frontend_app);
 
     let config = DeployConfig {
         name: workspace_project.name.clone(),

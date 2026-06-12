@@ -128,15 +128,13 @@ impl Display for Project {
         write!(f, "ID: {}, Name: {}", self.id, self.name,)
     }
 }
+/// Payload for creating the umbrella workspace. Deploy concerns (runner,
+/// repository, deployment method) live on the App, not the Project.
 #[derive(Serialize, Debug, Deserialize, Clone)]
 #[tsync]
 pub struct ProjectCreate {
     pub name: String,
-    pub repository: String,
     pub description: String,
-    pub runner: Runner,
-    #[serde(default)]
-    pub deployment_method: DeploymentMethod,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -188,17 +186,11 @@ mod tests {
     fn test_project_create() {
         let project_create = ProjectCreate {
             name: "test".to_owned(),
-            repository: "test".to_owned(),
             description: "test".to_owned(),
-            runner: Runner::NodeJs,
-            deployment_method: DeploymentMethod::Git,
         };
         let json = json!({
             "name": "test",
-            "repository": "test",
-            "description": "test",
-            "runner": 0,
-            "deployment_method": 0
+            "description": "test"
         });
         assert_eq!(serde_json::to_value(project_create).unwrap(), json);
     }

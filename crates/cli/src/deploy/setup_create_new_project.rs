@@ -101,24 +101,15 @@ pub(crate) async fn create_new_project(
         }
     };
 
-    match create_project(
+    let project = create_project(
         env,
         client(),
         access_token.clone(),
-        ProjectCreate {
-            name,
-            runner,
-            repository,
-            description,
-            deployment_method: Default::default(),
-        },
+        ProjectCreate { name, description },
     )
-    .await
-    {
-        Ok(project) => {
-            let _ = ensure_default_frontend_app_for_project(env, &access_token, &project).await;
-            Ok(project)
-        }
-        Err(e) => Err(e),
-    }
+    .await?;
+
+    ensure_default_frontend_app_for_project(env, &access_token, &project, runner, Some(repository))
+        .await?;
+    Ok(project)
 }
