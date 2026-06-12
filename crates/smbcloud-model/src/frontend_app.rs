@@ -109,9 +109,9 @@ where
             "monorepo" => Ok(Runner::Monorepo),
             other => Err(serde::de::Error::custom(format!("unknown runner: {other}"))),
         },
-        EnumWireValue::Int(other) => Err(serde::de::Error::custom(format!(
-            "unknown runner: {other}"
-        ))),
+        EnumWireValue::Int(other) => {
+            Err(serde::de::Error::custom(format!("unknown runner: {other}")))
+        }
     }
 }
 
