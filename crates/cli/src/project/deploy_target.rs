@@ -77,6 +77,8 @@ pub async fn ensure_default_frontend_app_for_project(
             deployment_method: project.deployment_method,
             repository,
             description: project.description.clone(),
+            deploy_repo_id: None,
+            source_path: None,
         },
     )
     .await
