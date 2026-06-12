@@ -10,6 +10,7 @@ use {
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
             process_deploy_rust::process_deploy_rust,
+            process_deploy_swift::process_deploy_swift,
             process_deploy_vite_spa::process_deploy_vite_spa,
             remote_messages::{build_next_app, start_server},
             rsync_deploy::rsync_deploy,
@@ -141,6 +142,11 @@ pub async fn process_deploy(
     // Route Rust service projects: build a Linux binary locally, upload it over rsync, then restart it over SSH.
     if config.project.kind.as_deref() == Some("rust") {
         return process_deploy_rust(env, config).await;
+    }
+
+    // Route Swift/Vapor projects: build a Linux binary via Docker, rsync binary + Resources/ + Public/, SSH restart.
+    if config.project.kind.as_deref() == Some("swift") {
+        return process_deploy_swift(env, config).await;
     }
 
     match config.project.deployment_method {

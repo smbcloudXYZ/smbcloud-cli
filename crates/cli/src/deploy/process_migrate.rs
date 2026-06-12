@@ -202,6 +202,8 @@ fn strip_project(project: &Project) -> Project {
         install_command: None,
         binary_name: None,
         rust_target: None,
+        swift_sdk: None,
+        swift_toolchain: None,
     }
 }
 

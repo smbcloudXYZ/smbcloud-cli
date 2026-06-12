@@ -6,6 +6,7 @@ pub mod process_deploy;
 pub mod process_deploy_nextjs_ssr;
 pub mod process_deploy_rails;
 pub mod process_deploy_rust;
+pub mod process_deploy_swift;
 pub mod process_deploy_vite_spa;
 pub mod process_migrate;
 mod remote_messages;
