@@ -4,6 +4,7 @@ use {
     smbcloud_model::{
         frontend_app::{AppType, FrontendApp, FrontendAppCreate},
         project::Project,
+        runner::Runner,
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::{
@@ -55,10 +56,14 @@ pub async fn resolve_frontend_app_for_project(
     Ok(selection.map(|index| frontend_apps[index].clone()))
 }
 
+// Runner and repository are passed explicitly because the workspace project no
+// longer carries deploy concerns — they belong to the app, the deployable unit.
 pub async fn ensure_default_frontend_app_for_project(
     env: Environment,
     access_token: &str,
     project: &Project,
+    runner: Runner,
+    repository: Option<String>,
 ) -> Result<FrontendApp, smbcloud_model::error_codes::ErrorResponse> {
     create_frontend_app(
         env,
@@ -68,10 +73,12 @@ pub async fn ensure_default_frontend_app_for_project(
             name: project.name.clone(),
             project_id: project.id,
             app_type: AppType::Web,
-            runner: project.runner,
+            runner,
             deployment_method: project.deployment_method,
-            repository: project.repository.clone(),
+            repository,
             description: project.description.clone(),
+            deploy_repo_id: None,
+            source_path: None,
         },
     )
     .await
