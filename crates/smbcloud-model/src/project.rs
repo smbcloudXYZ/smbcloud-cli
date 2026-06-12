@@ -109,6 +109,18 @@ pub struct Project {
     /// Rust target triple used for local cross-compilation before upload,
     /// e.g. "x86_64-unknown-linux-gnu".
     pub rust_target: Option<String>,
+    /// Swift SDK identifier used to cross-compile a Swift/Vapor app for Linux,
+    /// e.g. "x86_64-swift-linux-musl" (the Static Linux SDK). Defaults to
+    /// "x86_64-swift-linux-musl" when absent. Built natively on the host with
+    /// `swift build --swift-sdk <id>` — no Docker, no emulation.
+    pub swift_sdk: Option<String>,
+    /// Optional toolchain identifier passed via the `TOOLCHAINS` env var when
+    /// cross-compiling Swift. Needed on macOS where the default `swift` is
+    /// Apple's Xcode toolchain (which lacks `lld`); point it at an installed
+    /// swift.org toolchain, e.g. "swift" (resolves to swift-latest) or a bundle
+    /// id like "org.swift.632202605101a". Unnecessary when `swift` is already a
+    /// swift.org toolchain (e.g. via swiftly).
+    pub swift_toolchain: Option<String>,
 }
 
 impl Display for Project {
