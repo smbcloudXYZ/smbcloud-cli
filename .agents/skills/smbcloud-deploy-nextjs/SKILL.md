@@ -366,6 +366,13 @@ Fix:
 
 ### `Cannot find module 'styled-jsx'`, `@swc/helpers`, or other pnpm peer deps
 
+A common concrete failure looks like:
+
+- `code: 'MODULE_NOT_FOUND'`
+- `path: '/home/git/apps/web/<app>/node_modules/@swc/helpers'`
+
+That usually means the standalone upload succeeded, but the top-level hoisted symlink for a scoped package was not recreated on the server.
+
 Cause:
 
 - pnpm stores peer dependencies inside `node_modules/.pnpm/<pkg>@<version>/node_modules/<pkg>` with internal symlinks that Node's standard `require.resolve()` cannot follow
@@ -374,10 +381,15 @@ Cause:
 
 Fix:
 
-- the CLI deploy script now auto-hoists: after uploading standalone output, it scans `node_modules/.pnpm/*/node_modules/*` and creates symlinks at `node_modules/<pkg>` for any packages not already present
-- this restores the resolution structure that pnpm normally provides via its `.pnpm/node_modules/` virtual directory
-- no manual intervention needed for new deploys
-- to fix a server manually: `find node_modules/.pnpm -mindepth 2 -maxdepth 2 -type d -name node_modules` and symlink each child into the root `node_modules/`
+- the CLI deploy script now auto-hoists in two passes:
+  - first mirror pnpm's virtual directory at `node_modules/.pnpm/node_modules/*`
+  - then fall back to scanning `node_modules/.pnpm/*/node_modules/*` for anything still missing
+- this preserves pnpm's exact resolved package choice and fixes scoped packages like `@swc/helpers` as well as unscoped ones like `styled-jsx`
+- no manual intervention needed for new deploys once the updated CLI is used
+- to fix a server manually, prefer pnpm's virtual directory as the source of truth:
+  - create `node_modules/@scope/` directories as needed
+  - symlink `node_modules/<pkg>` or `node_modules/@scope/<pkg>` to the corresponding entry under `node_modules/.pnpm/node_modules/`
+  - only if that directory is missing, scan individual `.pnpm/<store-entry>/node_modules/*` folders as a fallback
 
 ### Wrong port after deploy
 

@@ -109,6 +109,18 @@ pub struct Project {
     /// Rust target triple used for local cross-compilation before upload,
     /// e.g. "x86_64-unknown-linux-gnu".
     pub rust_target: Option<String>,
+    /// Swift SDK identifier used to cross-compile a Swift/Vapor app for Linux,
+    /// e.g. "x86_64-swift-linux-musl" (the Static Linux SDK). Defaults to
+    /// "x86_64-swift-linux-musl" when absent. Built natively on the host with
+    /// `swift build --swift-sdk <id>` — no Docker, no emulation.
+    pub swift_sdk: Option<String>,
+    /// Optional toolchain identifier passed via the `TOOLCHAINS` env var when
+    /// cross-compiling Swift. Needed on macOS where the default `swift` is
+    /// Apple's Xcode toolchain (which lacks `lld`); point it at an installed
+    /// swift.org toolchain, e.g. "swift" (resolves to swift-latest) or a bundle
+    /// id like "org.swift.632202605101a". Unnecessary when `swift` is already a
+    /// swift.org toolchain (e.g. via swiftly).
+    pub swift_toolchain: Option<String>,
 }
 
 impl Display for Project {
@@ -116,15 +128,13 @@ impl Display for Project {
         write!(f, "ID: {}, Name: {}", self.id, self.name,)
     }
 }
+/// Payload for creating the umbrella workspace. Deploy concerns (runner,
+/// repository, deployment method) live on the App, not the Project.
 #[derive(Serialize, Debug, Deserialize, Clone)]
 #[tsync]
 pub struct ProjectCreate {
     pub name: String,
-    pub repository: String,
     pub description: String,
-    pub runner: Runner,
-    #[serde(default)]
-    pub deployment_method: DeploymentMethod,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -176,17 +186,11 @@ mod tests {
     fn test_project_create() {
         let project_create = ProjectCreate {
             name: "test".to_owned(),
-            repository: "test".to_owned(),
             description: "test".to_owned(),
-            runner: Runner::NodeJs,
-            deployment_method: DeploymentMethod::Git,
         };
         let json = json!({
             "name": "test",
-            "repository": "test",
-            "description": "test",
-            "runner": 0,
-            "deployment_method": 0
+            "description": "test"
         });
         assert_eq!(serde_json::to_value(project_create).unwrap(), json);
     }

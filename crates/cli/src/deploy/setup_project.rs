@@ -74,10 +74,14 @@ pub(crate) async fn setup_project(
             Some(frontend_app) => {
                 merge_project_with_frontend_app(&workspace_project, &frontend_app)
             }
+            // Older workspace projects still carry legacy runner/repository
+            // fields; reuse them when seeding the project's first app.
             None => match ensure_default_frontend_app_for_project(
                 env,
                 &access_token,
                 &workspace_project,
+                workspace_project.runner,
+                workspace_project.repository.clone(),
             )
             .await
             {

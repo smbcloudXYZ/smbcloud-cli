@@ -456,9 +456,30 @@ ECOSYSTEM_EOF
 
     # pnpm standalone output buries peer deps inside node_modules/.pnpm/
     # without the top-level symlinks Node needs for require.resolve().
-    # Scan the .pnpm store and create flat symlinks. For scoped packages,
-    # always force-replace partial rsync copies with symlinks to the .pnpm
-    # store entry that has the most content (not just package.json).
+    # First mirror pnpm's own virtual node_modules directory when it exists —
+    # this preserves the exact version selection pnpm already resolved, which is
+    # especially important for scoped packages like @swc/helpers.
+    # Then fall back to scanning individual .pnpm store entries for anything the
+    # virtual directory did not expose.
+    if [ -d "node_modules/.pnpm/node_modules" ]; then
+        for pkg_path in node_modules/.pnpm/node_modules/*; do
+            [ -e "$pkg_path" ] || continue
+            pkg_name=$(basename "$pkg_path")
+            if [ "${{pkg_name:0:1}}" = "@" ] && [ -d "$pkg_path" ]; then
+                mkdir -p "node_modules/$pkg_name"
+                for sub_path in "$pkg_path"/*; do
+                    [ -e "$sub_path" ] || continue
+                    sub_name=$(basename "$sub_path")
+                    rm -rf "node_modules/$pkg_name/$sub_name"
+                    ln -sfn "$APP_PATH/$sub_path" "node_modules/$pkg_name/$sub_name"
+                done
+            else
+                rm -rf "node_modules/$pkg_name"
+                ln -sfn "$APP_PATH/$pkg_path" "node_modules/$pkg_name"
+            fi
+        done
+    fi
+
     if [ -d "node_modules/.pnpm" ]; then
         find node_modules/.pnpm -mindepth 2 -maxdepth 2 -type d -name "node_modules" 2>/dev/null | while read pnpm_nm; do
             for pkg_path in "$pnpm_nm"/*; do
@@ -484,7 +505,10 @@ ECOSYSTEM_EOF
                         fi
                     done
                 else
-                    [ -e "node_modules/$pkg_name" ] || ln -sfn "$APP_PATH/$pkg_path" "node_modules/$pkg_name"
+                    if [ -e "node_modules/$pkg_name" ]; then
+                        continue
+                    fi
+                    ln -sfn "$APP_PATH/$pkg_path" "node_modules/$pkg_name"
                 fi
             done
         done
