@@ -264,6 +264,62 @@ location / {
 
 Nginx must proxy to the actual PM2 port.
 
+### Do not `alias` `/_next/static` for nested standalone builds
+
+The proxy-everything block above is the safe default: let the standalone Node
+server serve `/_next/static` itself. The common breakage is an nginx block that
+tries to serve those assets from disk:
+
+```nginx
+# WRONG for a nested (monorepo) standalone build
+location /_next/static {
+    alias /home/git/apps/web/<app>/.next/static;   # 404s every JS/CSS
+}
+```
+
+When the app builds with `outputFileTracingRoot` (monorepo), standalone is
+**nested**, so static actually lands at `…/<app>/<source>/.next/static`
+(e.g. `…/<app>/apps/web/.next/static`), not `…/<app>/.next/static`. The alias
+points at the wrong directory and every chunk 404s while the HTML still loads —
+a confusing "page renders, no styles/JS" symptom.
+
+Fixes, in order of preference:
+
+1. Drop the `/_next/static` `alias` block and proxy everything to the Node
+   process (the block above). Layout-independent — works for flat and nested.
+2. If you must serve static from disk, point the alias at the nested path:
+   `alias …/<app>/<source>/.next/static;`.
+
+Flat (single-repo, `source = "."`) builds keep static at `…/<app>/.next/static`,
+so a disk alias there happens to be correct — but proxy-everything still works
+and is the recommended uniform pattern.
+
+### One file + SAN cert for multiple hostnames
+
+To serve several hostnames for the same app (e.g. a primary domain plus a
+`*.5mb.app` alias) from one `server` block, they must share one certificate — a
+`server` block can only present one cert. Issue a SAN cert listing both names,
+then write one block:
+
+```sh
+sudo certbot certonly --nginx -d app.example.com -d app.example.net --cert-name myapp
+```
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name app.example.com app.example.net;
+    ssl_certificate     /etc/letsencrypt/live/myapp/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/myapp/privkey.pem;
+    # ... single proxy_pass block; Host $host passes the real hostname through
+}
+```
+
+Mixing two different certs (a per-domain cert plus a shared wildcard) forces two
+`server` blocks. Run `certbot certonly` first, then write the config that
+references the new lineage — pointing `ssl_certificate` at a path that does not
+exist yet makes `nginx -t` fail.
+
 ## Common failure modes
 
 ### `.next/standalone` missing
@@ -360,6 +416,48 @@ Fix:
 - deploy shims must use `import()` not `require()`
 - the CLI now handles both automatically: it checks for `.cjs` first and the server-side migration auto-renames `.js` to `.cjs` during deploy
 
+### `rsync` of `.next/standalone/` fails with status 23 (dangling pnpm symlink)
+
+A reproducible failure on pnpm monorepos. The deploy aborts at the standalone
+upload with an empty stderr and:
+
+```
+✘ rsync of '.next/standalone/' failed (status 23):
+```
+
+Run the same rsync by hand and you see the real cause:
+
+```
+IO error encountered -- skipping file deletion
+```
+
+Cause:
+
+- Next.js standalone tracing emits a virtual pnpm symlink such as
+  `.next/standalone/node_modules/.pnpm/node_modules/semver -> ../semver@6.3.1/node_modules/semver`,
+  but only the version it actually traced (e.g. `semver@7.7.3`) is copied into
+  the bundle. The `@6.3.1` target is never written, so the symlink dangles.
+- The CLI rsyncs standalone with `--copy-links`, which tries to follow every
+  symlink. A dangling link is an IO error → rsync exits 23 and skips deletion.
+- The package is not part of the traced runtime, so the link is safe to drop.
+
+Find them:
+
+```sh
+find .next/standalone/ -type l ! -exec test -e {} \; -print
+```
+
+Fix:
+
+- Remove the dangling link(s) before upload:
+  `find .next/standalone/ -type l ! -exec test -e {} \; -delete`
+  then re-run the deploy. (The CLI rebuilds on every run, so this must happen
+  after `next build` and before rsync — when driving the deploy manually,
+  delete then run the three rsyncs yourself.)
+- Proper fix belongs in the CLI: prune dangling symlinks (or use
+  `--copy-unsafe-links` semantics that tolerate them) before the standalone
+  rsync. Until then, the manual `find … -delete` is the workaround.
+
 ### Misleading deploy output
 
 The CLI may print generic deploy messages such as:
@@ -427,6 +525,11 @@ Use the smallest checks that prove the contract.
 - assuming `deployment_method = 1` alone activates SSR deploy
 - forgetting `kind = "nextjs-ssr"`
 - keeping an old git `post-receive` hook and expecting it to manage SSR deploys
+- `alias`-ing `/_next/static` for a nested (monorepo) standalone build — static
+  is under `<app>/<source>/.next/static`, so the alias 404s; proxy everything instead
+- leaving a dangling pnpm symlink in `.next/standalone/` — `rsync --copy-links`
+  fails with status 23; `find … -type l ! -exec test -e {} \; -delete` first
+- giving two hostnames one `server` block without a shared SAN cert
 - using static-file Nginx config for an SSR app
 - rsyncing `.next/standalone/` without `--copy-links` and shipping broken `pnpm` symlinks to the server
 - editing the repo copy of `ecosystem.config.cjs` and expecting a normal CLI deploy to overwrite the server copy — it is preserved intentionally

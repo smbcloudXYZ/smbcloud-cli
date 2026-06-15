@@ -282,37 +282,42 @@ Current allocations on `api.smbcloud.xyz`:
 
 ### Nginx configuration per app type
 
-**Next.js SSR apps** use reverse proxy:
+**Next.js SSR apps** use reverse proxy. In a monorepo the safe default is to
+proxy *everything* (including `/_next/static`) to the Node process — do not
+serve static from disk with an `alias`, because monorepo builds are **nested**
+(see warning below):
 
 ```nginx
-upstream app_name {
-    server 127.0.0.1:<port>;
-    keepalive 64;
-}
-
 server {
     server_name example.com;
 
-    location /_next/static/ {
-        alias /home/git/apps/web/<app>/.next/static/;
-        expires max;
-        add_header Cache-Control "public, max-age=31536000, immutable";
-        access_log off;
-    }
-
     location / {
-        proxy_pass http://app_name;
+        proxy_pass http://127.0.0.1:<port>;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_buffering off;
+        proxy_cache_bypass $http_upgrade;
     }
 }
 ```
+
+> **Nested-static gotcha.** A monorepo sub-project builds with
+> `outputFileTracingRoot` pointing at the repo root, so standalone is nested and
+> static lands at `…/<app>/<source>/.next/static` (e.g.
+> `…/<app>/apps/web/.next/static`), **not** `…/<app>/.next/static`. The
+> classic disk alias —
+> `location /_next/static/ { alias /home/git/apps/web/<app>/.next/static/; }` —
+> therefore 404s every JS/CSS chunk while HTML still renders ("page loads, no
+> styles"). Proxy-everything avoids this entirely. If you insist on a disk alias
+> for cache headers, point it at the nested path:
+> `alias /home/git/apps/web/<app>/<source>/.next/static/;`.
+> Flat single-repo builds (`source = "."`) keep static at `…/<app>/.next/static`,
+> so an alias there is correct — but proxy-everything is the uniform choice.
 
 **Vite SPA / static apps** use direct file serving:
 
@@ -512,6 +517,14 @@ To convert a standalone repo into a monorepo sub-project:
 3. Set `source` to the sub-directory path
 4. Adjust `path` if the remote directory structure differs
 
+> **Deploy from the sub-project, not the leftover standalone repo.** Once an app
+> has been folded into a monorepo (`apps/<name>`), that copy is the source of
+> truth — deploy it with `smb deploy -p <name>`. If the old standalone repo
+> still exists on disk it is easy to build and deploy from there by accident,
+> which silently diverges from what the monorepo would ship. Archive the old
+> repo. Note this also flips the build from flat to nested standalone, so the
+> nginx `/_next/static` handling may need the nested-path / proxy-everything fix.
+
 ## Debugging monorepo deploys
 
 ### "No [[projects]] entries found"
@@ -534,9 +547,25 @@ The `source` field is incorrect. It must be relative to the monorepo root where 
 
 Two `nextjs-ssr` apps have the same `port` value. PM2 will start both, but only one will bind the port. Check `pm2 list` and compare ports across all `.smb/config.toml` files that target the same server.
 
-### Stale assets after deploy
+### Stale assets after deploy / `/_next/static` 404s
 
-The Nginx `alias` directive for `/_next/static/` or the `root` for a Vite SPA points to the wrong directory or a stale deploy path. Verify the Nginx config matches the `path` field in `.smb/config.toml`.
+The Nginx `alias` for `/_next/static/` (or the Vite SPA `root`) points at the
+wrong directory. For a nested monorepo standalone build the assets live at
+`<path>/<source>/.next/static`, not `<path>/.next/static` — see the nested-static
+gotcha under "Nginx configuration per app type". Either proxy `/_next/static` to
+the Node process or fix the alias to the nested path. Confirm with
+`curl -sI https://<domain>/_next/static/...` (want 200).
+
+### `rsync of '.next/standalone/' failed (status 23)`
+
+`smb deploy` aborts at the standalone upload with empty stderr; running rsync by
+hand shows `IO error encountered -- skipping file deletion`. Cause: Next.js
+standalone leaves a dangling pnpm symlink (e.g.
+`node_modules/.pnpm/node_modules/semver -> ../semver@6.3.1/...` when only
+`semver@7.x` was traced) and the CLI's `rsync --copy-links` errors trying to
+follow it. Fix: after `next build`, before rsync, run
+`find .next/standalone/ -type l ! -exec test -e {} \; -delete`. Proper fix is in
+the CLI (prune dangling links before the standalone rsync). See the nextjs skill.
 
 ### `Cannot find module 'next'` after Next.js SSR deploy
 
