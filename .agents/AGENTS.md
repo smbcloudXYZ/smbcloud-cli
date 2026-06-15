@@ -1,3 +1,21 @@
+# Public, open-source repository
+
+`smbcloud-cli` is published on GitHub as **open source**. Everything you commit here — code, comments, docs, and `.agents/skills/*` — is **world-readable and permanent** (git history outlives any later deletion). Before writing anything, ask: "is this safe on a public repo forever?"
+
+Do **not** add internal smbCloud infrastructure detail or secrets:
+
+- server hostnames/IPs and operational endpoints beyond what the CLI already targets in source — e.g. account-scoped SSH key names (`id_<n>@smbcloud`), `api-1.smbcloud.xyz`, internal health ports
+- account/user IDs and which user or tenant owns which project
+- real customer/app domains, PM2 process names, the production port → app → domain registry
+- workspace/project IDs and `frontend_app_id` / `deploy_repo_id` values
+- secrets/config: API keys, tokens, `.env` values, connection strings, real auth/CORS origins
+- commands that read local credentials to enumerate the API (e.g. `cat ~/.smb/token | curl …`)
+- incident logs or examples that name real apps, tenants, customers, or dated rollouts
+
+Keep docs and skills **generic** — describe how the tool behaves, using placeholders (`example.com`, `<app>`, `<source>`, `<port>`, `<n>`). The base API host (`api.smbcloud.xyz`) is already in the source, so it is not a new leak; the items above are. Fleet-specific operational detail and the internal deploy reference live only in the private `smbcloud` repo.
+
+---
+
 # Rust coding guidelines
 
 - Prioritize code correctness and clarity. Speed and efficiency are secondary priorities unless otherwise specified.

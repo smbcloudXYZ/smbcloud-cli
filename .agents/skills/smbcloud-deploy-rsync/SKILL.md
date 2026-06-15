@@ -170,3 +170,9 @@ If it migrates to the embedding crate, validate equivalent output and error hand
 - hiding transport stderr that the user needs to debug deploy failures
 - hardcoding local paths instead of using smbCloud config and user-derived SSH identity
 - treating the workspace `project.id` as the deployable app identity — always use `frontend_app_id` for app-level deploy tracking
+- assuming `--copy-links` is harmless: it follows every symlink, so one dangling
+  link in the source (e.g. a stray pnpm `.pnpm/node_modules/<pkg>` pointing at an
+  untraced version) makes rsync exit **23**
+  (`IO error encountered -- skipping file deletion`). The `nextjs-ssr` path hits
+  this on `.next/standalone/` — prune dangling links before transfer (or use
+  `--copy-unsafe-links` semantics). See the nextjs skill.
