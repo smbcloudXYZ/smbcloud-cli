@@ -1,0 +1,40 @@
+name: Verify RubyGems Key
+
+# Fast, no-publish check that the RUBYGEMS_API_KEY secret is present and
+# authenticates with RubyGems.org. Use this to validate the secret before
+# cutting a gem release (the release workflow builds native gems first, so it
+# is a slow way to discover a bad key).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify RUBYGEMS_API_KEY
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the key authenticates with RubyGems
+        env:
+          RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        shell: bash
+        run: |
+          if [ -z "${RUBYGEMS_API_KEY}" ]; then
+            echo "::error::RUBYGEMS_API_KEY secret is empty or unset."
+            exit 1
+          fi
+
+          code="$(curl -s -o /tmp/me.json -w '%{http_code}' \
+            -H "Authorization: ${RUBYGEMS_API_KEY}" \
+            https://rubygems.org/api/v1/profile/me.json)"
+          echo "RubyGems profile API returned HTTP ${code}"
+
+          if [ "${code}" != "200" ]; then
+            echo "::error::Key did NOT authenticate (HTTP ${code}). Check the RUBYGEMS_API_KEY secret value and that it has push scope."
+            exit 1
+          fi
+
+          handle="$(python3 -c 'import json; print(json.load(open("/tmp/me.json")).get("handle",""))' 2>/dev/null || true)"
+          echo "✅ Key authenticates as: ${handle:-<unknown account>}"
