@@ -13,6 +13,11 @@ on:
       tag:
         description: "Release tag (e.g. v0.3.35)"
         required: true
+      force_push_existing:
+        description: "Attempt the push even if this version is already on RubyGems. Credential test only — RubyGems rejects re-push, so no new release is created."
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -206,7 +211,10 @@ jobs:
         id: rubygems-check
         shell: bash
         run: |
-          if curl -fsS \
+          if [[ "${{ github.event.inputs.force_push_existing }}" == "true" ]]; then
+            echo "force_push_existing is set — running the push even if the version exists (credential test)."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          elif curl -fsS \
             "https://rubygems.org/api/v2/rubygems/smbcloud-auth/versions/${RELEASE_VERSION}.json" \
             >/dev/null 2>&1; then
             echo "smbcloud-auth ${RELEASE_VERSION} already exists on RubyGems, skipping publish"
@@ -232,20 +240,49 @@ jobs:
       - name: Configure RubyGems credentials
         if: steps.rubygems-check.outputs.exists != 'true'
         shell: bash
+        env:
+          RUBYGEMS_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
+          # Fail fast and loudly if the secret is missing or empty. Without this
+          # guard, gem push gets blank credentials, returns 401, and the push
+          # step used to disguise that as "already exists" — silently shipping
+          # nothing while the run stayed green.
+          if [ -z "${RUBYGEMS_API_KEY}" ]; then
+            echo "::error::RUBYGEMS_API_KEY secret is empty or unset. Add a RubyGems API key with push scope as the RUBYGEMS_API_KEY repository secret."
+            exit 1
+          fi
           mkdir -p "${HOME}/.gem"
-          echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" > "${HOME}/.gem/credentials"
+          printf ':rubygems_api_key: %s\n' "${RUBYGEMS_API_KEY}" > "${HOME}/.gem/credentials"
           chmod 0600 "${HOME}/.gem/credentials"
 
-      # Push each .gem file individually. Platform-specific gems that are already
-      # published (e.g. from a re-run) emit a warning and continue rather than
-      # failing the whole job.
+      # Push each .gem file individually. A version that is genuinely already
+      # published (e.g. a partial re-run) is skipped; any other failure —
+      # bad credentials, validation errors, server errors — fails the job.
       - name: Push gems to RubyGems
         if: steps.rubygems-check.outputs.exists != 'true'
         shell: bash
         run: |
+          set -uo pipefail
+          push_failed=0
           for gem_file in gems/*.gem; do
-            echo "Pushing $(basename "${gem_file}")…"
-            gem push "${gem_file}" \
-              || echo "::warning::$(basename "${gem_file}") may already exist for this version — skipping."
+            name="$(basename "${gem_file}")"
+            echo "Pushing ${name}…"
+            if push_output="$(gem push "${gem_file}" 2>&1)"; then
+              echo "${push_output}"
+              echo "Pushed ${name}."
+              continue
+            fi
+            echo "${push_output}"
+            # The only acceptable failure is the version already existing on
+            # RubyGems; repushing is rejected with this specific message.
+            if echo "${push_output}" | grep -qiE "Repushing of gem versions is not allowed|has already been pushed"; then
+              echo "::notice::${name} is already published for this version — skipping."
+              continue
+            fi
+            echo "::error::Failed to push ${name}."
+            push_failed=1
           done
+          if [ "${push_failed}" -ne 0 ]; then
+            echo "::error::One or more gems failed to push (see logs above). The release did not fully publish."
+            exit 1
+          fi
