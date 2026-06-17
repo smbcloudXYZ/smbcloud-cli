@@ -5,4 +5,5 @@ pub mod logout;
 pub mod me;
 pub mod oidc;
 pub mod remove;
+pub mod reset_password;
 pub mod signup;

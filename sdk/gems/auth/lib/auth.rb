@@ -45,6 +45,16 @@ module SmbCloud
         raise Auth.send(:normalize_error, e)
       end
 
+      # Requests password-reset instructions for the given email. The endpoint
+      # never reveals whether the account exists (no enumeration), and calling
+      # it again re-issues the token, so this also serves the "resend reset
+      # instructions" flow. Returns { code:, message: }.
+      def reset_password(email:)
+        Auth.send(:parse_json, Auth.__reset_password_with_client(environment, app_id, app_secret, email))
+      rescue RuntimeError => e
+        raise Auth.send(:normalize_error, e)
+      end
+
       def me(access_token:)
         Auth.send(:parse_json, Auth.__me_with_client(environment, app_id, app_secret, access_token))
       rescue RuntimeError => e
@@ -75,6 +85,10 @@ module SmbCloud
 
       def login_with_client(environment:, app_id:, app_secret:, email:, password:)
         client(environment:, app_id:, app_secret:).login(email:, password:)
+      end
+
+      def reset_password_with_client(environment:, app_id:, app_secret:, email:)
+        client(environment:, app_id:, app_secret:).reset_password(email:)
       end
 
       def me_with_client(environment:, app_id:, app_secret:, access_token:)
