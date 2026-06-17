@@ -8,27 +8,31 @@ name: Apple Bridge SDK Verification
 # UniFFI Swift bindings, assembles a local XCFramework, and uploads the
 # generated artifacts for inspection.
 
+# Temporarily disabled (2026-06-17): the automatic push/pull_request triggers
+# are commented out so this no longer runs as a PR/push check. It stays
+# available on demand via "Run workflow" (workflow_dispatch). To re-enable,
+# uncomment the push and pull_request blocks below.
 on:
-  push:
-    paths:
-      - ".github/workflows/verify-sdk-apple.yml"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - "crates/smbcloud-auth-sdk-apple/**"
-      - "crates/smbcloud-auth-sdk/**"
-      - "crates/smbcloud-model/**"
-      - "crates/smbcloud-network/**"
-  pull_request:
-    paths:
-      - ".github/workflows/verify-sdk-apple.yml"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "rust-toolchain.toml"
-      - "crates/smbcloud-auth-sdk-apple/**"
-      - "crates/smbcloud-auth-sdk/**"
-      - "crates/smbcloud-model/**"
-      - "crates/smbcloud-network/**"
+  # push:
+  #   paths:
+  #     - ".github/workflows/verify-sdk-apple.yml"
+  #     - "Cargo.toml"
+  #     - "Cargo.lock"
+  #     - "rust-toolchain.toml"
+  #     - "crates/smbcloud-auth-sdk-apple/**"
+  #     - "crates/smbcloud-auth-sdk/**"
+  #     - "crates/smbcloud-model/**"
+  #     - "crates/smbcloud-network/**"
+  # pull_request:
+  #   paths:
+  #     - ".github/workflows/verify-sdk-apple.yml"
+  #     - "Cargo.toml"
+  #     - "Cargo.lock"
+  #     - "rust-toolchain.toml"
+  #     - "crates/smbcloud-auth-sdk-apple/**"
+  #     - "crates/smbcloud-auth-sdk/**"
+  #     - "crates/smbcloud-model/**"
+  #     - "crates/smbcloud-network/**"
   workflow_dispatch:
 
 permissions:
