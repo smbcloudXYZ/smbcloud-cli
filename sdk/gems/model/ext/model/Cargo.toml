@@ -1,6 +1,6 @@
 [package]
 name = "model"
-version = "0.4.4"
+version = "0.4.5"
 edition = "2021"
 authors = ["paydii <hej@setoelkahfi.se>"]
 publish = false
@@ -11,6 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 magnus = { version = "0.7.1" }
 strum = "0.27"
-# Local crates
-# smbcloud-model = "0.3"
-smbcloud-model = { path = "./../../../../../crates/smbcloud-model" }
+smbcloud-model = { version = "0.4" }
