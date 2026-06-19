@@ -11,4 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 magnus = { version = "0.7.1" }
 strum = "0.27"
-smbcloud-model = { version = "0.4" }
+smbcloud-model = { version = "0.4.5" }
