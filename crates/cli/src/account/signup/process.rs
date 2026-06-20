@@ -2,6 +2,7 @@ use {
     super::SignupMethod,
     crate::{
         account::lib::authorize_github,
+        ci::{interactive_message, is_ci},
         cli::CommandResult,
         client,
         token::smb_token_file_path::smb_token_file_path,
@@ -21,6 +22,11 @@ use {
 };
 
 pub async fn process_signup(env: Environment) -> Result<CommandResult> {
+    // Sign-up is an interactive wizard and has no headless equivalent.
+    if is_ci() {
+        return Err(anyhow!(fail_message(&interactive_message("Sign-up"))));
+    }
+
     // Check if token file exists
     if smb_token_file_path(env).is_some() {
         return Ok(CommandResult {

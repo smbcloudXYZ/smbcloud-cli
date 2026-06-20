@@ -4,6 +4,7 @@ use {
             lib::{authorize_github, store_token},
             signup::{do_signup, signup_with_email, SignupMethod},
         },
+        ci::{interactive_message, is_ci},
         cli::CommandResult,
         client,
         token::is_logged_in::is_logged_in as is_logged_in_async,
@@ -39,6 +40,12 @@ use {
 };
 
 pub async fn process_login(env: Environment, is_logged_in: Option<bool>) -> Result<CommandResult> {
+    // Login is an interactive flow (provider choice, credentials, OAuth). In CI
+    // the token must be provisioned ahead of time at ~/.smb/token.
+    if is_ci() {
+        return Err(anyhow!(fail_message(&interactive_message("Login"))));
+    }
+
     let should_continue = match is_logged_in {
         Some(is_logged_id) => !is_logged_id,
         None => {

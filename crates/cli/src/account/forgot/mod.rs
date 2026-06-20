@@ -1,9 +1,10 @@
 use crate::{
+    ci::{interactive_message, is_ci},
     cli::CommandResult,
     client,
     ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use dialoguer::{theme::ColorfulTheme, Input, Password};
 use reqwest::{Client, StatusCode};
 use smbcloud_model::forgot::{Args, Email, Param, UserUpdatePassword};
@@ -13,6 +14,13 @@ use smbcloud_utils::email_validation;
 use spinners::Spinner;
 
 pub async fn process_forgot(env: Environment) -> Result<CommandResult> {
+    // Password reset prompts for email, the security code, and a new password.
+    if is_ci() {
+        return Err(anyhow!(fail_message(&interactive_message(
+            "Password reset"
+        ))));
+    }
+
     println!("Enter your email address.");
     let email = Input::<String>::with_theme(&ColorfulTheme::default())
         .with_prompt("Email")

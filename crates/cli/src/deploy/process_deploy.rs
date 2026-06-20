@@ -48,6 +48,15 @@ fn prompt_select_project(config: &Config) -> Result<String> {
 
     let labels: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
 
+    // In CI there's no TTY to pick from a monorepo's [[projects]]; the caller
+    // must name the target with `--project <name>`.
+    if crate::ci::is_ci() {
+        return Err(anyhow!(fail_message(&format!(
+            "This is a monorepo config. In --ci mode, pass --project <name> to choose which app to deploy. Available: {}",
+            labels.join(", ")
+        ))));
+    }
+
     let index = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Select project to deploy")
         .items(&labels)
@@ -95,6 +104,13 @@ pub async fn process_deploy(
     let is_logged_in = is_logged_in(env).await?;
 
     if !is_logged_in {
+        // Logging in is interactive; in CI the token must already exist.
+        if crate::ci::is_ci() {
+            return Err(anyhow!(fail_message(
+                "Not authenticated. In --ci mode, log in beforehand (run `smb login` without --ci, \
+                 or provision the token at ~/.smb/token) — interactive login is disabled."
+            )));
+        }
         let _ = process_login(env, Some(is_logged_in)).await?;
     }
 
