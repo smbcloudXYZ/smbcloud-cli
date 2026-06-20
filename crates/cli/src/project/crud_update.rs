@@ -13,11 +13,19 @@ use spinners::Spinner;
 
 use crate::{
     account::login::process_login,
+    ci::{interactive_message, is_ci},
     cli::CommandResult,
-    ui::{description, succeed_message, succeed_symbol},
+    ui::{description, fail_message, succeed_message, succeed_symbol},
 };
 
 pub async fn process_project_update(env: Environment, project_id: String) -> Result<CommandResult> {
+    // Updating a project prompts for a new description and runner.
+    if is_ci() {
+        return Err(anyhow!(fail_message(&interactive_message(
+            "Project update"
+        ))));
+    }
+
     // Check credentials.
     let is_logged_in = is_logged_in(env).await?;
     if !is_logged_in {

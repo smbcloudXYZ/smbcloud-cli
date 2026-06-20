@@ -85,6 +85,23 @@ smb deploy
 
 That gets you from login to first deploy.
 
+## CI / non-interactive mode
+
+Pass `--ci` (or set `SMB_CI=1`, or run under any provider that sets `CI`) to
+disable interactive prompts. Confirmations take their default; anything that
+truly needs input fails fast with a clear message instead of hanging on a
+missing TTY.
+
+```sh
+smb --ci deploy
+```
+
+For example, the [AircraftsHub](https://aircraftshub.5mb.app) monorepo deploys
+its Next.js web app with a single non-interactive command — its
+`.smb/config.toml` pins the project, source, and runtime, so `smb --ci deploy`
+needs no prompts. See [`docs/ci.md`](./docs/ci.md) for token setup and the full
+behavior reference.
+
 ## Documentation
 
 See the [`docs/`](./docs) directory for guides on authentication, project configuration, and deployment workflows.

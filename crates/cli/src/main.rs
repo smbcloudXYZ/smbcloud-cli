@@ -76,6 +76,8 @@ fn setup_logging(env: Environment, level: Option<EnvFilter>) -> Result<()> {
 async fn main() {
     let cli = Cli::parse();
     let environment = cli.environment;
+    // Resolve CI / non-interactive mode once, before any command can prompt.
+    smbcloud_cli::ci::set_ci(smbcloud_cli::ci::resolve(cli.ci));
     match run(cli).await {
         Ok(result) => {
             result.stop_and_persist();

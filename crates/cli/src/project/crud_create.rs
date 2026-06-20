@@ -1,3 +1,4 @@
+use crate::ci::{interactive_message, is_ci};
 use crate::client;
 use crate::token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in};
 use crate::{
@@ -39,6 +40,13 @@ pub async fn process_project_init(
     env: Environment,
     should_init_project: bool,
 ) -> Result<CommandResult> {
+    // `init` / `project new` are wizards (name, description, repo, runner, …).
+    if is_ci() {
+        return Err(anyhow!(fail_message(&interactive_message(
+            "Project initialization"
+        ))));
+    }
+
     let is_logged_in = is_logged_in(env).await?;
     if !is_logged_in {
         let _ = process_login(env, Some(is_logged_in)).await;
