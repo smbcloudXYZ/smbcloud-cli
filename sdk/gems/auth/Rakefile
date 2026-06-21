@@ -11,4 +11,22 @@ RbSys::ExtensionTask.new('auth', GEMSPEC) do |ext|
   ext.lib_dir = 'lib/auth'
 end
 
+# macOS: the rb_sys/rake-compiler build emits the bundle as an MH_DYLIB with an
+# empty LC_ID_DYLIB install name (a plain `cargo build` does not). dyld on macOS
+# 15+/Tahoe rejects that with "load command string extends beyond end of load
+# command", so the gem fails to load. Stamp a valid install name onto every
+# bundle the build produces by enhancing the bundle file tasks themselves (which
+# is what `rake native gem` runs, not the top-level `compile`). install_name_tool
+# re-signs ad-hoc, ships on the macOS gem-build runners, and works across archs
+# (cross-built x86_64 bundles too). Idempotent.
+if RbConfig::CONFIG['host_os'] =~ /darwin/
+  Rake::Task.tasks.each do |t|
+    next unless t.name.end_with?('auth.bundle')
+
+    t.enhance do
+      sh 'install_name_tool', '-id', '@rpath/auth.bundle', t.name if File.exist?(t.name)
+    end
+  end
+end
+
 task default: :compile
