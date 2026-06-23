@@ -9,8 +9,9 @@ Use this skill when work touches any part of the smbCloud auth stack:
 
 - `smbcloud-api` Rails auth service
 - `smbcloud-web-console` Next.js admin UI
-- `smbcloud-cli/crates/smbcloud-auth` Rust SDK
-- `smbcloud-cli/crates/smbcloud-auth-sdk-wasm` browser SDK
+- `smbcloud-cli/crates/smbcloud-auth-sdk` canonical client SDK core (wrapped by the `-py` and `-wasm` bindings; the Apple SDK is the native Swift package `smbcloud-auth-swift`, not a UniFFI binding)
+- `smbcloud-cli/crates/smbcloud-auth-sdk-wasm` browser SDK (binding over the core)
+- `smbcloud-cli/crates/smbcloud-auth` the smbcloud-cli's own internal auth client — NOT the published SDK
 - Tauri apps such as Rumi Learn Persian and PBJ Komplit
 - web apps that use `@smbcloud/sdk-auth`
 
@@ -135,10 +136,18 @@ Do not claim email confirmation exists unless the mailer and route are actually 
 
 ## Rust SDK conventions
 
-The Rust client surface lives in:
+The canonical Rust client surface lives in:
 
-- `smbcloud-cli/crates/smbcloud-auth`
-- `smbcloud-cli/crates/smbcloud-auth-sdk-wasm`
+- `smbcloud-cli/crates/smbcloud-auth-sdk` — the shared SDK core; the published
+  bindings (`smbcloud-auth-sdk-py`, `smbcloud-auth-sdk-wasm`) depend on it.
+  Change the client contract here.
+- `smbcloud-cli/crates/smbcloud-auth-sdk-wasm` — the browser binding (`@smbcloud/sdk-auth`).
+- Apple platforms are served by the native Swift port in `smbcloud-auth-swift`
+  (`AuthCore`), pinned to this crate by a conformance suite — there is no UniFFI
+  Apple binding.
+
+`smbcloud-cli/crates/smbcloud-auth` is the CLI's own internal auth client (only
+the `cli` crate depends on it); don't treat it as the SDK.
 
 When changing tenant app auth:
 
@@ -277,7 +286,7 @@ Use the smallest relevant checks.
 
 ### Rust SDK
 
-- `cargo check -p smbcloud-auth`
+- `cargo check -p smbcloud-auth-sdk` (the core; also rebuilds the bindings as needed)
 - `cargo check -p smbcloud-auth-sdk-wasm`
 
 ### Tauri apps
