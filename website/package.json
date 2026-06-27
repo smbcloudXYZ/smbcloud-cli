@@ -1,7 +1,9 @@
 {
   "scripts": {
+    "docs:generate": "node scripts/generate-developer-docs.mjs",
+    "predev": "pnpm docs:generate",
     "dev": "next",
-    "sync:developer": "node scripts/sync-developer-docs.mjs",
+    "prebuild": "pnpm docs:generate",
     "build": "next build",
     "postbuild": "pagefind --site .next/server/app --output-path public/_pagefind",
     "start": "next start",
