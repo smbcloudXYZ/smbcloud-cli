@@ -12,6 +12,10 @@ pub struct TokenResponse {
     pub refresh_token_expires_in: Option<String>,
     pub scope: String,
     pub token_type: String,
+    /// OIDC identity token, present when the `openid` scope was granted
+    /// (smbCloud Auth AuthApp PKCE flow). Absent for plain OAuth responses.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
