@@ -8,9 +8,9 @@ use {
     uuid::Uuid,
 };
 
-const AUTHORIZE_PATH: &str = "oauth/authorize";
-const TOKEN_PATH: &str = "oauth/token";
-const USERINFO_PATH: &str = "oauth/userinfo";
+const AUTHORIZE_PATH: &str = "v1/client/oauth/authorize";
+const TOKEN_PATH: &str = "v1/client/oauth/token";
+const USERINFO_PATH: &str = "v1/client/oauth/userinfo";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthorizationRequest {
@@ -36,13 +36,27 @@ pub struct TokenResponse {
     pub id_token: Option<String>,
 }
 
+/// OIDC userinfo claims returned by `GET /v1/client/oauth/userinfo`.
+///
+/// Only `sub` is always present; every other claim is gated by the scopes the
+/// access token carries (`profile` → name/preferred_username/role/updated_at,
+/// `email` → email/email_verified), so each is optional. `role` is the AuthUser
+/// role as its integer enum value; `updated_at` is a Unix timestamp (seconds).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserInfo {
     pub sub: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preferred_username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub role: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email_verified: Option<bool>,
-    pub tenant_id: Option<u64>,
-    pub tenant_slug: Option<String>,
 }
 
 pub fn build_authorization_request(
