@@ -1,0 +1,30 @@
+{/* AUTO-GENERATED — do not edit. Synced by scripts/sync-developer-docs.mjs from docs/development.md (smbcloud-cli, main). */}
+
+# ADR
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+  Synced from [`docs/development.md`](https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/docs/development.md) on the `main` branch of
+  [smbcloud-cli](https://github.com/smbcloudXYZ/smbcloud-cli). Edit it there.
+</Callout>
+
+This repo uses [Architecture Decision Record](https://github.com/joelparkerhenderson/architecture-decision-record) in the `adr` folder.
+
+# Publish Update
+
+There's no GitHub action to automatically publish the package for now. Publishing task can also be done locally.
+
+To update the crate in the [crate.io](https://crate.io), use [cargo workspaces](https://github.com/pksunkara/cargo-workspaces) subcommand.
+
+Steps to publish new package:
+
+```bash
+$ cargo workspaces publish --publish-as-is
+```
+
+It will ask whether should bump the vesions of the packages or not. To update version separately:
+
+```bash
+$ cargo workspaces version
+```
