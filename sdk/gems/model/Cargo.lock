@@ -392,7 +392,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "model"
-version = "0.4.6"
+version = "0.4.7"
 dependencies = [
  "magnus",
  "smbcloud-model",
@@ -668,9 +668,9 @@ checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
 name = "smbcloud-model"
-version = "0.4.5"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61272a05b496508688f8620e271ed2017f1df8c21a179d600b95fdf69c3ef557"
+checksum = "516bb29427592a6f80cd3b72b3cb16304340b79e92ed363d8d01ed8be9b1ed34"
 dependencies = [
  "chrono",
  "log",
