@@ -22,8 +22,9 @@ name: Deploy docs
 #   Variables
 #     SMB_DOCS_PROJECT_ID      The workspace (project) id
 #
-# Trigger: pushes to main that touch the docs, plus manual runs. Adjust the
-# branch to your release flow; workflow_dispatch lets you run it from any branch.
+# Trigger: pushes to development (the deploy branch) that touch the docs, plus
+# manual runs. Adjust the branch to your release flow; workflow_dispatch lets you
+# run it from any branch.
 #
 # NOTE: the action installs the latest published CLI release and runs it with
 # `--ci`. That flag must exist in the installed release, so this requires a
@@ -32,7 +33,7 @@ name: Deploy docs
 
 on:
   push:
-    branches: [main]
+    branches: [development]
     paths:
       - 'website/**'
       - 'docs/**'
