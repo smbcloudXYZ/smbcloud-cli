@@ -10,12 +10,12 @@ help:
 release:
 	@test -n "$(BUMP)" || (echo "BUMP is required" && exit 1)
 	@if [ "$(BUMP)" = "custom" ] && [ -z "$(VERSION)" ]; then echo "VERSION is required for custom releases"; exit 1; fi
-	@if [ "$$(git branch --show-current)" != "development" ]; then echo "Releases must be prepared on the development branch"; exit 1; fi
+	@case "$$(git branch --show-current)" in development|release/v*) ;; *) echo "Releases must be prepared on development or a release/v<version> branch"; exit 1;; esac
 	@if [ -n "$$(git status --short --untracked-files=all)" ]; then echo "Working tree must be clean before running a release"; exit 1; fi
 	@if [ "$(BUMP)" = "custom" ]; then \
-		cargo workspaces version custom "$(VERSION)" --yes --no-git-commit --no-git-tag --no-git-push --allow-branch "*" --force "*"; \
+		cargo workspaces version custom "$(VERSION)" --yes --no-git-commit --force "*"; \
 	else \
-		cargo workspaces version "$(BUMP)" --yes --no-git-commit --no-git-tag --no-git-push --allow-branch "*" --force "*"; \
+		cargo workspaces version "$(BUMP)" --yes --no-git-commit --force "*"; \
 	fi
 	@$(MAKE) sync-release-metadata
 	@$(MAKE) regenerate-release-lockfiles
