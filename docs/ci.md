@@ -38,6 +38,35 @@ and write the file at the start of the job:
 Deploys also rsync over SSH using `~/.ssh/id_<user-id>@smbcloud`; install that
 key the same way if your project deploys to a server tier.
 
+## Deploying from GitHub Actions
+
+The [`smbcloudXYZ/smbcloud-deploy-action`](https://github.com/smbcloudXYZ/smbcloud-deploy-action)
+composite action wraps the steps above: it installs the CLI, writes the token to
+the right state dir, optionally installs the SSH key, then runs `smb --ci deploy`.
+
+```yaml
+- uses: smbcloudXYZ/smbcloud-deploy-action@v1
+  with:
+    token: ${{ secrets.SMB_TOKEN }}
+```
+
+For a monorepo, name the sub-project and pass the SSH inputs that rsync deploys
+need:
+
+```yaml
+- uses: smbcloudXYZ/smbcloud-deploy-action@v1
+  with:
+    token: ${{ secrets.SMB_TOKEN }}
+    project: docs
+    ssh-private-key: ${{ secrets.SMB_SSH_PRIVATE_KEY }}
+    ssh-key-name: ${{ secrets.SMB_SSH_KEY_NAME }}
+    ssh-known-hosts: ${{ secrets.SMB_SSH_KNOWN_HOSTS }}
+```
+
+The action installs the latest published CLI release, so `--ci` must exist in
+that release. Pin the `version` input if you need a specific CLI version. See the
+action's README for the full input reference.
+
 ## Example: the AircraftsHub monorepo
 
 [AircraftsHub](https://aircraftshub.5mb.app) is a Tauri app whose Next.js web app
