@@ -13,9 +13,9 @@ release:
 	@if [ "$$(git branch --show-current)" != "development" ]; then echo "Releases must be prepared on the development branch"; exit 1; fi
 	@if [ -n "$$(git status --short --untracked-files=all)" ]; then echo "Working tree must be clean before running a release"; exit 1; fi
 	@if [ "$(BUMP)" = "custom" ]; then \
-		cargo workspaces version custom "$(VERSION)" --yes --no-git-commit --no-git-tag --no-git-push --allow-branch "*" --force "*"; \
+		cargo workspaces version custom "$(VERSION)" --yes --no-git-commit --force "*"; \
 	else \
-		cargo workspaces version "$(BUMP)" --yes --no-git-commit --no-git-tag --no-git-push --allow-branch "*" --force "*"; \
+		cargo workspaces version "$(BUMP)" --yes --no-git-commit --force "*"; \
 	fi
 	@$(MAKE) sync-release-metadata
 	@$(MAKE) regenerate-release-lockfiles
