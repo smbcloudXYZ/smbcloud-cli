@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-auth"
-version = "0.5.0"
+version = "0.4.5"
 edition = "2024"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "Cross-platform Auth SDK for the smbCloud platform."
