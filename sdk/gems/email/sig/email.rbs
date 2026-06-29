@@ -1,0 +1,28 @@
+module Email
+  VERSION: String
+end
+
+module SmbCloud
+  module Email
+    class Error < StandardError
+      attr_reader payload: untyped
+    end
+
+    module Environment
+      DEV: String
+      PRODUCTION: String
+    end
+
+    class Client
+      attr_reader environment: String
+      attr_reader api_key: String
+
+      def initialize: (environment: String, api_key: String) -> void
+      def send: (from: String, to: untyped, ?subject: String?, ?html: String?, ?text: String?, ?cc: untyped, ?bcc: untyped, ?reply_to: untyped, ?attachments: untyped, ?headers: untyped, ?tags: untyped, ?idempotency_key: String?) -> Hash[Symbol, untyped]
+      def get_message: (String) -> Hash[Symbol, untyped]
+      def list_messages: (?status: String?, ?limit: Integer?) -> Array[Hash[Symbol, untyped]]
+    end
+
+    def self.client: (environment: String, api_key: String) -> Client
+  end
+end
