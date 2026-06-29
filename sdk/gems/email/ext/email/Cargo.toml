@@ -1,0 +1,18 @@
+[package]
+name = "email"
+version = "0.4.7"
+edition = "2024"
+authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+magnus = { version = "0.7.1" }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+
+# The published transactional-email SDK. For local development this is patched
+# to the in-repo crate via `[patch.crates-io]` in the gem workspace Cargo.toml.
+smbcloud-email-sdk = { version = "0.4" }

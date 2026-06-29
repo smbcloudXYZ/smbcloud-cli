@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+ROOT = File.expand_path('..', __dir__)
+Dir.chdir(ROOT) do
+  puts 'Installing dependencies...'
+  system('bundle install')
+  puts 'Compiling extension...'
+  system('bundle exec rake compile')
+end

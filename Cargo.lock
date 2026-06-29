@@ -2547,6 +2547,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "smbcloud-email-sdk"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "log",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "smbcloud-network",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "smbcloud-gresiq"
 version = "0.4.7"
 dependencies = [
