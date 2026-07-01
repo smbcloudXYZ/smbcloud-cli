@@ -109,4 +109,4 @@ You can find the main install and deploy guides in the [smbCloud CLI docs](https
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).
