@@ -2,12 +2,12 @@ use {
     crate::{
         cli::CommandResult,
         client,
-        deploy::rsync_deploy::rsync_deploy,
-        ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+        ui::{succeed_message, succeed_symbol},
     },
-    anyhow::{anyhow, Result},
+    anyhow::Result,
     chrono::Utc,
     smbcloud_auth::me::me,
+    smbcloud_deploy::{BuildStrategy, Transport},
     smbcloud_model::project::{DeploymentPayload, DeploymentStatus},
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::{
@@ -15,7 +15,6 @@ use {
     },
     smbcloud_utils::config::Config,
     spinners::{Spinner, Spinners},
-    std::process::Command,
 };
 
 pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result<CommandResult> {
@@ -30,57 +29,15 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
     let access_token = crate::token::get_smb_token::get_smb_token(env)?;
     let user = me(env, client(), &access_token).await?;
 
-    // ── Step 1: build locally ────────────────────────────────────────────────
+    // ── Step 1: build locally (engine BuildStrategy) ─────────────────────────
 
-    let mut build_spinner = Spinner::new(
-        Spinners::SimpleDotsScrolling,
-        succeed_message(&format!(
-            "Building {} with {}…",
-            project_path, package_manager
-        )),
-    );
-
-    // Validate the directory exists before spawning — current_dir silently
-    // produces os error 2 at status() time if the path doesn't exist, which
-    // gives a confusing "Failed to spawn" message instead of the real cause.
-    let project_dir = std::path::Path::new(project_path);
-    if !project_dir.exists() {
-        build_spinner.stop_and_persist(
-            &fail_symbol(),
-            fail_message(&format!(
-                "Project path '{}' does not exist. Check the 'path' field in .smb/config.toml.",
-                project_path
-            )),
-        );
-        return Err(anyhow!(fail_message(&format!(
-            "Project path '{}' does not exist.",
-            project_path
-        ))));
+    let reporter = crate::ui::reporter::SpinnerReporter::new();
+    let artifact = smbcloud_deploy::ViteSpaBuild {
+        project_path: project_path.to_string(),
+        output_dir: output_dir.to_string(),
+        package_manager: package_manager.to_string(),
     }
-
-    let build_status = Command::new(package_manager)
-        .arg("build")
-        .current_dir(project_path)
-        .status()
-        .map_err(|error| {
-            anyhow!(fail_message(&format!(
-                "Failed to spawn '{}': {}",
-                package_manager, error
-            )))
-        })?;
-
-    if !build_status.success() {
-        build_spinner.stop_and_persist(
-            &fail_symbol(),
-            fail_message("Build failed. See output above."),
-        );
-        return Err(anyhow!(fail_message(&format!(
-            "'{} build' exited with status {}",
-            package_manager, build_status,
-        ))));
-    }
-
-    build_spinner.stop_and_persist(&succeed_symbol(), succeed_message("Build complete."));
+    .build(&reporter)?;
 
     // ── Step 2: record deployment as Started ─────────────────────────────────
     //
@@ -113,11 +70,10 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
     // pinned known-hosts and the user's smbCloud SSH key — exactly the same
     // transport used for static site deployments.
 
-    let local_dist = format!("{}/{}", project_path, output_dir);
     let runner = config.project.runner;
-
-    match rsync_deploy(&config, &runner, user.id, &local_dist) {
-        Ok(_) => {}
+    let transport = crate::deploy::rsync_transport(&config, &runner, user.id)?;
+    match transport.ship(&artifact.source_dir, &reporter) {
+        Ok(()) => {}
         Err(error) => {
             if let Some(ref deployment) = created_deployment {
                 let failed_payload = DeploymentPayload {
@@ -135,7 +91,7 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
                 )
                 .await;
             }
-            return Err(error);
+            return Err(error.into());
         }
     }
 
