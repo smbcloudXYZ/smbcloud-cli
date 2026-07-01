@@ -28,6 +28,7 @@ serde_json = "1.0.82"
 serde_repr = "0.1"
 smbcloud-auth = { version = "0.4.7", path = "crates/smbcloud-auth" }
 smbcloud-auth-sdk = { version = "0.4.7", path = "crates/smbcloud-auth-sdk" }
+smbcloud-deploy = { version = "0.4.7", path = "crates/smbcloud-deploy" }
 smbcloud-email-sdk = { version = "0.4.7", path = "crates/smbcloud-email-sdk" }
 smbcloud-gresiq-sdk = { version = "0.4.7", path = "crates/smbcloud-gresiq-sdk" }
 smbcloud-mail = { version = "0.4.7", path = "crates/smbcloud-mail" }

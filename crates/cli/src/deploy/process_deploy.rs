@@ -5,7 +5,6 @@ use {
         client,
         deploy::{
             config::{check_project, credentials, get_config, overlay_server_config},
-            detect_runner::detect_runner,
             git::remote_deployment_setup,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
@@ -13,7 +12,6 @@ use {
             process_deploy_swift::process_deploy_swift,
             process_deploy_vite_spa::process_deploy_vite_spa,
             remote_messages::{build_next_app, start_server},
-            rsync_deploy::rsync_deploy,
         },
         token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in},
         ui::{fail_message, succeed_message, succeed_symbol},
@@ -22,6 +20,7 @@ use {
     dialoguer::{console::Term, theme::ColorfulTheme, Select},
     git2::{PushOptions, RemoteCallbacks, Repository},
     smbcloud_auth::me::me,
+    smbcloud_deploy::Transport,
     smbcloud_model::{
         project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
         runner::Runner,
@@ -171,7 +170,25 @@ pub async fn process_deploy(
             // detection needed, the source tree may have no package.json/Gemfile/etc.
             let runner = config.project.runner;
             let user = me(env, client(), &access_token).await?;
-            rsync_deploy(&config, &runner, user.id, ".")
+            let transport = crate::deploy::rsync_transport(&config, &runner, user.id)?;
+
+            // The engine ships silently; this command owns the spinner and the
+            // final line it hands back to `main` to persist.
+            let spinner = Spinner::new(
+                spinners::Spinners::Hamburger,
+                succeed_message(&format!("Syncing to {}…", runner.rsync_host())),
+            );
+            match transport.ship(std::path::Path::new("."), &smbcloud_deploy::NoopReporter) {
+                Ok(()) => Ok(CommandResult {
+                    spinner,
+                    symbol: succeed_symbol(),
+                    msg: succeed_message("Deployment complete via rsync."),
+                }),
+                Err(e) => {
+                    drop(spinner);
+                    Err(anyhow!(fail_message(&format!("{e}"))))
+                }
+            }
         }
         DeploymentMethod::Git => git_deploy(env, &access_token, config).await,
     }
@@ -184,7 +201,8 @@ async fn git_deploy(
 ) -> Result<CommandResult> {
     // Runner detection requires framework files (package.json, Gemfile, etc.) —
     // only needed for the git push path where the server builds the project.
-    let runner = detect_runner(&config).await?;
+    let reporter = crate::ui::reporter::SpinnerReporter::new();
+    let runner = smbcloud_deploy::detect_runner(&config, &reporter)?;
     // Check remote repository setup.
     let repo = match Repository::open(".") {
         Ok(repo) => repo,

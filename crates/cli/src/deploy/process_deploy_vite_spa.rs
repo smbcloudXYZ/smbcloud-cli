@@ -2,7 +2,6 @@ use {
     crate::{
         cli::CommandResult,
         client,
-        deploy::rsync_deploy::rsync_deploy,
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
     anyhow::{anyhow, Result},
@@ -10,6 +9,7 @@ use {
     smbcloud_auth::me::me,
     smbcloud_model::project::{DeploymentPayload, DeploymentStatus},
     smbcloud_network::environment::Environment,
+    smbcloud_deploy::Transport,
     smbcloud_networking_project::{
         crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
     },
@@ -116,8 +116,10 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
     let local_dist = format!("{}/{}", project_path, output_dir);
     let runner = config.project.runner;
 
-    match rsync_deploy(&config, &runner, user.id, &local_dist) {
-        Ok(_) => {}
+    let transport = crate::deploy::rsync_transport(&config, &runner, user.id)?;
+    let reporter = crate::ui::reporter::SpinnerReporter::new();
+    match transport.ship(std::path::Path::new(&local_dist), &reporter) {
+        Ok(()) => {}
         Err(error) => {
             if let Some(ref deployment) = created_deployment {
                 let failed_payload = DeploymentPayload {
@@ -135,7 +137,7 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
                 )
                 .await;
             }
-            return Err(error);
+            return Err(error.into());
         }
     }
 

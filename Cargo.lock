@@ -2528,6 +2528,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "smbcloud-auth",
+ "smbcloud-deploy",
  "smbcloud-mail",
  "smbcloud-model",
  "smbcloud-network",
@@ -2544,6 +2545,18 @@ dependencies = [
  "tracing-bunyan-formatter",
  "tracing-subscriber",
  "url-builder",
+]
+
+[[package]]
+name = "smbcloud-deploy"
+version = "0.4.7"
+dependencies = [
+ "anyhow",
+ "smbcloud-model",
+ "smbcloud-utils",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]
