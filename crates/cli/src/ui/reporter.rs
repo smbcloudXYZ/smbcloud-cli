@@ -43,8 +43,10 @@ impl Default for SpinnerReporter {
 impl Reporter for SpinnerReporter {
     fn step_start(&self, msg: &str) {
         // Starting a new step supersedes any spinner left running.
-        *self.current.lock().unwrap() =
-            Some(Spinner::new(Spinners::SimpleDotsScrolling, succeed_message(msg)));
+        *self.current.lock().unwrap() = Some(Spinner::new(
+            Spinners::SimpleDotsScrolling,
+            succeed_message(msg),
+        ));
     }
 
     fn step_done(&self, msg: &str) {

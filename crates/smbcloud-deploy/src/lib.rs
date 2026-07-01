@@ -15,12 +15,14 @@
 //! `.smb/config.toml`) stays in the front-end. The engine takes a resolved
 //! config, or returns [`DeployError::NeedsSetup`] for the caller to handle.
 
+pub mod build;
 pub mod error;
 pub mod known_hosts;
 pub mod report;
 pub mod runner;
 pub mod transport;
 
+pub use build::{BuildArtifact, BuildStrategy, ViteSpaBuild};
 pub use error::DeployError;
 pub use report::{NoopReporter, Reporter};
 pub use runner::detect_runner;

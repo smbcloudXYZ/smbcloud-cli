@@ -46,7 +46,9 @@ fn label_for(runner: Runner) -> &'static str {
         Runner::Swift if Path::new("Package.swift").exists() => {
             "Swift runner with Vapor app detected"
         }
-        Runner::Rust if Path::new("Cargo.toml").exists() => "Rust runner with Cargo project detected",
+        Runner::Rust if Path::new("Cargo.toml").exists() => {
+            "Rust runner with Cargo project detected"
+        }
         _ => "Runner detected",
     }
 }
