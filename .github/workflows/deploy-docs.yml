@@ -71,7 +71,7 @@ jobs:
         run: |
           mkdir -p .smb
           cat > .smb/config.toml <<EOF
-          name = "smbCloud Platform"
+          name = "smbCloud"
 
           [project]
           id = ${{ vars.SMB_DOCS_PROJECT_ID }}
