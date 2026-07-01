@@ -6,22 +6,22 @@ import 'nextra-theme-docs/style.css'
 export const metadata = {
   metadataBase: new URL('https://docs.smbcloud.xyz'),
   title: {
-    default: 'smbCloud Platform Documentation',
-    template: '%s – smbCloud Platform Documentation'
+    default: 'smbCloud Documentation',
+    template: '%s – smbCloud Documentation'
   },
-  description: 'smbCloud Platform Documentation',
-  applicationName: 'smbCloud Platform Documentation',
+  description: 'smbCloud Documentation',
+  applicationName: 'smbCloud Documentation',
   openGraph: {
-    title: 'smbCloud Platform Documentation',
-    description: 'smbCloud Platform Documentation',
+    title: 'smbCloud Documentation',
+    description: 'smbCloud Documentation',
     url: 'https://docs.smbcloud.xyz',
-    siteName: 'smbCloud Platform Documentation'
+    siteName: 'smbCloud Documentation'
   }
 }
 
 const navbar = (
   <Navbar
-    logo={<span>smbCloud Platform Documentation</span>}
+    logo={<span>smbCloud Documentation</span>}
     projectLink="https://github.com/smbcloudXYZ"
   />
 )
@@ -30,7 +30,7 @@ const footer = (
   <Footer>
     MIT {new Date().getFullYear()} ©{' '}
     <a href="https://docs.smbcloud.xyz" target="_blank" rel="noreferrer">
-      smbCloud Platform Documentation
+      smbCloud Documentation
     </a>
   </Footer>
 )
