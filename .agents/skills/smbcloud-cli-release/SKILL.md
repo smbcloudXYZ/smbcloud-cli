@@ -58,21 +58,35 @@ The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`)
 - `ext/<gem>/Cargo.toml` — the native extension crate version AND the `smbcloud-*` dependency version constraints (e.g. `"0.3"` → `"0.4"`)
 - Regenerate `Cargo.lock` with `cargo generate-lockfile` and `Gemfile.lock` with `bundle lock` inside the gem directory
 
-## Tagging discipline
+## Release branch convention
 
-Always tag releases on the `development` branch (the mainline). Never tag on a feature branch.
+Every release is prepared on a dedicated branch named **`release/v<version>`**, branched
+off `development`. Never prepare a release directly on `development`, and never tag a
+release on the `release/*` (or any feature) branch.
 
 Reasoning:
 
+- The release-prep commits (version bump, lockfiles, generated metadata) can be reviewed
+  and run through CI in isolation before they touch the mainline.
 - The release commit history stays clean and linear on the default branch.
-- `cargo workspaces publish --allow-branch "*"` accepts any branch, but downstream workflows dispatch from the tag ref, so the tagged commit must contain all intended changes.
-- Tagging on a feature branch leaves `development` without the release commit and makes git history confusing.
+- `cargo workspaces publish --allow-branch "*"` accepts any branch, but downstream
+  workflows dispatch from the tag ref, so the tagged commit must contain all intended changes.
+- Tagging on a feature branch leaves `development` without the release commit and makes git
+  history confusing.
 
 Workflow:
 
-1. Merge the feature branch into `development` with `--no-ff`.
-2. Tag on `development`: `git tag v<version>`.
-3. Push both: `git push origin development && git push origin v<version>`.
+1. Branch off an up-to-date `development`: `git checkout development && git pull && git checkout -b release/v<version>`.
+2. Prepare the release on that branch — `make patch|minor|major|custom VERSION=<version>`
+   (see the version-sync rules above; `make` commits `Release <version>` on the branch).
+3. Push the branch and let CI run: `git push origin release/v<version>`.
+4. **Only when CI is green**, merge into `development` with `--no-ff`:
+   `git checkout development && git merge --no-ff release/v<version>`.
+5. Delete the release branch (local and remote):
+   `git branch -d release/v<version> && git push origin --delete release/v<version>`.
+6. Tag on `development`: `git tag v<version>`.
+7. Push both: `git push origin development && git push origin v<version>` — the tag push
+   triggers `release-crate.yml` and the full publish chain.
 
 If a tag was placed on the wrong commit (e.g. before a last-minute fix), move it:
 

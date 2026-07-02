@@ -1,0 +1,35 @@
+# Deploy
+
+Deploy is the app shipping layer. Ship your app with one command and keep
+infrastructure out of the way.
+
+## What you can do
+
+- Deploy NodeJS, Swift, and Ruby apps
+- Deploy from your terminal with a single command
+- Ship over an SSH-based flow
+- Cut versioned releases and roll back when you need to
+
+## How it fits together
+
+Deploy uses four ideas. Once they click, the rest follows.
+
+| Term | What it is |
+| --- | --- |
+| **Project** | The umbrella workspace in smbCloud. |
+| **Repo** | A git repository inside that workspace. |
+| **App** | A deployable unit inside a repo. |
+| **Deployment** | One deployment event for one app. |
+
+A repo can be a single app, or a monorepo with several deployable apps. The repo
+holds your source code; an app is the thing you actually deploy; a deployment is
+one release of one app.
+
+## Getting started
+
+1. Install the CLI — see [Developer → CLI](/developer/cli).
+2. Log in and point the CLI at your project.
+3. Run the deploy command from your repo.
+
+For non-interactive and CI deploys, see the CLI docs in the
+[Developer](/developer) section.

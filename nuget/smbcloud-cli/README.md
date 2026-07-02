@@ -51,4 +51,4 @@ Apache-2.0
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).

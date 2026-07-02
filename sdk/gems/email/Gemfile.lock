@@ -1,0 +1,29 @@
+PATH
+  remote: .
+  specs:
+    smbcloud-email (0.4.7)
+      json
+      rb_sys (~> 0.9.91)
+
+GEM
+  remote: https://rubygems.org/
+  specs:
+    json (2.19.9)
+    rake (13.4.2)
+    rake-compiler (1.3.1)
+      rake
+    rake-compiler-dock (1.12.0)
+    rb_sys (0.9.128)
+      rake-compiler-dock (= 1.12.0)
+
+PLATFORMS
+  arm64-darwin-20
+  ruby
+
+DEPENDENCIES
+  rake (~> 13.0)
+  rake-compiler (~> 1.2)
+  smbcloud-email!
+
+BUNDLED WITH
+   2.7.2

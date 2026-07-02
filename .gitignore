@@ -25,3 +25,6 @@
 /nuget/**/bin/
 /nuget/**/obj/
 /nuget/smbcloud-cli/native/
+
+# smbCloud deploy config — carries workspace/app IDs; keep out of this public repo
+/.smb/

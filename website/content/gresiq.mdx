@@ -1,0 +1,83 @@
+# GresIQ
+
+GresIQ is the managed data layer for your app — a document store built on
+PostgreSQL. You store and query JSON documents through a small REST gateway,
+authenticated with an API key and secret, so there is no database to run
+yourself.
+
+## What you can do
+
+- Store JSON documents in named collections
+- Upsert by a natural key, or append documents that get a generated id
+- Query a collection with a containment filter, ordering, and a limit
+- Run simple counts and group-by aggregates over a collection
+
+## How it fits together
+
+Each GresIQ app gets an API key and secret — the data-plane credential — and
+reaches its data through the document gateway. There is no raw database
+connection to manage. Documents are grouped into **collections**, and each
+document is addressed by a **key** within its collection. The platform never
+interprets a document's shape; what the fields mean lives in your app.
+
+## The document gateway
+
+Every request authenticates with the `X-Gresiq-Api-Key` and
+`X-Gresiq-Api-Secret` headers and targets a collection:
+
+- `POST /gresiq/v1/collections/<collection>` — store a document. Send
+  `{ "key": "<id>", "doc": { ... } }` to upsert on that key, or omit `key` to
+  append a document with a generated id.
+- `GET /gresiq/v1/collections/<collection>` — list documents, optionally with a
+  `filter` (JSON containment), an `order` (`created_at` or `updated_at`), and a
+  `limit`.
+- `GET /gresiq/v1/collections/<collection>/<key>` — fetch one document.
+- `PATCH /gresiq/v1/collections/<collection>/<key>` — shallow-merge into a document.
+- `DELETE /gresiq/v1/collections/<collection>/<key>` — remove one document.
+- `POST /gresiq/v1/collections/<collection>/aggregate` — count, or group by a
+  single top-level field.
+
+## From Rust
+
+The `smbcloud-gresiq-sdk` crate wraps the gateway. Build a client from your
+environment and credentials, then upsert and query documents — the base URL is
+resolved from the environment, so you never hardcode a host:
+
+```rust
+use smbcloud_gresiq_sdk::{DocumentQuery, Environment, GresiqClient, GresiqCredentials};
+use serde_json::json;
+
+let client = GresiqClient::from_credentials(
+    Environment::Production,
+    GresiqCredentials { api_key: "your-key", api_secret: "your-secret" },
+);
+
+// Upsert a document keyed by "device-1".
+client
+    .upsert_document(
+        "devices",
+        Some("device-1"),
+        &json!({ "label": "Edge 1", "status": "online" }),
+    )
+    .await?;
+
+// Query the collection — only the documents matching the filter come back.
+let online = client
+    .get_collection::<serde_json::Value>(
+        "devices",
+        &DocumentQuery {
+            filter: Some(json!({ "status": "online" })),
+            ..Default::default()
+        },
+    )
+    .await?;
+```
+
+Each returned `GresiqDocument` carries the stored `doc` plus its `key` and
+timestamps.
+
+## Getting started
+
+1. Create a GresIQ app and copy its API key and secret.
+2. Pick a collection name and POST your first document.
+3. Read it back with a GET, or reach it from the SDK in your app.

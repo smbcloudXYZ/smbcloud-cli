@@ -1,6 +1,6 @@
 [package]
 name = "model"
-version = "0.5.0"
+version = "0.4.7"
 edition = "2021"
 authors = ["paydii <hej@setoelkahfi.se>"]
 publish = false
@@ -11,4 +11,4 @@ crate-type = ["cdylib"]
 [dependencies]
 magnus = { version = "0.7.1" }
 strum = "0.27"
-smbcloud-model = { version = "0.4.5" }
+smbcloud-model = { version = "0.4" }
