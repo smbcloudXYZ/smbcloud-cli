@@ -22,6 +22,69 @@ use {
     tempfile::NamedTempFile,
 };
 
+/// Recursively delete symlinks under `root` whose target does not exist,
+/// returning the number removed.
+///
+/// Next.js standalone output on pnpm can contain compat symlinks pointing at a
+/// package version that was never traced into the bundle — e.g.
+/// `node_modules/.pnpm/node_modules/semver -> ../semver@6.3.1/node_modules/semver`
+/// while only `semver@7.x` is actually written. The link's target is missing,
+/// so it dangles. We upload `.next/standalone/` with `rsync --copy-links`, which
+/// follows every symlink; a dangling one is an IO error → rsync exits 23 and
+/// aborts. The dangling package is not part of the traced runtime, so dropping
+/// the link is safe. See the `smbcloud-deploy-nextjs` skill for the write-up.
+///
+/// Real (non-symlink) directories are traversed; a symlinked directory is
+/// treated as a leaf and never followed, which also avoids symlink cycles. This
+/// relies on pnpm's layout, where every package directory is a real directory
+/// reachable directly in the walk (symlinks only ever point *into* it): a
+/// dangling link nested under a real dir is always visited and pruned. A
+/// dangling link reachable *only* through a valid directory symlink would be
+/// skipped, but rsync would follow the same valid link and hit it — that shape
+/// does not occur in standalone output.
+fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
+    let meta = std::fs::symlink_metadata(root)?;
+
+    if meta.file_type().is_symlink() {
+        // A symlink at the walk root: drop it only if it dangles, never follow.
+        // `try_exists` follows the link and reports Ok(false) only when the
+        // target is genuinely absent; a real IO error propagates instead of
+        // being misread as "dangling".
+        if !root.try_exists()? {
+            std::fs::remove_file(root)?;
+            return Ok(1);
+        }
+        return Ok(0);
+    }
+
+    if !meta.is_dir() {
+        return Ok(0);
+    }
+
+    let mut removed = 0;
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        // `read_dir` file types do not follow symlinks: a link reports as a
+        // symlink here, and only real directories report as directories.
+        let file_type = entry.file_type()?;
+        let path = entry.path();
+
+        if file_type.is_symlink() {
+            // `try_exists` follows the link; Ok(false) means the target is
+            // missing (dangling). An IO error propagates rather than deleting a
+            // link we merely failed to stat.
+            if !path.try_exists()? {
+                std::fs::remove_file(&path)?;
+                removed += 1;
+            }
+        } else if file_type.is_dir() {
+            removed += prune_dangling_symlinks(&path)?;
+        }
+    }
+
+    Ok(removed)
+}
+
 /// Deploys a Next.js SSR app using standalone output mode.
 ///
 /// Requires `output: 'standalone'` in next.config.js. This produces a
@@ -160,6 +223,32 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         None
     };
 
+    // ── Step 3b: prune dangling symlinks from the standalone tree ─────────────
+    //
+    // The standalone upload uses `rsync --copy-links` (see the Transfer for
+    // `.next/standalone/`), which follows every symlink. pnpm can leave compat
+    // symlinks whose target was never traced into the bundle; following one is
+    // an IO error that makes rsync exit 23 and abort the whole deploy. Drop them
+    // now — after the build, before upload — since they are not runtime files.
+    match prune_dangling_symlinks(standalone_path) {
+        Ok(0) => {}
+        Ok(n) => println!(
+            "{} {}",
+            succeed_symbol(),
+            succeed_message(&format!(
+                "Pruned {} dangling symlink{} from .next/standalone before upload.",
+                n,
+                if n == 1 { "" } else { "s" }
+            ))
+        ),
+        Err(e) => {
+            return Err(anyhow!(fail_message(&format!(
+                "Failed to prune dangling symlinks from .next/standalone: {}",
+                e
+            ))));
+        }
+    }
+
     // ── Step 4: record deployment as Started ─────────────────────────────────
 
     let deploy_ref = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
@@ -281,7 +370,8 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
             remote_rel: String::new(),
             // pnpm leaves symlinked package entries in standalone output. The
             // server only receives this tree, so those symlinks must be
-            // dereferenced during upload.
+            // dereferenced during upload. Dangling links (targets never traced
+            // into the bundle) are pruned in step 3b so this does not exit 23.
             copy_links: true,
             // The server copy of ecosystem.config.cjs (or .js) is operator-managed
             // runtime config and must survive deploys. Without this protection,
@@ -733,5 +823,96 @@ async fn mark_failed(
             },
         )
         .await;
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use {super::prune_dangling_symlinks, std::os::unix::fs::symlink, tempfile::tempdir};
+
+    /// Mirrors the real failure: a pnpm compat link points at a version dir that
+    /// was never traced into the bundle, so it dangles and must be pruned, while
+    /// a valid link and real files are left untouched.
+    #[test]
+    fn prunes_dangling_but_keeps_valid_links_and_files() {
+        let root = tempdir().unwrap();
+        let base = root.path();
+
+        // Nested real dir mirroring node_modules/.pnpm/node_modules/
+        let nm = base.join("node_modules/.pnpm/node_modules");
+        std::fs::create_dir_all(&nm).unwrap();
+
+        // A traced package dir + a valid symlink to it.
+        let real_pkg = base.join("node_modules/.pnpm/semver@7.7.3/node_modules/semver");
+        std::fs::create_dir_all(&real_pkg).unwrap();
+        std::fs::write(real_pkg.join("index.js"), "module.exports = {}").unwrap();
+        let valid_link = nm.join("valid");
+        symlink("../semver@7.7.3/node_modules/semver", &valid_link).unwrap();
+
+        // The dangling compat link: target version was never written.
+        let dangling = nm.join("semver");
+        symlink("../semver@6.3.1/node_modules/semver", &dangling).unwrap();
+
+        // A plain file that must survive.
+        let keeper = base.join("server.js");
+        std::fs::write(&keeper, "// server").unwrap();
+
+        let removed = prune_dangling_symlinks(base).unwrap();
+
+        assert_eq!(removed, 1, "exactly the dangling link should be removed");
+        assert!(!dangling.exists(), "dangling link is gone");
+        assert!(
+            std::fs::symlink_metadata(&valid_link).is_ok(),
+            "valid link is preserved"
+        );
+        assert!(keeper.exists(), "real files are untouched");
+    }
+
+    #[test]
+    fn clean_tree_removes_nothing() {
+        let root = tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("a/b")).unwrap();
+        std::fs::write(root.path().join("a/b/f.txt"), "x").unwrap();
+        assert_eq!(prune_dangling_symlinks(root.path()).unwrap(), 0);
+    }
+
+    /// A valid symlink *to a directory* is treated as a leaf and never followed.
+    /// The link here points back at the walk root, so following it would recurse
+    /// forever; terminating (and leaving the link in place) proves it is not
+    /// followed — the same property that keeps pnpm's symlink graph cycle-free.
+    #[test]
+    fn does_not_follow_valid_directory_symlink() {
+        let root = tempdir().unwrap();
+        let base = root.path();
+
+        std::fs::write(base.join("server.js"), "// server").unwrap();
+        // A valid directory symlink that points back at the root: following it
+        // would loop. `read_dir` reports it as a symlink, so the leaf branch
+        // keeps it without descending.
+        let dir_link = base.join("cycle");
+        symlink(".", &dir_link).unwrap();
+
+        let removed = prune_dangling_symlinks(base).unwrap();
+
+        assert_eq!(removed, 0, "no dangling links, nothing removed");
+        assert!(
+            std::fs::symlink_metadata(&dir_link).is_ok(),
+            "the valid directory symlink itself is preserved"
+        );
+    }
+
+    /// The walk root being a dangling symlink is handled by the top-level branch:
+    /// it is removed and counted.
+    #[test]
+    fn dangling_symlink_at_root_is_removed() {
+        let root = tempdir().unwrap();
+        let link = root.path().join("root_link");
+        symlink("./missing_target", &link).unwrap();
+
+        assert_eq!(prune_dangling_symlinks(&link).unwrap(), 1);
+        assert!(
+            std::fs::symlink_metadata(&link).is_err(),
+            "the dangling root symlink is gone"
+        );
     }
 }

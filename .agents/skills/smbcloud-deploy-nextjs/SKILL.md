@@ -449,14 +449,20 @@ find .next/standalone/ -type l ! -exec test -e {} \; -print
 
 Fix:
 
-- Remove the dangling link(s) before upload:
+- The CLI now handles this automatically. `process_deploy_nextjs_ssr` runs a
+  step 3b (`prune_dangling_symlinks`) after the build and before the standalone
+  rsync: it walks `.next/standalone/` and deletes any symlink whose target does
+  not exist (real dirs are traversed; symlinked dirs are never followed). When
+  it removes anything it prints `Pruned N dangling symlink(s) …`. No manual step
+  is needed on current `smbcloud-cli`.
+- Older `smb` (≤ 0.4.7) lacks the prune. On those, remove the link(s) before
+  upload and re-run the deploy — but the rebuild regenerates them, so it must
+  happen after `next build` and before rsync:
   `find .next/standalone/ -type l ! -exec test -e {} \; -delete`
-  then re-run the deploy. (The CLI rebuilds on every run, so this must happen
-  after `next build` and before rsync — when driving the deploy manually,
-  delete then run the three rsyncs yourself.)
-- Proper fix belongs in the CLI: prune dangling symlinks (or use
-  `--copy-unsafe-links` semantics that tolerate them) before the standalone
-  rsync. Until then, the manual `find … -delete` is the workaround.
+  Driving the deploy by hand, delete then run the three rsyncs yourself. A
+  repo-local equivalent is a `postbuild` script that runs the same `find …
+  -delete`, since `smb` invokes `pnpm build` (which fires `postbuild`) in the
+  right window.
 
 ### Misleading deploy output
 
@@ -527,8 +533,9 @@ Use the smallest checks that prove the contract.
 - keeping an old git `post-receive` hook and expecting it to manage SSR deploys
 - `alias`-ing `/_next/static` for a nested (monorepo) standalone build — static
   is under `<app>/<source>/.next/static`, so the alias 404s; proxy everything instead
-- leaving a dangling pnpm symlink in `.next/standalone/` — `rsync --copy-links`
-  fails with status 23; `find … -type l ! -exec test -e {} \; -delete` first
+- assuming a dangling pnpm symlink in `.next/standalone/` still breaks the
+  deploy — current `smbcloud-cli` prunes them in step 3b before the
+  `rsync --copy-links` upload; only pre-prune manually on `smb` ≤ 0.4.7
 - giving two hostnames one `server` block without a shared SAN cert
 - using static-file Nginx config for an SSR app
 - rsyncing `.next/standalone/` without `--copy-links` and shipping broken `pnpm` symlinks to the server
