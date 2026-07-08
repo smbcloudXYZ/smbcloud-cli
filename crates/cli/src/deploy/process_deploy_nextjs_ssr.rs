@@ -35,13 +35,22 @@ use {
 /// the link is safe. See the `smbcloud-deploy-nextjs` skill for the write-up.
 ///
 /// Real (non-symlink) directories are traversed; a symlinked directory is
-/// treated as a leaf and never followed, which also avoids symlink cycles.
+/// treated as a leaf and never followed, which also avoids symlink cycles. This
+/// relies on pnpm's layout, where every package directory is a real directory
+/// reachable directly in the walk (symlinks only ever point *into* it): a
+/// dangling link nested under a real dir is always visited and pruned. A
+/// dangling link reachable *only* through a valid directory symlink would be
+/// skipped, but rsync would follow the same valid link and hit it — that shape
+/// does not occur in standalone output.
 fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
     let meta = std::fs::symlink_metadata(root)?;
 
     if meta.file_type().is_symlink() {
         // A symlink at the walk root: drop it only if it dangles, never follow.
-        if !root.exists() {
+        // `try_exists` follows the link and reports Ok(false) only when the
+        // target is genuinely absent; a real IO error propagates instead of
+        // being misread as "dangling".
+        if !root.try_exists()? {
             std::fs::remove_file(root)?;
             return Ok(1);
         }
@@ -61,8 +70,10 @@ fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
         let path = entry.path();
 
         if file_type.is_symlink() {
-            // `exists()` follows the link; `false` means the target is missing.
-            if !path.exists() {
+            // `try_exists` follows the link; Ok(false) means the target is
+            // missing (dangling). An IO error propagates rather than deleting a
+            // link we merely failed to stat.
+            if !path.try_exists()? {
                 std::fs::remove_file(&path)?;
                 removed += 1;
             }
@@ -222,7 +233,8 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     match prune_dangling_symlinks(standalone_path) {
         Ok(0) => {}
         Ok(n) => println!(
-            "{}",
+            "{} {}",
+            succeed_symbol(),
             succeed_message(&format!(
                 "Pruned {} dangling symlink{} from .next/standalone before upload.",
                 n,
@@ -825,5 +837,45 @@ mod tests {
         std::fs::create_dir_all(root.path().join("a/b")).unwrap();
         std::fs::write(root.path().join("a/b/f.txt"), "x").unwrap();
         assert_eq!(prune_dangling_symlinks(root.path()).unwrap(), 0);
+    }
+
+    /// A valid symlink *to a directory* is treated as a leaf and never followed.
+    /// The link here points back at the walk root, so following it would recurse
+    /// forever; terminating (and leaving the link in place) proves it is not
+    /// followed — the same property that keeps pnpm's symlink graph cycle-free.
+    #[test]
+    fn does_not_follow_valid_directory_symlink() {
+        let root = tempdir().unwrap();
+        let base = root.path();
+
+        std::fs::write(base.join("server.js"), "// server").unwrap();
+        // A valid directory symlink that points back at the root: following it
+        // would loop. `read_dir` reports it as a symlink, so the leaf branch
+        // keeps it without descending.
+        let dir_link = base.join("cycle");
+        symlink(".", &dir_link).unwrap();
+
+        let removed = prune_dangling_symlinks(base).unwrap();
+
+        assert_eq!(removed, 0, "no dangling links, nothing removed");
+        assert!(
+            std::fs::symlink_metadata(&dir_link).is_ok(),
+            "the valid directory symlink itself is preserved"
+        );
+    }
+
+    /// The walk root being a dangling symlink is handled by the top-level branch:
+    /// it is removed and counted.
+    #[test]
+    fn dangling_symlink_at_root_is_removed() {
+        let root = tempdir().unwrap();
+        let link = root.path().join("root_link");
+        symlink("./missing_target", &link).unwrap();
+
+        assert_eq!(prune_dangling_symlinks(&link).unwrap(), 1);
+        assert!(
+            std::fs::symlink_metadata(&link).is_err(),
+            "the dangling root symlink is gone"
+        );
     }
 }
