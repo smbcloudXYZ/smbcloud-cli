@@ -235,6 +235,40 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         .map(|path| format!("{}/", path))
         .unwrap_or_default();
 
+    // Next.js copies the project's .env* files into .next/standalone/, so an
+    // unfiltered upload would ship the developer's local (often development)
+    // env straight into the production runtime directory — and `--delete`
+    // would remove any operator-managed .env on the server. Env files are
+    // excluded on both sides: local ones never upload, server ones survive
+    // (rsync does not delete excluded destination files without
+    // --delete-excluded). Runtime env is server-managed — ecosystem config or
+    // a server-side .env. Anchored to the app roots so bundled node_modules
+    // content is not affected.
+    let env_file_excludes: Vec<String> = {
+        let mut patterns = vec!["/.env*".to_string()];
+        if !runtime_prefix.is_empty() {
+            patterns.push(format!("/{}.env*", runtime_prefix));
+        }
+        patterns
+    };
+
+    let local_env_file = [
+        format!("{}/.env", standalone_dir),
+        format!("{}/{}.env", standalone_dir, runtime_prefix),
+    ]
+    .iter()
+    .any(|path| std::path::Path::new(path).exists());
+    if local_env_file {
+        println!(
+            "{} {}",
+            succeed_symbol(),
+            succeed_message(
+                "Local .env* files found in the standalone build — not uploaded. \
+                 Runtime env comes from the server (ecosystem config or server-side .env).",
+            )
+        );
+    }
+
     // (local_source, remote_destination)
     // .next/standalone contents go to the root of remote_path.
     // .next/static and public go into the runtime directory that contains
@@ -299,6 +333,9 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
                 "--exclude".to_string(),
                 "logs/".to_string(),
             ]);
+            for pattern in &env_file_excludes {
+                rsync_args.extend(["--exclude".to_string(), pattern.clone()]);
+            }
         }
 
         rsync_args.extend([
