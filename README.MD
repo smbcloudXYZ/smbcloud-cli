@@ -39,7 +39,7 @@ If you want the quickest setup, use a pre-built native binary.
 ### Homebrew (macOS & Linux)
 
 ```sh
-brew tap smbcloudXYZ/tap
+brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap
 brew install cli
 ```
 

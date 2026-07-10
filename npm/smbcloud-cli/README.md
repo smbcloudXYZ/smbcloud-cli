@@ -53,7 +53,7 @@ That gets you from login to first deploy.
 ### Homebrew (macOS & Linux)
 
 ```sh
-brew tap smbcloudXYZ/tap
+brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap
 brew install cli
 ```
 
