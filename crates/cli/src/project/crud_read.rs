@@ -61,7 +61,7 @@ pub async fn process_project_show(env: Environment, id: String) -> Result<Comman
     match get_project(env, client(), access_token, id).await {
         Ok(project) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
-            let message = succeed_message(&format!("Showing project {}.", &project.name));
+            let message = succeed_message(&format!("Showing project {}.", project.name));
             show_project_detail(&project)?;
             Ok(CommandResult {
                 spinner: Spinner::new(

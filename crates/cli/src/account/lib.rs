@@ -39,7 +39,7 @@ pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
             let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
             debug!(
                 "Setting up OAuth callback server... (tx: {:#?}, rx: {:#?})",
-                &tx, &rx
+                tx, rx
             );
             tokio::spawn(async move {
                 setup_oauth_callback_server(tx);
@@ -58,7 +58,7 @@ pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
 
     match rx.recv() {
         Ok(code) => {
-            debug!("Got code from channel: {:#?}", &code);
+            debug!("Got code from channel: {:#?}", code);
             process_connect_github(*env, code).await
         }
         Err(e) => {
@@ -89,7 +89,7 @@ fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
             let code = group.get(1).unwrap().as_str();
             debug!("Code: {:#?}", code);
             debug!("Sending code to channel...");
-            debug!("Channel: {:#?}", &tx);
+            debug!("Channel: {:#?}", tx);
             match tx.send(code.to_string()) {
                 Ok(_) => {
                     debug!("Code sent to channel.");
@@ -135,7 +135,7 @@ fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
         }
     };
 
-    debug!("Contents: {:#?}", &contents);
+    debug!("Contents: {:#?}", contents);
     let response = format!("{status_line}\r\n\r\n{contents}");
     stream.write_all(response.as_bytes()).unwrap();
     stream.flush().unwrap();

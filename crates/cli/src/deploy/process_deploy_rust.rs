@@ -176,7 +176,7 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
             "{}    {} \u{2192} {} ({})",
             console::style("Upload").white().bold(),
             console::style(&binary_name).dim(),
-            console::style(format!("{}:{}", &rsync_host, remote_with_slash)).dim(),
+            console::style(format!("{}:{}", rsync_host, remote_with_slash)).dim(),
             console::style(&upload_size).dim(),
         ),
     );

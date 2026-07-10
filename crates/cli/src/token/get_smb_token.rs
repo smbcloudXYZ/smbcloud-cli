@@ -8,7 +8,7 @@ use {
 pub fn get_smb_token(env: Environment) -> Result<String> {
     if let Some(path) = smb_token_file_path(env) {
         std::fs::read_to_string(path).map_err(|e| {
-            debug!("Error while reading token: {}", &e);
+            debug!("Error while reading token: {}", e);
             anyhow!("Error while reading token. Are you logged in?")
         })
     } else {

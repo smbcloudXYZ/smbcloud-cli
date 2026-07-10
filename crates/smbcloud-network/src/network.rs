@@ -112,7 +112,7 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
     if LOG_RESPONSE_BODY {
         println!();
         println!("request_login: Parse >>>>");
-        println!("{:?}", &response.status());
+        println!("{:?}", response.status());
         println!("request_login: Parse >>>>");
         println!();
     }

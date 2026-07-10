@@ -174,7 +174,7 @@ pub async fn process_deploy_swift(env: Environment, config: Config) -> Result<Co
             "{}    {} → {} ({})",
             console::style("Upload").white().bold(),
             console::style(&binary_name).dim(),
-            console::style(format!("{}:{}", &rsync_host, remote_path)).dim(),
+            console::style(format!("{}:{}", rsync_host, remote_path)).dim(),
             console::style(format_size(binary_size)).dim(),
         ),
     );
