@@ -3,12 +3,12 @@ use crate::{
     client,
     mail::{
         cli::{Commands, InboxCommands, MessageCommands},
-        current_project::{resolve_optional_project_id, resolve_required_project_id},
         render::{
             print_mail_app_detail, print_mail_apps, print_mail_inbox_detail,
             print_mail_message_detail, print_mail_messages, print_mail_test_delivery,
         },
     },
+    project::current_project::{resolve_optional_project_id, resolve_required_project_id},
     token::get_smb_token::get_smb_token,
     ui::{
         confirm_dialog::confirm_delete_tui, fail_message, fail_symbol, succeed_message,

@@ -152,6 +152,9 @@ pub struct DeployRepo {
     /// app automatically server-side; this carries it back to the client.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frontend_apps: Option<Vec<FrontendApp>>,
+    /// GitHub App connection driving auto-deploy on push, when one exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github_connection: Option<crate::github::GithubConnection>,
 }
 
 /// Payload for creating a new DeployRepo via the API.
@@ -338,6 +341,33 @@ mod tests {
         assert_eq!(deploy_repo.repo_kind, RepoKind::Monorepo);
         assert_eq!(deploy_repo.runner, Runner::Monorepo);
         assert_eq!(deploy_repo.deployment_method, DeploymentMethod::Git);
+    }
+
+    #[test]
+    fn test_deploy_repo_deserializes_embedded_github_connection() {
+        let deploy_repo: DeployRepo = serde_json::from_value(json!({
+            "id": 5,
+            "name": "my-repo",
+            "repository": "my-repo",
+            "root_path": ".",
+            "repo_kind": 0,
+            "runner": 0,
+            "deployment_method": 0,
+            "github_connection": {
+                "id": 1,
+                "deploy_repo_id": 5,
+                "github_installation_id": 42,
+                "github_repo_full_name": "octocat/hello-world",
+                "production_branch": "main",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z"
+            }
+        }))
+        .unwrap();
+        let connection = deploy_repo
+            .github_connection
+            .expect("github_connection should be present");
+        assert_eq!(connection.github_repo_full_name, "octocat/hello-world");
     }
 
     #[test]

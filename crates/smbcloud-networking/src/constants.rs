@@ -6,6 +6,13 @@ pub const GH_OAUTH_CLIENT_ID: &str = "bf1f12d97659a6495e43";
 pub const GH_OAUTH_REDIRECT_HOST: &str = "http://localhost";
 pub const GH_OAUTH_REDIRECT_PORT: &str = "8808";
 
+// GitHub App slug used to build the installation URL. Provisional until the
+// app is registered; the dev app is separate so webhooks can target a dev API.
+#[cfg(debug_assertions)]
+pub const GH_APP_SLUG: &str = "smbcloud-dev";
+#[cfg(not(debug_assertions))]
+pub const GH_APP_SLUG: &str = "smbcloud";
+
 pub const SMB_USER_AGENT: &str = "smbcloud-cli";
 
 // Paths

@@ -4,6 +4,7 @@ pub mod account;
 pub mod ci;
 pub mod cli;
 pub mod deploy;
+pub mod github;
 pub mod mail;
 pub mod project;
 mod token;

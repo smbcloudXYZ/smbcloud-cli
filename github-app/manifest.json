@@ -1,0 +1,20 @@
+{
+  "name": "smbCloud",
+  "url": "https://smbcloud.xyz",
+  "description": "Deploy your GitHub repositories to smbCloud automatically on every push.",
+  "hook_attributes": {
+    "url": "https://api.smbcloud.xyz/v1/github/webhook",
+    "active": true
+  },
+  "redirect_url": "https://smbcloud.xyz/github/registered",
+  "callback_urls": [],
+  "setup_url": "https://smbcloud.xyz/github/setup",
+  "setup_on_update": true,
+  "public": true,
+  "default_permissions": {
+    "contents": "read",
+    "metadata": "read",
+    "statuses": "write"
+  },
+  "default_events": ["push"]
+}

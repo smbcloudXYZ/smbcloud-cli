@@ -9,6 +9,39 @@ pub(crate) fn build_deploy_repos_url(env: Environment, client: (&SmbClient, &str
     url_builder.build()
 }
 
+pub(crate) fn build_github_installations_url(
+    env: Environment,
+    client: (&SmbClient, &str),
+) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/github/installations");
+    url_builder.build()
+}
+
+pub(crate) fn build_github_installation_repositories_url(
+    env: Environment,
+    client: (&SmbClient, &str),
+    installation_id: i64,
+) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/github/installations");
+    url_builder.add_route(&installation_id.to_string());
+    url_builder.add_route("repositories");
+    url_builder.build()
+}
+
+pub(crate) fn build_deploy_repo_github_connection_url(
+    env: Environment,
+    client: (&SmbClient, &str),
+    deploy_repo_id: i64,
+) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/deploy_repos");
+    url_builder.add_route(&deploy_repo_id.to_string());
+    url_builder.add_route("github_connection");
+    url_builder.build()
+}
+
 pub(crate) fn build_frontend_apps_url(env: Environment, client: (&SmbClient, &str)) -> String {
     let mut url_builder = smb_base_url_builder(env, client);
     url_builder.add_route("v1/frontend_apps");
