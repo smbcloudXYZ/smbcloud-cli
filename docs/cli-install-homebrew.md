@@ -3,7 +3,7 @@
 ## Install
 
 ```bash
-brew tap smbcloudXYZ/tap
+brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap
 brew install cli
 ```
 

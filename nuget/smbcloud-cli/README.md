@@ -34,7 +34,7 @@ This .NET tool bundles native `smb` binaries for:
 
 - npm: `npm install -g @smbcloud/cli`
 - pip: `pip install smbcloud-cli`
-- Homebrew: `brew tap smbcloudXYZ/tap && brew install cli`
+- Homebrew: `brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap && brew install cli`
 - GitHub Releases: <https://github.com/smbcloudXYZ/smbcloud-cli/releases>
 
 ## Source
