@@ -4,6 +4,8 @@ pub mod deployment_table;
 pub mod me_view;
 pub mod project_detail_view;
 pub mod project_table;
+pub mod prompt;
+pub mod reporter;
 pub mod theme;
 
 use console::style;

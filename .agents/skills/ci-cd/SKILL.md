@@ -260,16 +260,16 @@ The PyPI workflow is also exempt because maturin is already pointed at the right
 
 ### Current runners and targets
 
-| Platform      | Runner             | Target                      | Notes                     |
-| ------------- | ------------------ | --------------------------- | ------------------------- |
-| Linux x86_64  | `ubuntu-latest`    | `x86_64-unknown-linux-gnu`  | Native                    |
-| Linux arm64   | `ubuntu-24.04-arm` | `aarch64-unknown-linux-gnu` | Native — do not use QEMU  |
-| Windows x64   | `windows-2022`     | `x86_64-pc-windows-msvc`    | Native                    |
-| Windows arm64 | `windows-2022`     | `aarch64-pc-windows-msvc`   | Cross-compile on x64 host |
-| macOS x64     | `macos-15-intel`   | `x86_64-apple-darwin`       | Native Intel runner       |
-| macOS arm64   | `macos-latest`     | `aarch64-apple-darwin`      | Native Apple Silicon      |
+| Platform      | Runner             | Target                      | Notes                      |
+| ------------- | ------------------ | --------------------------- | -------------------------- |
+| Linux x86_64  | `ubuntu-latest`    | `x86_64-unknown-linux-gnu`  | Native                     |
+| Linux arm64   | `ubuntu-24.04-arm` | `aarch64-unknown-linux-gnu` | Native — do not use QEMU   |
+| Windows x64   | `windows-2022`     | `x86_64-pc-windows-msvc`    | Native                     |
+| Windows arm64 | `windows-2022`     | `aarch64-pc-windows-msvc`   | Do not use for PyPI wheels |
+| macOS x64     | `macos-15-intel`   | `x86_64-apple-darwin`       | Native Intel runner        |
+| macOS arm64   | `macos-latest`     | `aarch64-apple-darwin`      | Native Apple Silicon       |
 
-For npm and GitHub Release, use native runners. For PyPI (maturin), the macOS x64 build uses `macos-latest` with cross-compilation because maturin handles it transparently inside its container.
+For npm and GitHub Release, use native runners. For PyPI (maturin), the macOS x64 build uses `macos-latest` with cross-compilation because maturin handles it transparently inside its container. Windows arm64 is the exception: GitHub's hosted Windows runners only provide x64 Python, so maturin will refuse to build an `aarch64-pc-windows-msvc` wheel when the interpreter reports `win-amd64`.
 
 ### Do not use QEMU for arm64 Linux
 
@@ -369,6 +369,15 @@ permissions:
 ```
 
 No `PYPI_TOKEN` secret needed. The action exchanges the GitHub OIDC JWT for a short-lived PyPI token automatically.
+
+**Each PyPI package × workflow combination needs its own trusted publisher.** The CLI package (`smbcloud-cli`) is configured for `release-pypi.yml`, but the SDK package (`smbcloud-sdk-auth`) needs a separate trusted publisher pointing at `release-sdk-pypi.yml`. Configure it at `https://pypi.org/manage/project/<package>/settings/publishing/` with:
+
+- Owner: `smbcloudXYZ`
+- Repository: `smbcloud-cli`
+- Workflow name: the exact `.yml` filename that publishes that package
+- Environment: leave blank
+
+If the trusted publisher is missing, the publish step fails with `invalid-publisher: valid token, but no corresponding publisher`.
 
 ### npm — does NOT support trusted publishing natively
 
@@ -690,6 +699,24 @@ One practical warning: the Ruby gem release depends on crates.io propagation. If
 
 ## Common mistakes
 
+**SDK npm version out of sync with Rust crate version**
+`sdk/npm/smbcloud-auth/package.json` must have the same version as `crates/smbcloud-auth-sdk-wasm/Cargo.toml`. The `prepare-package.mjs` script compares them at build time and throws a hard error on mismatch. When bumping workspace crate versions for a release, always update the npm package version in the same commit. Forgetting this causes the `check-npm-sdk` CI job and the `release-sdk-npm` workflow to fail.
+
+**SDK Ruby gem versions out of sync with workspace crate versions**
+Three files must be bumped together for each gem in `sdk/gems/`:
+
+- `lib/<gem>/version.rb` — the gem version (`Auth::VERSION`, `Model::VERSION`)
+- `ext/<gem>/Cargo.toml` — the native extension crate version
+- `ext/<gem>/Cargo.toml` dependencies — the `smbcloud-*` version constraints (e.g. `"0.3"` → `"0.4"`)
+
+After bumping, regenerate lockfiles with `cargo generate-lockfile` and `bundle lock` inside each gem directory. The `release-sdk-gem` workflow checks `Auth::VERSION` against the tag and fails on mismatch.
+
+**Tagging a release on a feature branch instead of `development`**
+Always tag on `development` (the mainline branch). Tagging on a feature branch leaves `development` without the release commit, making git history confusing and future releases error-prone. Merge the feature branch into `development` first, then tag. If a tag was already placed on the wrong commit, move it with `git tag -f v<version>` and `git push origin v<version> --force`.
+
+**"Re-run all jobs" on an old workflow run rebuilds from the old commit**
+GitHub Actions workflow re-runs always use the commit the run was originally dispatched with. If you moved a tag after the run was created, the re-run still checks out the old commit. Use "Re-run failed jobs" only when the code on that commit is correct and only an external issue (e.g. missing trusted publisher) caused the failure. If the code itself was fixed, dispatch a fresh run instead: `gh workflow run <workflow>.yml -f tag=v<version>`.
+
 **Building the full workspace in release workflows**
 Always pass `--package smbcloud-cli` to `cargo build` and `cargo publish`. Omitting it builds `smbcloud-auth-sdk-py` (PyO3 cdylib) which fails on platforms without a matching Python interpreter.
 
@@ -707,6 +734,9 @@ This reads whatever version is currently in `Cargo.toml` on the checked-out bran
 
 **QEMU for arm64 Linux**
 Using `ubuntu-latest` (x86_64) to build `aarch64-unknown-linux-gnu` via QEMU inside manylinux is slow and causes container mismatch errors. Use `ubuntu-24.04-arm`.
+
+**Windows arm64 PyPI wheels on hosted runners**
+Maturin needs a matching Python interpreter for wheel generation. On GitHub-hosted Windows runners, the available interpreter reports `win-amd64`, so an `aarch64-pc-windows-msvc` wheel build gets skipped and then fails. Unless you have an arm64 Windows runner with arm64 Python installed, leave Windows arm64 out of the PyPI wheel matrix.
 
 **`yum` vs `apt` in manylinux**
 manylinux2014 is CentOS 7. Use `yum`, not `apt`. For manylinux_2_28 (AlmaLinux 8) use `dnf`.

@@ -4,15 +4,14 @@ use {
         cli::CommandResult,
         client,
         deploy::{
-            config::{check_project, credentials, get_config},
-            detect_runner::detect_runner,
+            config::{check_project, credentials, get_config, overlay_server_config},
             git::remote_deployment_setup,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
             process_deploy_rust::process_deploy_rust,
+            process_deploy_swift::process_deploy_swift,
             process_deploy_vite_spa::process_deploy_vite_spa,
             remote_messages::{build_next_app, start_server},
-            rsync_deploy::rsync_deploy,
         },
         token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in},
         ui::{fail_message, succeed_message, succeed_symbol},
@@ -21,6 +20,7 @@ use {
     dialoguer::{console::Term, theme::ColorfulTheme, Select},
     git2::{PushOptions, RemoteCallbacks, Repository},
     smbcloud_auth::me::me,
+    smbcloud_deploy::Transport,
     smbcloud_model::{
         project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
         runner::Runner,
@@ -46,6 +46,15 @@ fn prompt_select_project(config: &Config) -> Result<String> {
     })?;
 
     let labels: Vec<&str> = projects.iter().map(|p| p.name.as_str()).collect();
+
+    // In CI there's no TTY to pick from a monorepo's [[projects]]; the caller
+    // must name the target with `--project <name>`.
+    if crate::ci::is_ci() {
+        return Err(anyhow!(fail_message(&format!(
+            "This is a monorepo config. In --ci mode, pass --project <name> to choose which app to deploy. Available: {}",
+            labels.join(", ")
+        ))));
+    }
 
     let index = Select::with_theme(&ColorfulTheme::default())
         .with_prompt("Select project to deploy")
@@ -94,6 +103,13 @@ pub async fn process_deploy(
     let is_logged_in = is_logged_in(env).await?;
 
     if !is_logged_in {
+        // Logging in is interactive; in CI the token must already exist.
+        if crate::ci::is_ci() {
+            return Err(anyhow!(fail_message(
+                "Not authenticated. In --ci mode, log in beforehand (run `smb login` without --ci, \
+                 or provision the token at ~/.smb/token) — interactive login is disabled."
+            )));
+        }
         let _ = process_login(env, Some(is_logged_in)).await?;
     }
 
@@ -116,6 +132,8 @@ pub async fn process_deploy(
         config = resolve_sub_project(config, name)?;
     }
 
+    overlay_server_config(env, &access_token, &mut config).await;
+
     // Validate that the logged-in user has access to this project before doing
     // any work — applies to every deployment path including vite-spa.
     check_project(env, &access_token, config.project.id).await?;
@@ -136,9 +154,14 @@ pub async fn process_deploy(
         return process_deploy_rails(env, config).await;
     }
 
-    // Route Rust service projects: rsync source tree, then run a remote Cargo build script.
+    // Route Rust service projects: build a Linux binary locally, upload it over rsync, then restart it over SSH.
     if config.project.kind.as_deref() == Some("rust") {
         return process_deploy_rust(env, config).await;
+    }
+
+    // Route Swift/Vapor projects: build a Linux binary via Docker, rsync binary + Resources/ + Public/, SSH restart.
+    if config.project.kind.as_deref() == Some("swift") {
+        return process_deploy_swift(env, config).await;
     }
 
     match config.project.deployment_method {
@@ -147,7 +170,25 @@ pub async fn process_deploy(
             // detection needed, the source tree may have no package.json/Gemfile/etc.
             let runner = config.project.runner;
             let user = me(env, client(), &access_token).await?;
-            rsync_deploy(&config, &runner, user.id, ".")
+            let transport = crate::deploy::rsync_transport(&config, &runner, user.id)?;
+
+            // The engine ships silently; this command owns the spinner and the
+            // final line it hands back to `main` to persist.
+            let spinner = Spinner::new(
+                spinners::Spinners::Hamburger,
+                succeed_message(&format!("Syncing to {}…", runner.rsync_host())),
+            );
+            match transport.ship(std::path::Path::new("."), &smbcloud_deploy::NoopReporter) {
+                Ok(()) => Ok(CommandResult {
+                    spinner,
+                    symbol: succeed_symbol(),
+                    msg: succeed_message("Deployment complete via rsync."),
+                }),
+                Err(e) => {
+                    drop(spinner);
+                    Err(anyhow!(fail_message(&format!("{e}"))))
+                }
+            }
         }
         DeploymentMethod::Git => git_deploy(env, &access_token, config).await,
     }
@@ -160,7 +201,8 @@ async fn git_deploy(
 ) -> Result<CommandResult> {
     // Runner detection requires framework files (package.json, Gemfile, etc.) —
     // only needed for the git push path where the server builds the project.
-    let runner = detect_runner(&config).await?;
+    let reporter = crate::ui::reporter::SpinnerReporter::new();
+    let runner = smbcloud_deploy::detect_runner(&config, &reporter)?;
     // Check remote repository setup.
     let repo = match Repository::open(".") {
         Ok(repo) => repo,
@@ -215,9 +257,12 @@ async fn git_deploy(
         Err(_) => return Err(anyhow!("Cannot resolve main branch.")),
     };
 
+    let frontend_app_id = config.project.frontend_app_id.clone();
+
     let payload = DeploymentPayload {
         commit_hash: commit_hash.to_string(),
         status: DeploymentStatus::Started,
+        frontend_app_id: frontend_app_id.clone(),
     };
 
     let created_deployment =
@@ -254,6 +299,7 @@ async fn git_deploy(
         let access_token_for_update_cb = update_access_token.clone();
         let project_id_for_update_cb = update_project_id;
         let deployment_id_for_update_cb = update_deployment_id;
+        let frontend_app_id_for_update_cb = frontend_app_id.clone();
 
         move |_refname, status_message| {
             if let Some(e) = status_message {
@@ -267,6 +313,7 @@ async fn git_deploy(
                     let update_payload = DeploymentPayload {
                         commit_hash: commit_hash.to_string(),
                         status: DeploymentStatus::Failed,
+                        frontend_app_id: frontend_app_id_for_update_cb.clone(),
                     };
 
                     // We are in a sync callback, so we need to block on the async task.
@@ -307,6 +354,7 @@ async fn git_deploy(
             let update_payload = DeploymentPayload {
                 commit_hash: commit_hash.to_string(),
                 status: DeploymentStatus::Done,
+                frontend_app_id: frontend_app_id.clone(),
             };
             let result = update(
                 env,

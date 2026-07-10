@@ -2,7 +2,7 @@
 
 S6n is an S3-compatible object storage crate for smbCloud.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+Read more about [smbCloud services](https://smbcloud.xyz/services).
 
 ## License
 
@@ -10,4 +10,4 @@ Apache-2.0
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).

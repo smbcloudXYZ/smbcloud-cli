@@ -6,7 +6,7 @@ use {
         account::{login::process_login, logout::process_logout, me::process_me, process_account},
         clear_smb_token,
         cli::{Cli, CommandResult, Commands},
-        deploy::process_deploy::process_deploy,
+        deploy::{process_deploy::process_deploy, process_migrate::process_migrate},
         mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
     },
@@ -76,6 +76,8 @@ fn setup_logging(env: Environment, level: Option<EnvFilter>) -> Result<()> {
 async fn main() {
     let cli = Cli::parse();
     let environment = cli.environment;
+    // Resolve CI / non-interactive mode once, before any command can prompt.
+    smbcloud_cli::ci::set_ci(smbcloud_cli::ci::resolve(cli.ci));
     match run(cli).await {
         Ok(result) => {
             result.stop_and_persist();
@@ -128,6 +130,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         | Some(Commands::Account { .. })
         | Some(Commands::Mail { .. })
         | Some(Commands::Project { .. })
+        | Some(Commands::Migrate {})
         | None => true,
         Some(Commands::Init {}) => true,
     };
@@ -148,6 +151,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
         Some(Commands::Mail { command }) => process_mail(cli.environment, command).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
+        Some(Commands::Migrate {}) => process_migrate(cli.environment).await,
         None => process_deploy(cli.environment, None).await,
     }
 }

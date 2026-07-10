@@ -1,5 +1,8 @@
 use {
-    crate::deploy::setup_create_new_project::create_new_project,
+    crate::{
+        ci::{interactive_message, is_ci},
+        deploy::setup_create_new_project::create_new_project,
+    },
     dialoguer::{theme::ColorfulTheme, Confirm, Select},
     smbcloud_model::{
         error_codes::{ErrorCode, ErrorResponse},
@@ -13,6 +16,14 @@ pub(crate) async fn select_project(
     projects: Vec<Project>,
     path: &str,
 ) -> Result<Project, ErrorResponse> {
+    // Choosing among existing projects (or creating a new one) is interactive.
+    if is_ci() {
+        return Err(ErrorResponse::Error {
+            error_code: ErrorCode::InputError,
+            message: interactive_message("Selecting a project"),
+        });
+    }
+
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt("Use existing project? y/n")
         .interact()

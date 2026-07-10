@@ -5,7 +5,7 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    Deploy to the cloud in one command.
+    Deploy with smbCloud from your terminal.
     <br />
     <br />
     <a href="https://smbcloud.xyz/">Website</a>
@@ -33,7 +33,7 @@ cargo install smbcloud-cli
 ### Homebrew (MacOS/Linux)
 
 ```bash
-brew tap smbcloudXYZ/tap
+brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap
 brew install cli
 ```
 
@@ -76,7 +76,9 @@ pip uninstall smbcloud-cli
 smb --help
 ```
 
-## Contribution
+## Contributing
+
+To work on the CLI locally:
 
 - Set up your Rust tooling.
 - Clone the repo.
@@ -89,7 +91,7 @@ This repo draws inspiration from [Sugar](https://github.com/metaplex-foundation/
 
 It also borrows ideas from [the 12 factor CLI app](https://medium.com/@jdxcode/12-factor-cli-apps-dd3c227a0e46).
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More CLI and deployment guides live in the [smbCloud docs](https://smbcloud.xyz/posts).
 
 ## License
 
@@ -97,4 +99,4 @@ It also borrows ideas from [the 12 factor CLI app](https://medium.com/@jdxcode/1
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).

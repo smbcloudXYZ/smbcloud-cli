@@ -2,7 +2,8 @@ use magnus::{function, prelude::*, Error, Ruby};
 use serde::Serialize;
 use smbcloud_auth_sdk::{
     client_credentials::ClientCredentials, login::login_with_client, logout::logout_with_client,
-    me::me_with_client, remove::remove_with_client, signup::signup_with_client,
+    me::me_with_client, remove::remove_with_client,
+    reset_password::reset_password_with_client, signup::signup_with_client,
 };
 use smbcloud_model::{error_codes::ErrorResponse, login::AccountStatus, signup::SignupResult};
 use smbcloud_network::environment::Environment;
@@ -125,6 +126,26 @@ fn login_with_client_json(
     })
 }
 
+fn reset_password_with_client_json(
+    environment: String,
+    app_id: String,
+    app_secret: String,
+    email: String,
+) -> Result<String, Error> {
+    let env = parse_environment(environment)?;
+    with_runtime(|runtime| {
+        let result = runtime.block_on(reset_password_with_client(
+            env,
+            credentials(&app_id, &app_secret),
+            email,
+        ));
+        match result {
+            Ok(result) => to_json(&result),
+            Err(error) => Err(raise_error_response(error)),
+        }
+    })
+}
+
 fn me_with_client_json(
     environment: String,
     app_id: String,
@@ -195,6 +216,10 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
         function!(signup_with_client_json, 5),
     )?;
     auth.define_singleton_method("__login_with_client", function!(login_with_client_json, 5))?;
+    auth.define_singleton_method(
+        "__reset_password_with_client",
+        function!(reset_password_with_client_json, 4),
+    )?;
     auth.define_singleton_method("__me_with_client", function!(me_with_client_json, 4))?;
     auth.define_singleton_method(
         "__logout_with_client",

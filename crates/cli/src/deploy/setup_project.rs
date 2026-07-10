@@ -1,8 +1,13 @@
 use {
     crate::{
+        ci::{interactive_message, is_ci},
         client,
         deploy::{
             setup_create_new_project::create_new_project, setup_select_project::select_project,
+        },
+        project::deploy_target::{
+            ensure_default_frontend_app_for_project, merge_project_with_frontend_app,
+            resolve_frontend_app_for_project,
         },
         token::get_smb_token::get_smb_token,
         ui::highlight,
@@ -27,6 +32,15 @@ pub(crate) async fn setup_project(
         .as_ref()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|| ".".to_string());
+
+    // Interactive setup writes a fresh .smb/config.toml after prompting for a
+    // project — impossible without a TTY. In CI, fail fast with guidance.
+    if is_ci() {
+        return Err(ErrorResponse::Error {
+            error_code: ErrorCode::InputError,
+            message: interactive_message("Project setup"),
+        });
+    }
 
     let confirm = Confirm::with_theme(&ColorfulTheme::default())
         .with_prompt(format!("Setup project in {}? y/n", highlight(&path_str)))
@@ -58,18 +72,42 @@ pub(crate) async fn setup_project(
 
     let projects = get_projects(env, client(), access_token.to_string()).await?;
 
-    let project: Project = if !projects.is_empty() {
+    let workspace_project: Project = if !projects.is_empty() {
         select_project(env, projects, &path_str).await?
     } else {
         create_new_project(env, &path_str).await?
     };
 
-    let name = project.name.clone();
-    let description = project.description.clone();
+    let deploy_target =
+        match resolve_frontend_app_for_project(env, &access_token, &workspace_project, true).await?
+        {
+            Some(frontend_app) => {
+                merge_project_with_frontend_app(&workspace_project, &frontend_app)
+            }
+            // Older workspace projects still carry legacy runner/repository
+            // fields; reuse them when seeding the project's first app.
+            None => match ensure_default_frontend_app_for_project(
+                env,
+                &access_token,
+                &workspace_project,
+                workspace_project.runner,
+                workspace_project.repository.clone(),
+            )
+            .await
+            {
+                Ok(frontend_app) => {
+                    merge_project_with_frontend_app(&workspace_project, &frontend_app)
+                }
+                Err(_) => workspace_project.clone(),
+            },
+        };
+
+    let name = workspace_project.name.clone();
+    let description = workspace_project.description.clone();
 
     // Create config struct
     let config = Config {
-        project,
+        project: deploy_target,
         name,
         description,
         projects: None,

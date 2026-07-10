@@ -35,11 +35,11 @@ pub async fn get_config() -> Result<Config> {
                 return Ok(config);
             }
             let config_string = std::fs::read_to_string(path).map_err(|e| {
-                debug!("Error while reading config file: {}", &e);
+                debug!("Error while reading config file: {}", e);
                 anyhow!("Error while reading config file. Are you logged in?")
             })?;
             let config: Config = serde_json::from_str(&config_string).map_err(|e| {
-                debug!("Error while parsing config: {}", &e);
+                debug!("Error while parsing config: {}", e);
                 anyhow!("Error while parsing config. Are you logged in?")
             })?;
 

@@ -40,7 +40,7 @@ mod client_credentials;
 mod error;
 mod onde_apps;
 
-pub use client::GresiqClient;
+pub use client::{DocumentQuery, GresiqClient, GresiqDocument};
 pub use client_credentials::{base_url, GresiqCredentials};
 pub use error::GresiqError;
 pub use onde_apps::{

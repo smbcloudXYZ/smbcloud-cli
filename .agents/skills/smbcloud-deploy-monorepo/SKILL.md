@@ -18,7 +18,18 @@ Applies to:
 
 ## What makes a monorepo
 
-A monorepo is a repository where `[project]` has `runner = 255` (the `Monorepo` variant) and deployable sub-projects are listed as `[[projects]]` entries. The root project is never deployed directly — it is a container.
+A monorepo is a repository where `[project]` has `runner = 255` (the `Monorepo` variant) and deployable targets are listed as `[[projects]]` entries. The root project is never deployed directly — it is a container.
+
+Keep the deploy hierarchy straight:
+
+- root `[project]` = umbrella workspace in smbCloud (not deployable)
+- repo = the monorepo itself, represented by a `DeployRepo` record
+- each `[[projects]]` entry = one deployable `FrontendApp` inside that repo, identified by `frontend_app_id`
+- each deployment record = one release of one `FrontendApp`, linked via `frontend_app_id`
+
+The canonical chain is: Deployment → FrontendApp → DeployRepo → Project
+
+The config format still uses `[[projects]]` for historical reasons, but conceptually those entries are app targets, not separate umbrella workspaces. Each entry should include `frontend_app_id` and `deploy_repo_id` so deployments are attributed to the correct app.
 
 The CLI detects this in `process_deploy.rs`:
 
@@ -54,6 +65,8 @@ created_at = "2025-09-20T16:33:05.154Z"
 updated_at = "2025-09-20T16:33:05.154Z"
 ```
 
+The root `id` is the workspace ID. It is not a deployable app ID.
+
 Key rules:
 
 - `runner = 255` is mandatory — this is what activates monorepo behavior
@@ -62,11 +75,13 @@ Key rules:
 
 ### Sub-projects (deployable units)
 
-Each `[[projects]]` entry is a self-contained deploy target with its own `kind`, `source`, `path`, `runner`, and strategy-specific fields.
+Each `[[projects]]` entry is a self-contained deployable app target with its own `kind`, `source`, `path`, `runner`, and strategy-specific fields.
 
 ```toml
 [[projects]]
-id = 54
+id = 38
+frontend_app_id = "a7f6d5d4-..."
+deploy_repo_id = 12
 name = "splitfireweb"
 repository = "splitfireweb"
 description = "SplitFire AI website."
@@ -110,25 +125,27 @@ updated_at = "2025-09-20T16:33:05.154Z"
 
 ## Sub-project field reference
 
-| Field               | Required | Description                                                                                 |
-| ------------------- | -------- | ------------------------------------------------------------------------------------------- |
-| `id`                | yes      | smbCloud project ID                                                                         |
-| `name`              | yes      | unique identifier, used with `--project` flag and in the selection prompt                   |
-| `repository`        | yes      | remote repository name on the smbCloud server (used for git deploy and SSH paths)           |
-| `description`       | no       | human-readable description                                                                  |
-| `source`            | yes      | local path to the sub-project directory, relative to the monorepo root                      |
-| `path`              | depends  | remote directory on the server, relative to `~/` — required for `nextjs-ssr` and `vite-spa` |
-| `runner`            | yes      | server tier: `0` (NodeJs), `1` (Static), `2` (Ruby), `3` (Swift)                            |
-| `kind`              | depends  | deploy strategy: `"nextjs-ssr"`, `"vite-spa"`, `"rails"`, or omitted for generic deploy     |
-| `package_manager`   | depends  | `"pnpm"` or `"npm"` — required for `nextjs-ssr` and `vite-spa`                              |
-| `pm2_app`           | depends  | PM2 process name — required for `nextjs-ssr`                                                |
-| `port`              | depends  | runtime port — required for `nextjs-ssr`, defaults to `3000` if omitted                     |
-| `output`            | depends  | build output directory — required for `vite-spa`, typically `"dist"`                        |
-| `shared_lib`        | no       | path to shared library directory to rsync before deploy — used by `rails`                   |
-| `compile_cmd`       | no       | SSH command to run on the server after syncing shared libs — used by `rails`                |
-| `deployment_method` | no       | `0` (Git) or `1` (Rsync) — only matters when `kind` is not set                              |
-| `created_at`        | yes      | ISO 8601 timestamp                                                                          |
-| `updated_at`        | yes      | ISO 8601 timestamp                                                                          |
+| Field               | Required    | Description                                                                                 |
+| ------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| `id`                | yes         | umbrella workspace ID in smbCloud                                                           |
+| `frontend_app_id`   | recommended | FrontendApp UUID — include so deployments are attributed to the correct app                 |
+| `deploy_repo_id`    | recommended | DeployRepo ID — links the deploy target to its git repository record                        |
+| `name`              | yes         | unique identifier, used with `--project` flag and in the selection prompt                   |
+| `repository`        | yes         | remote repository name on the smbCloud server (used for git deploy and SSH paths)           |
+| `description`       | no          | human-readable description                                                                  |
+| `source`            | yes         | local path to the sub-project directory, relative to the monorepo root                      |
+| `path`              | depends     | remote directory on the server, relative to `~/` — required for `nextjs-ssr` and `vite-spa` |
+| `runner`            | yes         | server tier: `0` (NodeJs), `1` (Static), `2` (Ruby), `3` (Swift)                            |
+| `kind`              | depends     | deploy strategy: `"nextjs-ssr"`, `"vite-spa"`, `"rails"`, or omitted for generic deploy     |
+| `package_manager`   | depends     | `"pnpm"` or `"npm"` — required for `nextjs-ssr` and `vite-spa`                              |
+| `pm2_app`           | depends     | PM2 process name — required for `nextjs-ssr`                                                |
+| `port`              | depends     | runtime port — required for `nextjs-ssr`, defaults to `3000` if omitted                     |
+| `output`            | depends     | build output directory — required for `vite-spa`, typically `"dist"`                        |
+| `shared_lib`        | no          | path to shared library directory to rsync before deploy — used by `rails`                   |
+| `compile_cmd`       | no          | SSH command to run on the server after syncing shared libs — used by `rails`                |
+| `deployment_method` | no          | `0` (Git) or `1` (Rsync) — only matters when `kind` is not set                              |
+| `created_at`        | yes         | ISO 8601 timestamp                                                                          |
+| `updated_at`        | yes         | ISO 8601 timestamp                                                                          |
 
 ## Deploy routing
 
@@ -163,7 +180,7 @@ smb deploy --project <name>
 
 ### Strategy: `nextjs-ssr`
 
-Local build, rsync three directories, SSH PM2 restart. See `smbcloud-deploy-nextjs` skill for details.
+Local build, rsync three directories, then SSH delete + fresh PM2 start (prefer server `ecosystem.config.cjs` when present; falls back to legacy `.js`). The `.next/standalone/` upload should use `--copy-links` so `pnpm` symlinked dependencies land as real files in the deployed tree. If `outputFileTracingRoot` points above the sub-project directory, Next may preserve the sub-project path inside standalone output, and the deploy path must place `.next/static` and `public` under that nested runtime directory. See `smbcloud-deploy-nextjs` skill for details.
 
 Required fields: `kind`, `source`, `path`, `pm2_app`, `package_manager`, `port`
 
@@ -194,6 +211,7 @@ For `nextjs-ssr` and `vite-spa`, the CLI changes into the `source` directory bef
 - `pnpm install` runs inside `source/`
 - `pnpm build` runs inside `source/`
 - rsync sources are relative to `source/`
+- for Next.js SSR, standalone output may still preserve the `source/` path inside `.next/standalone/` when tracing is rooted above the app directory
 
 For `rails`, the CLI:
 
@@ -264,37 +282,42 @@ Current allocations on `api.smbcloud.xyz`:
 
 ### Nginx configuration per app type
 
-**Next.js SSR apps** use reverse proxy:
+**Next.js SSR apps** use reverse proxy. In a monorepo the safe default is to
+proxy *everything* (including `/_next/static`) to the Node process — do not
+serve static from disk with an `alias`, because monorepo builds are **nested**
+(see warning below):
 
 ```nginx
-upstream app_name {
-    server 127.0.0.1:<port>;
-    keepalive 64;
-}
-
 server {
     server_name example.com;
 
-    location /_next/static/ {
-        alias /home/git/apps/web/<app>/.next/static/;
-        expires max;
-        add_header Cache-Control "public, max-age=31536000, immutable";
-        access_log off;
-    }
-
     location / {
-        proxy_pass http://app_name;
+        proxy_pass http://127.0.0.1:<port>;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_buffering off;
+        proxy_cache_bypass $http_upgrade;
     }
 }
 ```
+
+> **Nested-static gotcha.** A monorepo sub-project builds with
+> `outputFileTracingRoot` pointing at the repo root, so standalone is nested and
+> static lands at `…/<app>/<source>/.next/static` (e.g.
+> `…/<app>/apps/web/.next/static`), **not** `…/<app>/.next/static`. The
+> classic disk alias —
+> `location /_next/static/ { alias /home/git/apps/web/<app>/.next/static/; }` —
+> therefore 404s every JS/CSS chunk while HTML still renders ("page loads, no
+> styles"). Proxy-everything avoids this entirely. If you insist on a disk alias
+> for cache headers, point it at the nested path:
+> `alias /home/git/apps/web/<app>/<source>/.next/static/;`.
+> Flat single-repo builds (`source = "."`) keep static at `…/<app>/.next/static`,
+> so an alias there is correct — but proxy-everything is the uniform choice.
 
 **Vite SPA / static apps** use direct file serving:
 
@@ -359,7 +382,7 @@ steps:
   - name: Upload
     run: |
       cd frontend/splitfire-web
-      rsync -az --delete --mkpath .next/standalone/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/
+      rsync -az --delete --copy-links --mkpath .next/standalone/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/
       rsync -az --delete --mkpath .next/static/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/.next/static/
       rsync -az --delete --mkpath public/ $GIT_USER@$GIT_HOST:$REMOTE_PATH/public/
 
@@ -368,8 +391,14 @@ steps:
       ssh $GIT_USER@$GIT_HOST bash << 'EOF'
         set -e
         cd ~/apps/web/splitfireweb
+        mkdir -p logs
         if pm2 describe "splitfire-web" > /dev/null 2>&1; then
-          pm2 restart "splitfire-web" --update-env
+          pm2 delete "splitfire-web"
+        fi
+        if [ -f ecosystem.config.cjs ]; then
+          pm2 start ecosystem.config.cjs --only "splitfire-web" --env production
+        elif [ -f ecosystem.config.js ]; then
+          pm2 start ecosystem.config.js --only "splitfire-web" --env production
         else
           PORT=3010 HOSTNAME=127.0.0.1 pm2 start node --name "splitfire-web" -- server.js
         fi
@@ -425,9 +454,24 @@ All CI rsync commands must include:
 - `--delete` — removes stale files on the remote (prevents serving old assets)
 - `-az` — archive mode with compression
 
+For Next.js SSR standalone uploads, also include:
+
+- `--copy-links` on `.next/standalone/` — dereferences `pnpm` symlinked dependencies so the server does not end up with broken `node_modules` links
+
 ### CI PM2 restart
 
-The CI restart command must use `pm2 restart <app> --update-env` on subsequent deploys so environment variable changes from the ecosystem file are picked up. Without `--update-env`, PM2 keeps the environment from the original `pm2 start` invocation.
+Current CI and CLI parity should use delete + fresh start, not restart-in-place:
+
+- `pm2 delete <app>` if it exists
+- `pm2 start ecosystem.config.cjs --only <app> --env production` when the `.cjs` file exists (preferred)
+- fall back to `pm2 start ecosystem.config.js --only <app> --env production` if only the legacy `.js` file exists
+- otherwise fall back to `PORT=<port> HOSTNAME=127.0.0.1 pm2 start node --name <app> -- server.js`
+- `pm2 save`
+
+
+When a monorepo root `package.json` has `"type": "module"`, PM2 cannot load a `.js` ecosystem config because Node treats it as ESM. The CLI auto-migrates `.js` → `.cjs` on the server during deploy and checks `.cjs` first when starting PM2.
+
+This matches the standalone Next.js deploy model and avoids stale PM2 command state from older deploy methods.
 
 ## Deployment tracking
 
@@ -436,6 +480,11 @@ Every deploy records status in the smbCloud API regardless of strategy:
 1. `POST /deployments` with `status: Started` before transferring files
 2. `PATCH /deployments/:id` with `status: Done` on success
 3. `PATCH /deployments/:id` with `status: Failed` on failure
+
+Current tracking model in the CLI:
+
+- requests still route through the umbrella workspace `id`
+- when `frontend_app_id` is present in the deploy target config, the payload also carries it so the API can attribute the deploy to the correct app inside the repo or monorepo
 
 For non-git deploys (rsync, nextjs-ssr, vite-spa), the `commit_hash` field is a UTC timestamp (`20250920T163305Z`) since there is no git commit on the deploy path.
 
@@ -468,6 +517,14 @@ To convert a standalone repo into a monorepo sub-project:
 3. Set `source` to the sub-directory path
 4. Adjust `path` if the remote directory structure differs
 
+> **Deploy from the sub-project, not the leftover standalone repo.** Once an app
+> has been folded into a monorepo (`apps/<name>`), that copy is the source of
+> truth — deploy it with `smb deploy -p <name>`. If the old standalone repo
+> still exists on disk it is easy to build and deploy from there by accident,
+> which silently diverges from what the monorepo would ship. Archive the old
+> repo. Note this also flips the build from flat to nested standalone, so the
+> nginx `/_next/static` handling may need the nested-path / proxy-everything fix.
+
 ## Debugging monorepo deploys
 
 ### "No [[projects]] entries found"
@@ -490,13 +547,39 @@ The `source` field is incorrect. It must be relative to the monorepo root where 
 
 Two `nextjs-ssr` apps have the same `port` value. PM2 will start both, but only one will bind the port. Check `pm2 list` and compare ports across all `.smb/config.toml` files that target the same server.
 
-### Stale assets after deploy
+### Stale assets after deploy / `/_next/static` 404s
 
-The Nginx `alias` directive for `/_next/static/` or the `root` for a Vite SPA points to the wrong directory or a stale deploy path. Verify the Nginx config matches the `path` field in `.smb/config.toml`.
+The Nginx `alias` for `/_next/static/` (or the Vite SPA `root`) points at the
+wrong directory. For a nested monorepo standalone build the assets live at
+`<path>/<source>/.next/static`, not `<path>/.next/static` — see the nested-static
+gotcha under "Nginx configuration per app type". Either proxy `/_next/static` to
+the Node process or fix the alias to the nested path. Confirm with
+`curl -sI https://<domain>/_next/static/...` (want 200).
+
+### `rsync of '.next/standalone/' failed (status 23)`
+
+`smb deploy` aborts at the standalone upload with empty stderr; running rsync by
+hand shows `IO error encountered -- skipping file deletion`. Cause: Next.js
+standalone leaves a dangling pnpm symlink (e.g.
+`node_modules/.pnpm/node_modules/semver -> ../semver@6.3.1/...` when only
+`semver@7.x` was traced) and the CLI's `rsync --copy-links` errors trying to
+follow it. Fix: after `next build`, before rsync, run
+`find .next/standalone/ -type l ! -exec test -e {} \; -delete`. Proper fix is in
+the CLI (prune dangling links before the standalone rsync). See the nextjs skill.
+
+### `Cannot find module 'next'` after Next.js SSR deploy
+
+The remote app directory still contains broken `pnpm` symlinks from `.next/standalone/`, or the standalone output itself is missing traced runtime files. Use the current CLI or CI flow with `rsync --copy-links` for the standalone upload, verify `node .next/standalone/server.js` works locally, then redeploy and inspect `/home/git/apps/web/<app>/node_modules/next` on the server.
 
 ### PM2 not picking up new environment variables
 
-Use `pm2 restart <app> --update-env && pm2 save`. Without `--update-env`, PM2 reuses the environment from the original start.
+Current CLI parity is delete + fresh start. Check these in order:
+
+1. the server's `ecosystem.config.cjs` (or legacy `.js`) was edited, not just the repo copy
+2. the deploy script is actually starting from `ecosystem.config.cjs` — if only a `.js` file exists and `"type": "module"` is set in `package.json`, PM2 will fail; rename to `.cjs`
+3. `pm2 save` ran after the fresh start
+
+If you are changing env manually outside the deploy flow, `pm2 restart <app> --update-env && pm2 save` is still a valid operator command.
 
 ## Validation
 
@@ -528,7 +611,10 @@ Use `pm2 restart <app> --update-env && pm2 save`. Without `--update-env`, PM2 re
 - using `kind = "nextjs-ssr"` on a project without `output: "standalone"` in its Next.js config
 - running `smb deploy` from a subdirectory instead of the monorepo root — `source` paths will not resolve
 - forgetting `--mkpath` on rsync in CI workflows — first deploys fail because the remote directory does not exist
+- forgetting `--copy-links` on `.next/standalone/` uploads — the server receives broken `pnpm` symlinks and PM2 crashes with `Cannot find module 'next'`
 - keeping stale Nginx configs pointing at old deploy paths after migrating to a new directory structure
 - mixing up `path` (remote destination) and `source` (local directory) — they serve different purposes
-- using `pm2 restart` without `--update-env` after changing ecosystem file variables
+- treating the root workspace id as the deployable app id
+- forgetting to add `frontend_app_id` on `[[projects]]` entries once the API exposes it
+- using `pm2 restart` without `--update-env` after changing ecosystem file variables in older restart-in-place workflows
 - assuming the CLI generates Nginx configs — it does not; Nginx is always configured manually on the server

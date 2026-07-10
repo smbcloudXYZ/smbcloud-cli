@@ -3,6 +3,10 @@ name: SDK PyPI Release
 # Publishes smbcloud-sdk-auth (sdk/python) to PyPI.
 # Triggered by the crates release workflow when wrapped Rust crates change,
 # or manually via workflow_dispatch.
+#
+# Windows arm64 wheels are intentionally not built here. GitHub's hosted
+# Windows runners provide x64 Python, and maturin refuses to build an arm64
+# wheel when the interpreter reports win-amd64.
 
 on:
   workflow_dispatch:
@@ -43,11 +47,6 @@ jobs:
               NAME: win32-x64-msvc,
               OS: windows-2022,
               TARGET: x86_64-pc-windows-msvc,
-            }
-          - {
-              NAME: win32-arm64-msvc,
-              OS: windows-2022,
-              TARGET: aarch64-pc-windows-msvc,
             }
           - {
               NAME: darwin-x64,
@@ -120,6 +119,10 @@ jobs:
 
       # manylinux containers are CentOS-based and use yum; perl-core is required
       # by the openssl-sys vendored build to compile OpenSSL from source.
+      - name: Clean dist directory
+        shell: bash
+        run: rm -rf sdk/python/dist
+
       - name: Build wheel
         uses: PyO3/maturin-action@v1
         with:
@@ -172,6 +175,9 @@ jobs:
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Clean dist directory
+        run: rm -rf sdk/python/dist
 
       - name: Build sdist
         uses: PyO3/maturin-action@v1

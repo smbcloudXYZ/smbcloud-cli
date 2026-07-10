@@ -1,0 +1,21 @@
+[package]
+name = "smbcloud-deploy"
+version = "0.4.8"
+edition = "2021"
+authors = ["keypair34 <216233964+keypair34@users.noreply.github.com>, Seto Elkahfi <hej@setoelkahfi.se>"]
+description = "smbCloud build and deploy engine: UI-agnostic, reusable by the CLI, CI, and the server-side git receiver."
+license = "Apache-2.0"
+homepage = "https://smbcloud.xyz"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://docs.rs/smbcloud-deploy"
+readme = "README.md"
+keywords = ["deploy", "cloud", "smbcloud", "rsync", "ci"]
+categories = ["development-tools", "development-tools::build-utils"]
+
+[dependencies]
+anyhow = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+smbcloud-model = { workspace = true }
+smbcloud-utils = { workspace = true }

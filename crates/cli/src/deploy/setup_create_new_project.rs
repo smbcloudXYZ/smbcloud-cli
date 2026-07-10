@@ -1,5 +1,10 @@
 use {
-    crate::{client, token::get_smb_token::get_smb_token},
+    crate::{
+        ci::{interactive_message, is_ci},
+        client,
+        project::deploy_target::ensure_default_frontend_app_for_project,
+        token::get_smb_token::get_smb_token,
+    },
     dialoguer::{console::Term, theme::ColorfulTheme, Input, Select},
     regex::Regex,
     smbcloud_model::{
@@ -16,6 +21,14 @@ pub(crate) async fn create_new_project(
     env: Environment,
     path: &str,
 ) -> Result<Project, ErrorResponse> {
+    // Creating a project prompts for name, repository, description, and runner.
+    if is_ci() {
+        return Err(ErrorResponse::Error {
+            error_code: ErrorCode::InputError,
+            message: interactive_message("Creating a new project"),
+        });
+    }
+
     let default_name = Path::new(path)
         .file_name()
         .and_then(|os_str| os_str.to_str())
@@ -98,21 +111,15 @@ pub(crate) async fn create_new_project(
         }
     };
 
-    match create_project(
+    let project = create_project(
         env,
         client(),
-        access_token,
-        ProjectCreate {
-            name,
-            runner,
-            repository,
-            description,
-            deployment_method: Default::default(),
-        },
+        access_token.clone(),
+        ProjectCreate { name, description },
     )
-    .await
-    {
-        Ok(project) => Ok(project),
-        Err(e) => Err(e),
-    }
+    .await?;
+
+    ensure_default_frontend_app_for_project(env, &access_token, &project, runner, Some(repository))
+        .await?;
+    Ok(project)
 }

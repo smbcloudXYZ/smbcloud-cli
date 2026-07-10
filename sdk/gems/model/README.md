@@ -1,10 +1,10 @@
 # smbcloud-model Gem
 
-Ruby Gem version of `smbcloud-model`.
+Ruby package for `smbcloud-model`.
 
-[Docs](./docs/gems.md).
+See [docs/gems.md](./docs/gems.md).
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For the wider SDK context, visit the [smbCloud developer docs](https://smbcloud.xyz/posts).
 
 ## License
 
@@ -12,4 +12,4 @@ MIT
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).

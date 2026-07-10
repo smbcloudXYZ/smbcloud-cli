@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    smbcloud-model (0.3.41)
+    smbcloud-model (0.4.8)
       rb_sys (~> 0.9.91)
 
 GEM
@@ -24,4 +24,4 @@ DEPENDENCIES
   smbcloud-model!
 
 BUNDLED WITH
-   2.6.2
+  4.0.10

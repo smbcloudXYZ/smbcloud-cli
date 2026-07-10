@@ -1,6 +1,6 @@
 # smbcloud-gresiq-sdk
 
-Rust client for the **smbCloud GresIQ** REST gateway. API-key authenticated app management and model assignment for [Onde Inference](https://ondeinference.com).
+Rust client for the smbCloud GresIQ REST gateway. It handles API-key authenticated app management and model assignment for [Onde Inference](https://ondeinference.com).
 
 ## What is GresIQ?
 
@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-## Onde Inference â app and model management
+## Onde Inference app and model management
 
 ```rust
 use smbcloud_gresiq_sdk::{
@@ -68,7 +68,7 @@ rename_app(&Environment::Production, APP_ID, APP_SECRET, &token, &app.id, "Renam
 | `OndeModel`         | Catalog model (id, name, family, format, approx size bytes)      |
 | `Environment`       | `Dev` or `Production`                                            |
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For the broader product, see [smbCloud](https://smbcloud.xyz/) and related [platform docs](https://smbcloud.xyz/posts).
 
 ## License
 
@@ -76,4 +76,4 @@ Apache-2.0
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).

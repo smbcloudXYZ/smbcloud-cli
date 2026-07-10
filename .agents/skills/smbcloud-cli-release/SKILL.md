@@ -19,13 +19,89 @@ Use this skill when work touches any part of the smbCloud CLI distribution flow:
 Use these files as the release source of truth:
 
 - Rust crate version and binary name: `crates/cli/Cargo.toml`
+- Workspace crate dependency versions: `Cargo.toml` under `[workspace.dependencies]`
+- SDK WASM crate version: `crates/smbcloud-auth-sdk-wasm/Cargo.toml`
+- SDK npm package version: `sdk/npm/smbcloud-auth/package.json`
+- SDK npm build script: `sdk/npm/smbcloud-auth/prepare-package.mjs`
 - npm release workflow: `.github/workflows/release-npm.yml`
 - PyPI release workflow: `.github/workflows/release-pypi.yml`
 - npm platform package generator: `npm/scripts/render-platform-package.cjs`
 - npm wrapper package generator: `npm/scripts/render-main-package.cjs`
 - npm wrapper launcher: `npm/smbcloud-cli/src/index.ts`
+- npm wrapper committed package metadata: `npm/smbcloud-cli/package.json`
+- npm wrapper committed lockfile: `npm/smbcloud-cli/package-lock.json`
 - PyPI package metadata: `pypi/pyproject.toml`
 - PyPI package README: `pypi/README.md`
+- SDK PyPI package metadata: `sdk/python/pyproject.toml`
+- SDK Ruby gem auth version: `sdk/gems/auth/lib/auth/version.rb`
+- SDK Ruby gem auth native extension: `sdk/gems/auth/ext/auth/Cargo.toml`
+- SDK Ruby gem model version: `sdk/gems/model/lib/model/version.rb`
+- SDK Ruby gem model native extension: `sdk/gems/model/ext/model/Cargo.toml`
+
+## Version sync rules
+
+The SDK npm package `@smbcloud/sdk-auth` must have its version in `sdk/npm/smbcloud-auth/package.json` match the version in `crates/smbcloud-auth-sdk-wasm/Cargo.toml` exactly. The `prepare-package.mjs` script enforces this at build time and will fail CI if they diverge.
+
+When bumping workspace crate versions for a release, also update the version constraints in the root `Cargo.toml` under `[workspace.dependencies]` so every `smbcloud-*` path dependency points at the same release version.
+
+When bumping workspace crate versions for a release, always update `sdk/npm/smbcloud-auth/package.json` in the same commit.
+
+The npm wrapper package is generated, but its checked-in files still need to match the release version before tagging:
+
+- rerender `npm/smbcloud-cli/package.json` with `node ../scripts/render-main-package.cjs ./package.json <version>`
+- refresh `npm/smbcloud-cli/package-lock.json` with `npm install`
+- commit both files so CI and local packaging agree on the wrapper version and optional dependency versions
+
+The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`):
+
+- `lib/<gem>/version.rb` — the gem version constant
+- `ext/<gem>/Cargo.toml` — the native extension crate version AND the `smbcloud-*` dependency version constraints (e.g. `"0.3"` → `"0.4"`)
+- Regenerate `Cargo.lock` with `cargo generate-lockfile` and `Gemfile.lock` with `bundle lock` inside the gem directory
+
+## Release branch convention
+
+Every release is prepared on a dedicated branch named **`release/v<version>`**, branched
+off `development`. Never prepare a release directly on `development`, and never tag a
+release on the `release/*` (or any feature) branch.
+
+Reasoning:
+
+- The release-prep commits (version bump, lockfiles, generated metadata) can be reviewed
+  and run through CI in isolation before they touch the mainline.
+- The release commit history stays clean and linear on the default branch.
+- `cargo workspaces publish --allow-branch "*"` accepts any branch, but downstream
+  workflows dispatch from the tag ref, so the tagged commit must contain all intended changes.
+- Tagging on a feature branch leaves `development` without the release commit and makes git
+  history confusing.
+
+Workflow:
+
+1. Branch off an up-to-date `development`: `git checkout development && git pull && git checkout -b release/v<version>`.
+2. Prepare the release on that branch — `make patch|minor|major|custom VERSION=<version>`
+   (see the version-sync rules above; `make` commits `Release <version>` on the branch).
+3. Push the branch and let CI run: `git push origin release/v<version>`.
+4. **Only when CI is green**, merge into `development` with `--no-ff`:
+   `git checkout development && git merge --no-ff release/v<version>`.
+5. Delete the release branch (local and remote):
+   `git branch -d release/v<version> && git push origin --delete release/v<version>`.
+6. Tag on `development`: `git tag v<version>`.
+7. Push both: `git push origin development && git push origin v<version>` — the tag push
+   triggers `release-crate.yml` and the full publish chain.
+
+If a tag was placed on the wrong commit (e.g. before a last-minute fix), move it:
+
+1. Merge the fix into `development`.
+2. Recreate the annotated tag on the correct commit: `git tag -fa v<version> -m "v<version>"`.
+3. Force-push the tag: `git push origin v<version> --force`.
+
+When verifying the remote tag, remember that annotated tags have two refs. `git ls-remote --tags origin refs/tags/v<version>*` should show:
+
+- `refs/tags/v<version>` — the tag object
+- `refs/tags/v<version>^{}` — the peeled commit
+
+The peeled `^{}` ref is the one that must match the intended release commit.
+
+The `release-crate.yml` orchestrator triggers on `push.tags: "v*.*.*"`, so the force-push will re-trigger the full release chain.
 
 ## Release model
 
@@ -65,6 +141,7 @@ It is built from `pypi/pyproject.toml` with `maturin` and `bindings = "bin"`, so
 1. Confirm npm auth with `npm whoami`.
 2. Confirm the crate version in `crates/cli/Cargo.toml`.
 3. Use the same version string for every npm package in that release.
+4. Rerender `npm/smbcloud-cli/package.json` and refresh `npm/smbcloud-cli/package-lock.json` before tagging if the wrapper version changed.
 
 ### Build platform binaries
 

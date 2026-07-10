@@ -81,7 +81,7 @@ The current bootstrap focuses on connection modeling and operational correctness
 - metrics, query insights, and tenant-aware usage controls
 - adapters for smbCloud CLI, Tauri, wasm, npm, and native SDKs
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More platform context is on the [smbCloud website](https://smbcloud.xyz/).
 
 ## License
 
@@ -89,4 +89,4 @@ Apache-2.0
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).

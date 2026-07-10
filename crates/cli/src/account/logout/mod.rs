@@ -3,10 +3,9 @@ use {
         cli::CommandResult,
         client,
         token::{get_smb_token::get_smb_token, smb_token_file_path::smb_token_file_path},
-        ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
+        ui::{fail_message, fail_symbol, prompt, succeed_message, succeed_symbol},
     },
     anyhow::{anyhow, Result},
-    dialoguer::{theme::ColorfulTheme, Confirm},
     smbcloud_auth::logout::logout,
     smbcloud_network::environment::Environment,
     spinners::Spinner,
@@ -15,16 +14,9 @@ use {
 
 pub async fn process_logout(env: Environment) -> Result<CommandResult> {
     if let Some(token_path) = smb_token_file_path(env) {
-        let confirm = match Confirm::with_theme(&ColorfulTheme::default())
-            .with_prompt("Do you want to logout? y/n")
-            .interact()
-        {
-            Ok(confirm) => confirm,
-            Err(_) => {
-                let error = anyhow!("Invalid input.");
-                return Err(error);
-            }
-        };
+        // In --ci mode this defaults to "yes": running `smb --ci logout` is an
+        // explicit request, so proceed without prompting.
+        let confirm = prompt::confirm("Do you want to logout? y/n", true)?;
         if !confirm {
             return Ok(CommandResult {
                 spinner: Spinner::new(

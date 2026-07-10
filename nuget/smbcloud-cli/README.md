@@ -1,6 +1,6 @@
 # smbCloud CLI for .NET
 
-`smb` is the official command-line interface for [smbCloud](https://smbcloud.xyz/).
+`smb` is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 
 ## Install
 
@@ -34,7 +34,7 @@ This .NET tool bundles native `smb` binaries for:
 
 - npm: `npm install -g @smbcloud/cli`
 - pip: `pip install smbcloud-cli`
-- Homebrew: `brew tap smbcloudXYZ/tap && brew install cli`
+- Homebrew: `brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap && brew install cli`
 - GitHub Releases: <https://github.com/smbcloudXYZ/smbcloud-cli/releases>
 
 ## Source
@@ -43,7 +43,7 @@ This .NET tool bundles native `smb` binaries for:
 - Documentation: <https://smbcloud.xyz/posts>
 - Issues: <https://github.com/smbcloudXYZ/smbcloud-cli/issues>
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+More about the product is on the [smbCloud website](https://smbcloud.xyz/).
 
 ## License
 
@@ -51,4 +51,4 @@ Apache-2.0
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).

@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-cli"
-version = "0.3.41"
+version = "0.4.8"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "smbCloud command line interface."
@@ -44,6 +44,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_repr = { workspace = true }
 smbcloud-auth = { workspace = true }
+smbcloud-deploy = { workspace = true }
 smbcloud-mail = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }

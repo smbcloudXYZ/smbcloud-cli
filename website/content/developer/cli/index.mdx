@@ -1,0 +1,50 @@
+---
+asIndexPage: true
+title: CLI
+---
+
+# CLI
+
+`smb` is the smbCloud command-line tool. You use it to log in and to manage and
+deploy your smbCloud resources from the terminal.
+
+```text
+Usage: smb [OPTIONS] <COMMAND>
+
+Commands:
+  login  Login to your account. To create an account, visit https://smbcloud.xyz
+  help   Print this message or the help of the given subcommand(s)
+
+Options:
+  -l, --log-level <LOG_LEVEL>  Log level: trace, debug, info, warn, error, off
+  -h, --help                   Print help
+  -V, --version                Print version
+```
+
+## Install
+
+Pick the channel that fits your setup — each one installs the same `smb` binary.
+
+| Channel | Best for | Guide |
+| --- | --- | --- |
+| Native (Cargo) | Rust users, building from source | [Native](/developer/cli/native) |
+| Homebrew | macOS / Linux, pre-built binary | [Homebrew](/developer/cli/homebrew) |
+| npm | JS toolchains (npm, pnpm, bun, yarn) | [npm](/developer/cli/npm) |
+| PyPI | Python toolchains (uv, pip) | [PyPI](/developer/cli/pypi) |
+
+After installing, check it worked:
+
+```bash
+smb --version
+```
+
+You can also download a binary for any release directly from the
+[GitHub releases page](https://github.com/smbcloudXYZ/smbcloud-cli/releases).
+
+import { Callout } from 'nextra/components'
+
+<Callout type="info">
+  The install and contributing pages in this section are synced from the
+  [smbcloud-cli](https://github.com/smbcloudXYZ/smbcloud-cli) repository. Edit
+  them there.
+</Callout>

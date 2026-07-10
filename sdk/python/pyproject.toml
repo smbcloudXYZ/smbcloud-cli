@@ -8,13 +8,13 @@ description = "Python Auth SDK for smbCloud, built from Rust."
 readme = "README.md"
 requires-python = ">=3.8"
 dynamic = ["version"]
-license = { text = "Apache-2.0" }
+license = { file = "LICENSE" }
 authors = [{ name = "Seto Elkahfi", email = "hej@setoelkahfi.se" }]
 keywords = ["smbcloud", "auth", "sdk", "python", "rust"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: MIT License",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",

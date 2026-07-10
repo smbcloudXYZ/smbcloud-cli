@@ -1,12 +1,13 @@
 use smbcloud_networking::smb_client::SmbClient;
 
 pub mod account;
+pub mod ci;
 pub mod cli;
 pub mod deploy;
 pub mod mail;
 pub mod project;
 mod token;
-mod ui;
+pub mod ui;
 
 pub use token::clear_smb_token::clear_smb_token;
 

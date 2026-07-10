@@ -28,6 +28,12 @@ pub struct Cli {
     #[clap(short, long, global = true)]
     pub log_level: Option<String>,
 
+    /// Non-interactive mode for CI/automation: disable prompts. Confirmations
+    /// use their default; prompts that need real input fail fast instead of
+    /// blocking. Also enabled by SMB_CI=1 or the conventional CI env var.
+    #[arg(long, global = true, env = "SMB_CI")]
+    pub ci: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }
@@ -70,4 +76,9 @@ pub enum Commands {
         #[clap(subcommand)]
         command: mail::cli::Commands,
     },
+    #[clap(
+        about = "Migrate local .smb/config.toml deploy fields to the smbCloud server.",
+        display_order = 4
+    )]
+    Migrate {},
 }

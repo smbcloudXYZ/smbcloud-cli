@@ -4,6 +4,7 @@ use {
             lib::{authorize_github, store_token},
             signup::{do_signup, signup_with_email, SignupMethod},
         },
+        ci::{interactive_message, is_ci},
         cli::CommandResult,
         client,
         token::is_logged_in::is_logged_in as is_logged_in_async,
@@ -23,8 +24,9 @@ use {
     smbcloud_model::{
         account::{
             ErrorCode::{
-                self as AccountErrorCode, EmailNotFound, EmailUnverified, GithubNotLinked,
-                PasswordNotSet,
+                self as AccountErrorCode, EmailAlreadyExist, EmailConfirmationFailed,
+                EmailNotFound, EmailUnverified, GithubNotLinked, HostedMailAccountUnverified,
+                InvalidPassword, PasswordNotSet,
             },
             GithubInfo, SmbAuthorization, User,
         },
@@ -38,6 +40,12 @@ use {
 };
 
 pub async fn process_login(env: Environment, is_logged_in: Option<bool>) -> Result<CommandResult> {
+    // Login is an interactive flow (provider choice, credentials, OAuth). In CI
+    // the token must be provisioned ahead of time at ~/.smb/token.
+    if is_ci() {
+        return Err(anyhow!(fail_message(&interactive_message("Login"))));
+    }
+
     let should_continue = match is_logged_in {
         Some(is_logged_id) => !is_logged_id,
         None => {
@@ -100,6 +108,13 @@ async fn process_authorization(env: Environment, auth: SmbAuthorization) -> Resu
                 return Err(error);
             }
             GithubNotLinked => return connect_github_account(env, auth).await,
+            EmailConfirmationFailed
+            | EmailAlreadyExist
+            | InvalidPassword
+            | HostedMailAccountUnverified => {
+                let error = anyhow!(error_code.to_string());
+                return Err(error);
+            }
         }
     }
 

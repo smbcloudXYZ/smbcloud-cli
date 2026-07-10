@@ -22,12 +22,75 @@ use {
     tempfile::NamedTempFile,
 };
 
+/// Recursively delete symlinks under `root` whose target does not exist,
+/// returning the number removed.
+///
+/// Next.js standalone output on pnpm can contain compat symlinks pointing at a
+/// package version that was never traced into the bundle — e.g.
+/// `node_modules/.pnpm/node_modules/semver -> ../semver@6.3.1/node_modules/semver`
+/// while only `semver@7.x` is actually written. The link's target is missing,
+/// so it dangles. We upload `.next/standalone/` with `rsync --copy-links`, which
+/// follows every symlink; a dangling one is an IO error → rsync exits 23 and
+/// aborts. The dangling package is not part of the traced runtime, so dropping
+/// the link is safe. See the `smbcloud-deploy-nextjs` skill for the write-up.
+///
+/// Real (non-symlink) directories are traversed; a symlinked directory is
+/// treated as a leaf and never followed, which also avoids symlink cycles. This
+/// relies on pnpm's layout, where every package directory is a real directory
+/// reachable directly in the walk (symlinks only ever point *into* it): a
+/// dangling link nested under a real dir is always visited and pruned. A
+/// dangling link reachable *only* through a valid directory symlink would be
+/// skipped, but rsync would follow the same valid link and hit it — that shape
+/// does not occur in standalone output.
+fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
+    let meta = std::fs::symlink_metadata(root)?;
+
+    if meta.file_type().is_symlink() {
+        // A symlink at the walk root: drop it only if it dangles, never follow.
+        // `try_exists` follows the link and reports Ok(false) only when the
+        // target is genuinely absent; a real IO error propagates instead of
+        // being misread as "dangling".
+        if !root.try_exists()? {
+            std::fs::remove_file(root)?;
+            return Ok(1);
+        }
+        return Ok(0);
+    }
+
+    if !meta.is_dir() {
+        return Ok(0);
+    }
+
+    let mut removed = 0;
+    for entry in std::fs::read_dir(root)? {
+        let entry = entry?;
+        // `read_dir` file types do not follow symlinks: a link reports as a
+        // symlink here, and only real directories report as directories.
+        let file_type = entry.file_type()?;
+        let path = entry.path();
+
+        if file_type.is_symlink() {
+            // `try_exists` follows the link; Ok(false) means the target is
+            // missing (dangling). An IO error propagates rather than deleting a
+            // link we merely failed to stat.
+            if !path.try_exists()? {
+                std::fs::remove_file(&path)?;
+                removed += 1;
+            }
+        } else if file_type.is_dir() {
+            removed += prune_dangling_symlinks(&path)?;
+        }
+    }
+
+    Ok(removed)
+}
+
 /// Deploys a Next.js SSR app using standalone output mode.
 ///
 /// Requires `output: 'standalone'` in next.config.js. This produces a
 /// self-contained `.next/standalone/` directory that includes only the
 /// production Node.js dependencies needed to run the server — no
-/// `node_modules` transfer required.
+/// project-level `node_modules` upload required.
 ///
 /// Steps:
 ///   1. `pnpm install --ignore-scripts`
@@ -36,7 +99,7 @@ use {
 ///   4. rsync .next/standalone/  → server:path/          (server + bundled deps)
 ///   5. rsync .next/static/      → server:path/.next/static/  (static chunks)
 ///   6. rsync public/            → server:path/public/   (public assets)
-///   7. SSH: pm2 restart/start `node server.js`
+///   7. SSH: pm2 delete + start fresh (prefer server `ecosystem.config.cjs` or `.js` if present)
 ///   8. PATCH deployment record as Done
 pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Result<CommandResult> {
     let source = config.project.source.as_deref().unwrap_or(".");
@@ -146,10 +209,44 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     // succeeds but .next/standalone/ is never created.
 
     let standalone_dir = format!("{}/.next/standalone", source);
-    if !std::path::Path::new(&standalone_dir).exists() {
+    let standalone_path = std::path::Path::new(&standalone_dir);
+    if !standalone_path.exists() {
         return Err(anyhow!(fail_message(
             ".next/standalone not found. Add `output: 'standalone'` to next.config.js and rebuild."
         )));
+    }
+
+    let runtime_subdir = if source != "." && standalone_path.join(source).join("server.js").exists()
+    {
+        Some(source.trim_end_matches('/').to_owned())
+    } else {
+        None
+    };
+
+    // ── Step 3b: prune dangling symlinks from the standalone tree ─────────────
+    //
+    // The standalone upload uses `rsync --copy-links` (see the Transfer for
+    // `.next/standalone/`), which follows every symlink. pnpm can leave compat
+    // symlinks whose target was never traced into the bundle; following one is
+    // an IO error that makes rsync exit 23 and abort the whole deploy. Drop them
+    // now — after the build, before upload — since they are not runtime files.
+    match prune_dangling_symlinks(standalone_path) {
+        Ok(0) => {}
+        Ok(n) => println!(
+            "{} {}",
+            succeed_symbol(),
+            succeed_message(&format!(
+                "Pruned {} dangling symlink{} from .next/standalone before upload.",
+                n,
+                if n == 1 { "" } else { "s" }
+            ))
+        ),
+        Err(e) => {
+            return Err(anyhow!(fail_message(&format!(
+                "Failed to prune dangling symlinks from .next/standalone: {}",
+                e
+            ))));
+        }
     }
 
     // ── Step 4: record deployment as Started ─────────────────────────────────
@@ -164,6 +261,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         DeploymentPayload {
             commit_hash: deploy_ref.clone(),
             status: DeploymentStatus::Started,
+            frontend_app_id: config.project.frontend_app_id.clone(),
         },
     )
     .await
@@ -173,7 +271,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     //
     // Standalone mode produces everything needed to run the server:
     //
-    //   .next/standalone/  — server.js + bundled production deps (no node_modules needed)
+    //   .next/standalone/  — server.js + bundled production deps (no project node_modules upload)
     //   .next/static/      — client-side chunks (must be copied into standalone manually)
     //   public/            — static assets served directly by Next.js
     //
@@ -214,16 +312,87 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         }
     );
 
+    struct Transfer {
+        local_rel: &'static str,
+        remote_rel: String,
+        protect_runtime_files: bool,
+        copy_links: bool,
+    }
+
+    let runtime_prefix = runtime_subdir
+        .as_ref()
+        .map(|path| format!("{}/", path))
+        .unwrap_or_default();
+
+    // Next.js copies the project's .env* files into .next/standalone/, so an
+    // unfiltered upload would ship the developer's local (often development)
+    // env straight into the production runtime directory — and `--delete`
+    // would remove any operator-managed .env on the server. Env files are
+    // excluded on both sides: local ones never upload, server ones survive
+    // (rsync does not delete excluded destination files without
+    // --delete-excluded). Runtime env is server-managed — ecosystem config or
+    // a server-side .env. Anchored to the app roots so bundled node_modules
+    // content is not affected.
+    let env_file_excludes: Vec<String> = {
+        let mut patterns = vec!["/.env*".to_string()];
+        if !runtime_prefix.is_empty() {
+            patterns.push(format!("/{}.env*", runtime_prefix));
+        }
+        patterns
+    };
+
+    let local_env_file = [
+        format!("{}/.env", standalone_dir),
+        format!("{}/{}.env", standalone_dir, runtime_prefix),
+    ]
+    .iter()
+    .any(|path| std::path::Path::new(path).exists());
+    if local_env_file {
+        println!(
+            "{} {}",
+            succeed_symbol(),
+            succeed_message(
+                "Local .env* files found in the standalone build — not uploaded. \
+                 Runtime env comes from the server (ecosystem config or server-side .env).",
+            )
+        );
+    }
+
     // (local_source, remote_destination)
     // .next/standalone contents go to the root of remote_path.
-    // .next/static and public go into their correct subdirectories within it.
-    let transfers: &[(&str, &str)] = &[
-        // standalone contents → remote root (server.js lives here)
-        (".next/standalone/", ""),
-        // static chunks → .next/static/ inside the standalone tree
-        (".next/static/", ".next/static/"),
-        // public assets → public/ inside the standalone tree
-        ("public/", "public/"),
+    // .next/static and public go into the runtime directory that contains
+    // server.js. When outputFileTracingRoot points above the app directory,
+    // Next preserves the source path inside `.next/standalone/`.
+    let transfers = vec![
+        // standalone contents → remote root
+        Transfer {
+            local_rel: ".next/standalone/",
+            remote_rel: String::new(),
+            // pnpm leaves symlinked package entries in standalone output. The
+            // server only receives this tree, so those symlinks must be
+            // dereferenced during upload. Dangling links (targets never traced
+            // into the bundle) are pruned in step 3b so this does not exit 23.
+            copy_links: true,
+            // The server copy of ecosystem.config.cjs (or .js) is operator-managed
+            // runtime config and must survive deploys. Without this protection,
+            // rsync `--delete` removes it because it does not exist in
+            // .next/standalone/.
+            protect_runtime_files: true,
+        },
+        // static chunks → runtime/.next/static/
+        Transfer {
+            local_rel: ".next/static/",
+            remote_rel: format!("{}.next/static/", runtime_prefix),
+            protect_runtime_files: false,
+            copy_links: false,
+        },
+        // public assets → runtime/public/
+        Transfer {
+            local_rel: "public/",
+            remote_rel: format!("{}public/", runtime_prefix),
+            protect_runtime_files: false,
+            copy_links: false,
+        },
     ];
 
     let mut upload_spinner = Spinner::new(
@@ -231,24 +400,43 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         succeed_message(&format!("Uploading to {}…", remote_path)),
     );
 
-    for (local_rel, remote_rel) in transfers {
-        let local_path = format!("{}/{}", source, local_rel);
-        let destination = format!("{}{}", remote_base, remote_rel);
+    for transfer in transfers {
+        let local_path = format!("{}/{}", source, transfer.local_rel);
+        let destination = format!("{}{}", remote_base, transfer.remote_rel);
 
-        // Skip optional directories that the project does not have.
         if !std::path::Path::new(&local_path).exists() {
             continue;
         }
 
+        let mut rsync_args = vec!["-az".to_string(), "--delete".to_string()];
+
+        if transfer.copy_links {
+            rsync_args.push("--copy-links".to_string());
+        }
+
+        if transfer.protect_runtime_files {
+            rsync_args.extend([
+                "--exclude".to_string(),
+                "ecosystem.config.js".to_string(),
+                "--exclude".to_string(),
+                "ecosystem.config.cjs".to_string(),
+                "--exclude".to_string(),
+                "logs/".to_string(),
+            ]);
+            for pattern in &env_file_excludes {
+                rsync_args.extend(["--exclude".to_string(), pattern.clone()]);
+            }
+        }
+
+        rsync_args.extend([
+            "-e".to_string(),
+            ssh_command.clone(),
+            local_path.clone(),
+            destination,
+        ]);
+
         let output = Command::new("rsync")
-            .args([
-                "-az",
-                "--delete",
-                "-e",
-                &ssh_command,
-                &local_path,
-                &destination,
-            ])
+            .args(&rsync_args)
             .output()
             .map_err(|e| anyhow!(fail_message(&format!("Failed to launch rsync: {}", e))))?;
 
@@ -265,7 +453,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
             .await;
             return Err(anyhow!(fail_message(&format!(
                 "rsync of '{}' failed (status {}): {}",
-                local_rel,
+                transfer.local_rel,
                 output.status.code().unwrap_or(-1),
                 stderr.trim()
             ))));
@@ -279,44 +467,222 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
 
     // ── Step 8: SSH remote restart ───────────────────────────────────────────
     //
-    // Runs `node server.js` via pm2 inside the deployed standalone directory.
-    // PORT and HOSTNAME are set so Next.js binds correctly behind nginx.
+    // Runs the deployed app via pm2 inside the standalone directory.
     //
-    // We always delete the existing pm2 process (if any) and start fresh with
-    // `node server.js`. A bare `pm2 restart` would re-execute the *old* command
-    // (e.g. `next start --port XXXX` from a previous git-push deploy), which
-    // fails when the working directory now contains standalone output instead of
-    // the full Next.js build tree. Deleting first guarantees the entry point
-    // and environment are always correct.
+    // We always delete the existing pm2 process (if any) and start fresh. A
+    // bare `pm2 restart` would re-execute the old command (e.g. `next start
+    // --port XXXX` from a previous git-push deploy), which fails when the
+    // working directory now contains standalone output instead of the full
+    // Next.js build tree.
+    //
+    // If the server has an operator-managed ecosystem config (.cjs or .js),
+    // prefer it as the source of truth for runtime env and pm2 settings. Otherwise fall back
+    // to `node server.js` with the minimal inline env needed to bind the app.
     //
     // The port defaults to 3000 and can be overridden with `port = XXXX` in
     // .smb/config.toml — it must match the nginx upstream configuration.
 
     let port = config.project.port.unwrap_or(3000);
+    let runtime_subdir_for_shell = runtime_subdir.clone().unwrap_or_default();
+
+    // Build the ecosystem.config.cjs content from server-side pm2_env, if available.
+    // Injected into the deploy script and written only when no config file exists yet.
+    let ecosystem_config_content = {
+        let mut env_entries = format!(
+            r#"        NODE_ENV: "production",
+        PORT: {port},
+        HOSTNAME: "127.0.0.1",
+"#
+        );
+        if let Some(pm2_env) = &config.project.pm2_env {
+            for (key, value) in pm2_env {
+                // Skip keys already emitted above
+                if key == "NODE_ENV" || key == "PORT" || key == "HOSTNAME" {
+                    continue;
+                }
+                let val_str = match value {
+                    serde_json::Value::String(s) => {
+                        let escaped = s
+                            .replace('\\', "\\\\")
+                            .replace('"', "\\\"")
+                            .replace('\n', "\\n")
+                            .replace('\r', "\\r");
+                        format!(r#""{escaped}""#)
+                    }
+                    other => other.to_string(),
+                };
+                env_entries.push_str(&format!("        {key}: {val_str},\n"));
+            }
+        }
+        format!(
+            r#"module.exports = {{
+  apps: [
+    {{
+      name: "{pm2_app}",
+      script: "server.js",
+      cwd: "",  // filled at runtime via $APP_PATH
+      env_production: {{
+{env_entries}      }},
+    }},
+  ],
+}};
+"#
+        )
+    };
 
     let deploy_script = format!(
         r#"set -e
-APP_PATH="{remote_path}"
-PM2_APP="{pm2_app}"
+    APP_PATH="{remote_path}"
+    PM2_APP="{pm2_app}"
+    RUNTIME_SUBDIR="{runtime_subdir}"
 
-if [ ! -d "$APP_PATH" ]; then
-    echo "Error: $APP_PATH is not a directory."
-    exit 1
-fi
+    case "$APP_PATH" in
+        /*) ;;
+        *) APP_PATH="$HOME/$APP_PATH" ;;
+    esac
 
-cd "$APP_PATH"
+    if [ ! -d "$APP_PATH" ]; then
+        echo "Error: $APP_PATH is not a directory."
+        exit 1
+    fi
 
-echo "Starting $PM2_APP with pm2..."
-if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
-    pm2 delete "$PM2_APP"
-fi
-NODE_ENV=production PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
-pm2 save
-echo "Done."
-"#,
+    cd "$APP_PATH"
+    mkdir -p logs
+
+    # Migrate legacy ecosystem.config.js to .cjs so it works when
+    # package.json has "type": "module".
+    if [ -f ecosystem.config.js ] && [ ! -f ecosystem.config.cjs ]; then
+        mv ecosystem.config.js ecosystem.config.cjs
+    fi
+
+    # Write ecosystem.config.cjs from smbCloud server config if none exists yet.
+    if [ ! -f ecosystem.config.cjs ] && [ ! -f ecosystem.config.js ]; then
+        cat > ecosystem.config.cjs << 'ECOSYSTEM_EOF'
+{ecosystem_config}
+ECOSYSTEM_EOF
+        # Patch the cwd field to the actual runtime path
+        node --input-type=commonjs -e "
+          var fs = require('fs');
+          var src = fs.readFileSync('ecosystem.config.cjs', 'utf8');
+          src = src.replace('cwd: \"\"', 'cwd: \"' + process.argv[1] + '\"');
+          fs.writeFileSync('ecosystem.config.cjs', src);
+        " "$APP_PATH" 2>/dev/null || true
+    fi
+
+    # The monorepo root package.json may declare "type": "module", which
+    # Next.js copies into .next/standalone/. Standalone server.js and our
+    # shims use require() (CJS). Strip the field so Node treats .js as CJS.
+    if [ -f package.json ] && grep -q '"type"' package.json; then
+        node --input-type=commonjs -e "
+          var fs = require('fs');
+          var p = JSON.parse(fs.readFileSync('package.json','utf8'));
+          delete p.type;
+          fs.writeFileSync('package.json', JSON.stringify(p,null,2)+'\\n');
+        " 2>/dev/null || sed -i '"'"'"type".*"module"'"'d' package.json
+    fi
+
+    # pnpm standalone output buries peer deps inside node_modules/.pnpm/
+    # without the top-level symlinks Node needs for require.resolve().
+    # First mirror pnpm's own virtual node_modules directory when it exists —
+    # this preserves the exact version selection pnpm already resolved, which is
+    # especially important for scoped packages like @swc/helpers.
+    # Then fall back to scanning individual .pnpm store entries for anything the
+    # virtual directory did not expose.
+    if [ -d "node_modules/.pnpm/node_modules" ]; then
+        for pkg_path in node_modules/.pnpm/node_modules/*; do
+            [ -e "$pkg_path" ] || continue
+            pkg_name=$(basename "$pkg_path")
+            if [ "${{pkg_name:0:1}}" = "@" ] && [ -d "$pkg_path" ]; then
+                mkdir -p "node_modules/$pkg_name"
+                for sub_path in "$pkg_path"/*; do
+                    [ -e "$sub_path" ] || continue
+                    sub_name=$(basename "$sub_path")
+                    rm -rf "node_modules/$pkg_name/$sub_name"
+                    ln -sfn "$APP_PATH/$sub_path" "node_modules/$pkg_name/$sub_name"
+                done
+            else
+                rm -rf "node_modules/$pkg_name"
+                ln -sfn "$APP_PATH/$pkg_path" "node_modules/$pkg_name"
+            fi
+        done
+    fi
+
+    if [ -d "node_modules/.pnpm" ]; then
+        find node_modules/.pnpm -mindepth 2 -maxdepth 2 -type d -name "node_modules" 2>/dev/null | while read pnpm_nm; do
+            for pkg_path in "$pnpm_nm"/*; do
+                [ -e "$pkg_path" ] || continue
+                pkg_name=$(basename "$pkg_path")
+                if [ "${{pkg_name:0:1}}" = "@" ] && [ -d "$pkg_path" ]; then
+                    mkdir -p "node_modules/$pkg_name"
+                    for sub_path in "$pkg_path"/*; do
+                        [ -e "$sub_path" ] || continue
+                        sub_name=$(basename "$sub_path")
+                        # Count files in this .pnpm store entry.
+                        entry_files=$(find "$sub_path" -maxdepth 2 -type f 2>/dev/null | wc -l | tr -d ' ')
+                        existing="node_modules/$pkg_name/$sub_name"
+                        if [ -e "$existing" ]; then
+                            # Only replace if existing has fewer files than the .pnpm store entry.
+                            existing_files=$(find "$existing" -maxdepth 2 -type f 2>/dev/null | wc -l | tr -d ' ')
+                            if [ "$entry_files" -gt "$existing_files" ]; then
+                                rm -rf "$existing"
+                                ln -sfn "$APP_PATH/$sub_path" "$existing"
+                            fi
+                        else
+                            ln -sfn "$APP_PATH/$sub_path" "$existing"
+                        fi
+                    done
+                else
+                    if [ -e "node_modules/$pkg_name" ]; then
+                        continue
+                    fi
+                    ln -sfn "$APP_PATH/$pkg_path" "node_modules/$pkg_name"
+                fi
+            done
+        done
+    fi
+
+    if [ -n "$RUNTIME_SUBDIR" ]; then
+        cat > server.js <<EOF
+import("./$RUNTIME_SUBDIR/server.js").catch(function(e){{console.error(e);process.exit(1)}})
+EOF
+    fi
+
+    # Backward compatibility: older operator-managed ecosystem config files
+    # may still point PM2 at `server.js` or `.next/standalone/server.js` in the
+    # app root even when standalone preserves the source path inside `web/`.
+    mkdir -p .next/standalone
+    rm -rf .next/standalone/node_modules
+    ln -sfn ../../node_modules .next/standalone/node_modules
+
+    if [ -n "$RUNTIME_SUBDIR" ]; then
+        cat > .next/standalone/server.js <<EOF
+import("../../$RUNTIME_SUBDIR/server.js").catch(function(e){{console.error(e);process.exit(1)}})
+EOF
+    else
+        ln -sfn ../../server.js .next/standalone/server.js
+    fi
+
+    echo "Starting $PM2_APP with pm2..."
+    if pm2 describe "$PM2_APP" > /dev/null 2>&1; then
+        pm2 delete "$PM2_APP"
+    fi
+
+    if [ -f ecosystem.config.cjs ]; then
+        pm2 start ecosystem.config.cjs --only "$PM2_APP" --env production
+    elif [ -f ecosystem.config.js ]; then
+        pm2 start ecosystem.config.js --only "$PM2_APP" --env production
+    else
+        NODE_ENV=production PORT={port} HOSTNAME=127.0.0.1 pm2 start node --name "$PM2_APP" -- server.js
+    fi
+
+    pm2 save
+    echo "Done."
+    "#,
         remote_path = remote_path,
         pm2_app = pm2_app,
+        runtime_subdir = runtime_subdir_for_shell,
         port = port,
+        ecosystem_config = ecosystem_config_content,
     );
 
     let mut restart_spinner = Spinner::new(
@@ -417,6 +783,7 @@ echo "Done."
             DeploymentPayload {
                 commit_hash: deploy_ref,
                 status: DeploymentStatus::Done,
+                frontend_app_id: config.project.frontend_app_id.clone(),
             },
         )
         .await
@@ -452,8 +819,100 @@ async fn mark_failed(
             DeploymentPayload {
                 commit_hash: deploy_ref.to_owned(),
                 status: DeploymentStatus::Failed,
+                frontend_app_id: config.project.frontend_app_id.clone(),
             },
         )
         .await;
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use {super::prune_dangling_symlinks, std::os::unix::fs::symlink, tempfile::tempdir};
+
+    /// Mirrors the real failure: a pnpm compat link points at a version dir that
+    /// was never traced into the bundle, so it dangles and must be pruned, while
+    /// a valid link and real files are left untouched.
+    #[test]
+    fn prunes_dangling_but_keeps_valid_links_and_files() {
+        let root = tempdir().unwrap();
+        let base = root.path();
+
+        // Nested real dir mirroring node_modules/.pnpm/node_modules/
+        let nm = base.join("node_modules/.pnpm/node_modules");
+        std::fs::create_dir_all(&nm).unwrap();
+
+        // A traced package dir + a valid symlink to it.
+        let real_pkg = base.join("node_modules/.pnpm/semver@7.7.3/node_modules/semver");
+        std::fs::create_dir_all(&real_pkg).unwrap();
+        std::fs::write(real_pkg.join("index.js"), "module.exports = {}").unwrap();
+        let valid_link = nm.join("valid");
+        symlink("../semver@7.7.3/node_modules/semver", &valid_link).unwrap();
+
+        // The dangling compat link: target version was never written.
+        let dangling = nm.join("semver");
+        symlink("../semver@6.3.1/node_modules/semver", &dangling).unwrap();
+
+        // A plain file that must survive.
+        let keeper = base.join("server.js");
+        std::fs::write(&keeper, "// server").unwrap();
+
+        let removed = prune_dangling_symlinks(base).unwrap();
+
+        assert_eq!(removed, 1, "exactly the dangling link should be removed");
+        assert!(!dangling.exists(), "dangling link is gone");
+        assert!(
+            std::fs::symlink_metadata(&valid_link).is_ok(),
+            "valid link is preserved"
+        );
+        assert!(keeper.exists(), "real files are untouched");
+    }
+
+    #[test]
+    fn clean_tree_removes_nothing() {
+        let root = tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("a/b")).unwrap();
+        std::fs::write(root.path().join("a/b/f.txt"), "x").unwrap();
+        assert_eq!(prune_dangling_symlinks(root.path()).unwrap(), 0);
+    }
+
+    /// A valid symlink *to a directory* is treated as a leaf and never followed.
+    /// The link here points back at the walk root, so following it would recurse
+    /// forever; terminating (and leaving the link in place) proves it is not
+    /// followed — the same property that keeps pnpm's symlink graph cycle-free.
+    #[test]
+    fn does_not_follow_valid_directory_symlink() {
+        let root = tempdir().unwrap();
+        let base = root.path();
+
+        std::fs::write(base.join("server.js"), "// server").unwrap();
+        // A valid directory symlink that points back at the root: following it
+        // would loop. `read_dir` reports it as a symlink, so the leaf branch
+        // keeps it without descending.
+        let dir_link = base.join("cycle");
+        symlink(".", &dir_link).unwrap();
+
+        let removed = prune_dangling_symlinks(base).unwrap();
+
+        assert_eq!(removed, 0, "no dangling links, nothing removed");
+        assert!(
+            std::fs::symlink_metadata(&dir_link).is_ok(),
+            "the valid directory symlink itself is preserved"
+        );
+    }
+
+    /// The walk root being a dangling symlink is handled by the top-level branch:
+    /// it is removed and counted.
+    #[test]
+    fn dangling_symlink_at_root_is_removed() {
+        let root = tempdir().unwrap();
+        let link = root.path().join("root_link");
+        symlink("./missing_target", &link).unwrap();
+
+        assert_eq!(prune_dangling_symlinks(&link).unwrap(), 1);
+        assert!(
+            std::fs::symlink_metadata(&link).is_err(),
+            "the dangling root symlink is gone"
+        );
     }
 }

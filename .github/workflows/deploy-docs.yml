@@ -1,0 +1,95 @@
+name: Deploy docs
+
+# Deploys the docs website (website/, the `docs` sub-project in the monorepo's
+# .smb config) to smbCloud via the smbcloud-deploy-action.
+#
+# `smb deploy` builds the Next.js site on the runner before rsyncing it, so this
+# job sets up Node + pnpm first. The site's prebuild step generates
+# content/developer/ from the sibling docs/ tree, so the full repo must be
+# checked out (both website/ and docs/ are present here).
+#
+# Required repo configuration (Settings → Secrets and variables → Actions).
+# None of these live in the repo — the public source carries no IDs/credentials
+# (see CLAUDE.md, open-source boundary) and .smb/config.toml is gitignored, so
+# the deploy target is materialized below from CI config:
+#
+#   Secrets
+#     SMB_TOKEN                smbCloud auth token contents (provision once; see docs/ci.md)
+#     SMB_SSH_PRIVATE_KEY      Private key for rsync/SSH deploy (the account-scoped deploy key)
+#     SMB_SSH_KEY_NAME         Key filename smb expects: id_<user-id>@smbcloud
+#     SMB_SSH_KNOWN_HOSTS      known_hosts entry for the deploy host
+#     SMB_DOCS_FRONTEND_APP_ID The docs App's frontend_app_id
+#   Variables
+#     SMB_DOCS_PROJECT_ID      The workspace (project) id
+#
+# Trigger: pushes to development (the deploy branch) that touch the docs, plus
+# manual runs. Adjust the branch to your release flow; workflow_dispatch lets you
+# run it from any branch.
+#
+# NOTE: the action installs the latest published CLI release and runs it with
+# `--ci`. That flag must exist in the installed release, so this requires a
+# published smbcloud-cli release that includes `--ci` (pin a specific version
+# below if `latest` ever regresses).
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - 'website/**'
+      - 'docs/**'
+      - '.github/workflows/deploy-docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One docs deploy at a time; don't cancel an in-flight rsync/restart.
+concurrency:
+  group: deploy-docs
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: website/.nvmrc
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      # .smb/config.toml is gitignored (operator-local by design). Recreate the
+      # minimal monorepo config for the `docs` sub-project; deploy fields (kind,
+      # port, remote path, pm2) come from the server App record at deploy time.
+      - name: Write .smb/config.toml
+        run: |
+          mkdir -p .smb
+          cat > .smb/config.toml <<EOF
+          name = "smbCloud"
+
+          [project]
+          id = ${{ vars.SMB_DOCS_PROJECT_ID }}
+          runner = 255
+
+          [[projects]]
+          name = "docs"
+          id = ${{ vars.SMB_DOCS_PROJECT_ID }}
+          frontend_app_id = "${{ secrets.SMB_DOCS_FRONTEND_APP_ID }}"
+          source = "website"
+          EOF
+
+      - name: Deploy docs
+        uses: smbcloudXYZ/smbcloud-deploy-action@v1
+        with:
+          token: ${{ secrets.SMB_TOKEN }}
+          project: docs
+          working-directory: .
+          ssh-private-key: ${{ secrets.SMB_SSH_PRIVATE_KEY }}
+          ssh-key-name: ${{ secrets.SMB_SSH_KEY_NAME }}
+          ssh-known-hosts: ${{ secrets.SMB_SSH_KNOWN_HOSTS }}

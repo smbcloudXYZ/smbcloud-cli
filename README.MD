@@ -5,7 +5,7 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    Deploy to the cloud in one command.
+    Deploy with smbCloud from your terminal.
     <br />
     <br />
     <a href="https://smbcloud.xyz/">Website</a>
@@ -22,24 +22,24 @@
     <a href="https://www.nuget.org/packages/SmbCloud.Cli"><img alt="NuGet" src="https://img.shields.io/nuget/v/SmbCloud.Cli"></a>
     <a href="https://github.com/smbcloudXYZ/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew"></a>
     <a href="https://pypi.org/project/smbcloud-cli/"><img alt="PyPI" src="https://img.shields.io/pypi/v/smbcloud-cli"></a>
-    <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/smbcloudXYZ/smbcloud-cli"></a>
+    <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="Apache-2.0 License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
   </p>
 </p>
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/) — the modern cloud deployment platform. We've eliminated the friction of cloud infrastructure so you can focus on what matters: building an incredible product.
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 
-Ship your Rust, Node.js, Ruby, or Swift app with a single, magical command.
+Deploy Rust, Node.js, Ruby, or Swift apps from your terminal.
 
 ## Install
 
-We highly recommend using our **pre-built native binaries** for the fastest, frictionless setup.
+If you want the quickest setup, use a pre-built native binary.
 
 ### Homebrew (macOS & Linux)
 
 ```sh
-brew tap smbcloudXYZ/tap
+brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap
 brew install cli
 ```
 
@@ -83,7 +83,24 @@ smb init
 smb deploy
 ```
 
-That's it. Your app is live.
+That gets you from login to first deploy.
+
+## CI / non-interactive mode
+
+Pass `--ci` (or set `SMB_CI=1`, or run under any provider that sets `CI`) to
+disable interactive prompts. Confirmations take their default; anything that
+truly needs input fails fast with a clear message instead of hanging on a
+missing TTY.
+
+```sh
+smb --ci deploy
+```
+
+For example, the [AircraftsHub](https://aircraftshub.5mb.app) monorepo deploys
+its Next.js web app with a single non-interactive command — its
+`.smb/config.toml` pins the project, source, and runtime, so `smb --ci deploy`
+needs no prompts. See [`docs/ci.md`](./docs/ci.md) for token setup and the full
+behavior reference.
 
 ## Documentation
 
@@ -91,9 +108,9 @@ See the [`docs/`](./docs) directory for guides on authentication, project config
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started. All contributions are welcome.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started. Contributions are welcome.
 
-> Explore more on the [smbCloud Services](https://smbcloud.xyz/services) page.
+For the broader product, see [smbCloud](https://smbcloud.xyz/) and the [deployment docs](https://smbcloud.xyz/posts).
 
 ## License
 
@@ -101,4 +118,4 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) to get started. All contributions are we
 
 ## Copyright
 
-© 2026 [smbCloud](https://smbcloud.xyz) (Splitfire AB).
+© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).
