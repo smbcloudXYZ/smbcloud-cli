@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-deploy"
-version = "0.4.8"
+version = "0.4.9"
 edition = "2021"
 authors = ["keypair34 <216233964+keypair34@users.noreply.github.com>, Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "smbCloud build and deploy engine: UI-agnostic, reusable by the CLI, CI, and the server-side git receiver."
