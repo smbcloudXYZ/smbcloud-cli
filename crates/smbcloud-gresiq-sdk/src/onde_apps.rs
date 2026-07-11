@@ -42,6 +42,33 @@ pub struct OndeModel {
     pub format: Option<String>,
     pub approx_size_bytes: Option<i64>,
     pub description: Option<String>,
+    /// `true` if this row was self-registered by a client (e.g. a fine-tune
+    /// pushed to Hugging Face) rather than one of the official catalog
+    /// models. Private to the registering user — other clients never see it.
+    #[serde(default)]
+    pub custom: bool,
+}
+
+/// Parameters for registering a new model into the catalog via
+/// [`create_model`]. The new row is private to the calling user.
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateModelParams<'a> {
+    pub hf_repo_id: &'a str,
+    pub name: &'a str,
+    pub org: &'a str,
+    pub family: &'a str,
+    pub parameter_class: &'a str,
+    pub format: &'a str,
+    pub gguf_file: Option<&'a str>,
+    pub modality: Option<&'a str>,
+    pub description: Option<&'a str>,
+    pub approx_size_bytes: Option<i64>,
+}
+
+// POST /models body shape: { "gresiq_model": { ... } }
+#[derive(Serialize)]
+struct CreateModelBody<'a> {
+    gresiq_model: CreateModelParams<'a>,
 }
 
 // The models endpoint wraps its array: { "models": [...] }.
@@ -179,6 +206,33 @@ pub async fn list_models(
         .json::<ModelsEnvelope>()
         .await?
         .models)
+}
+
+/// Register a new model into the catalog, private to the calling user.
+///
+/// Typical use: right after uploading a fine-tuned GGUF to Hugging Face, so
+/// it can then be targeted by [`assign_model`].
+///
+/// `POST /v1/client/gresiq/models` — body: `{ "gresiq_model": { ... } }`
+pub async fn create_model(
+    environment: &Environment,
+    app_id: &str,
+    app_secret: &str,
+    access_token: &str,
+    params: CreateModelParams<'_>,
+) -> Result<OndeModel, GresiqError> {
+    let url = endpoint(environment, "models", app_id, app_secret);
+    let body = CreateModelBody {
+        gresiq_model: params,
+    };
+    let response = reqwest::Client::new()
+        .post(&url)
+        .header("Authorization", bearer(access_token))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await?;
+    Ok(check(response).await?.json::<OndeModel>().await?)
 }
 
 /// Rename an existing app.
