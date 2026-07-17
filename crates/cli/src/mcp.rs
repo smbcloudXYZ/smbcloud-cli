@@ -22,10 +22,12 @@ use {
     schemars::JsonSchema,
     serde::Deserialize,
     smbcloud_auth::me::me,
+    smbcloud_model::project::ProjectCreate,
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::{
+        crud_project_create::create_project, crud_project_delete::delete_project,
         crud_project_deployment_read::get_deployments, crud_project_read::get_project,
-        crud_project_read::get_projects,
+        crud_project_read::get_projects, crud_project_update::update_project,
     },
 };
 
@@ -68,6 +70,29 @@ struct ProjectShowArgs {
 struct DeploymentsArgs {
     /// The project ID whose deployments to list.
     project_id: i32,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct ProjectCreateArgs {
+    /// Name for the new project.
+    name: String,
+    /// Optional description for the new project.
+    #[serde(default)]
+    description: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct ProjectUpdateArgs {
+    /// The project ID to update.
+    id: String,
+    /// The new description.
+    description: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct ProjectDeleteArgs {
+    /// The project ID to delete.
+    id: String,
 }
 
 #[tool_router]
@@ -113,6 +138,69 @@ impl SmbMcpServer {
             .await
             .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
         json_result(&deployments)
+    }
+
+    #[tool(
+        description = "Create a new smbCloud project with a name and optional description. \
+                          Returns the created project as JSON."
+    )]
+    async fn project_create(
+        &self,
+        Parameters(args): Parameters<ProjectCreateArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let payload = ProjectCreate {
+            name: args.name,
+            description: args.description,
+        };
+        let project = create_project(self.environment, client(), token, payload)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        json_result(&project)
+    }
+
+    #[tool(
+        description = "Update a project's description by ID, preserving its runner. \
+                          Returns the updated project as JSON."
+    )]
+    async fn project_update(
+        &self,
+        Parameters(args): Parameters<ProjectUpdateArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        // `update_project` requires the runner; fetch the current project so the
+        // description-only update doesn't clobber it.
+        let current = get_project(self.environment, client(), token.clone(), args.id.clone())
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        let project = update_project(
+            self.environment,
+            client(),
+            token,
+            args.id,
+            &args.description,
+            current.runner,
+        )
+        .await
+        .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        json_result(&project)
+    }
+
+    #[tool(
+        description = "Delete a project by ID. This is destructive and irreversible — the \
+                       project and its deploy configuration are removed."
+    )]
+    async fn project_delete(
+        &self,
+        Parameters(args): Parameters<ProjectDeleteArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        delete_project(self.environment, client(), token, args.id)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        Ok(CallToolResult::success(vec![ContentBlock::text(
+            "Project deleted.",
+        )]))
     }
 }
 

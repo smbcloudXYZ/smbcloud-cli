@@ -63,6 +63,13 @@ starting the server. Tools run non-interactively and return structured JSON.
 | `project_list` | _(none)_ | The user's projects. |
 | `project_show` | `id` | A single project by ID. |
 | `deployments` | `project_id` | A project's deployments. |
+| `project_create` | `name`, `description` (optional) | The created project. |
+| `project_update` | `id`, `description` | The updated project (runner preserved). |
+| `project_delete` | `id` | Confirmation. **Destructive and irreversible.** |
+
+Tools run non-interactively, so the write tools apply immediately without a
+confirmation prompt — the calling client is responsible for confirming intent
+before invoking `project_delete`.
 
 ### Wiring it into an MCP client
 
