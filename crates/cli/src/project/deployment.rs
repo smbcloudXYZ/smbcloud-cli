@@ -3,9 +3,10 @@ use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
     deploy::config::{check_project, get_config},
+    interface::is_tui,
     ui::{
         deployment_detail_view::show_deployment_detail_tui, deployment_table::show_deployments_tui,
-        succeed_message, succeed_symbol,
+        plain, succeed_message, succeed_symbol,
     },
 };
 use anyhow::{anyhow, Result};
@@ -38,13 +39,21 @@ pub(crate) async fn process_deployment(
         )
         .await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded"));
-        show_deployment_detail_tui(&deployment).map_err(|e| anyhow!(e))?;
+        if is_tui() {
+            show_deployment_detail_tui(&deployment).map_err(|e| anyhow!(e))?;
+        } else {
+            plain::render_deployment_detail(&deployment);
+        }
     } else {
         // List all deployments for the project
         let access_token = get_smb_token(env)?;
         let deployments = get_deployments(env, client(), access_token, config.project.id).await?;
         spinner.stop_and_persist(&succeed_symbol(), succeed_message("Load all deployments"));
-        show_deployments_tui(deployments).map_err(|e| anyhow!(e))?;
+        if is_tui() {
+            show_deployments_tui(deployments).map_err(|e| anyhow!(e))?;
+        } else {
+            plain::render_deployments(&deployments);
+        }
     };
 
     Ok(CommandResult {
