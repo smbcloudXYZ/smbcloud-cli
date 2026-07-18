@@ -71,6 +71,31 @@ Tools run non-interactively, so the write tools apply immediately without a
 confirmation prompt — the calling client is responsible for confirming intent
 before invoking `project_delete`.
 
+### Not exposed as tools (yet)
+
+`deploy` and `migrate` are **deliberately not** MCP tools. Both are tightly
+coupled to the local working directory in ways a stdio tool call can't satisfy
+cleanly:
+
+- **`deploy`** reads `.smb/config.toml` (running interactive `setup_project`
+  when it is missing), builds the app locally, then uploads over rsync and
+  restarts over SSH. It depends on the caller's current directory, local build
+  toolchains, and on-disk SSH keys, and it streams long-running progress — none
+  of which map onto a single non-interactive tool call. For automated deploys,
+  use the headless CLI path instead (`smb --ci deploy`, see [ci.md](./ci.md)),
+  which is what CI and the deploy action already drive.
+- **`migrate`** pushes local `.smb/config.toml` deploy fields up to the server,
+  so it is meaningless without a project directory to read from. The current
+  tools operate on explicit arguments (a project `id`, a `name`), not on
+  whatever directory the server process happens to be running in.
+
+Exposing either as a tool would mean designing an explicit, directory-free
+contract — e.g. accepting the full deploy configuration as arguments and
+returning streamed progress as structured events — rather than wrapping the
+existing directory-coupled handlers. That is intentionally left for a later
+pass; the tools above cover the read and project-management surface that is
+well-defined over stdio today.
+
 ### Wiring it into an MCP client
 
 Most MCP clients take a command plus arguments. Point the client at the `smb`
