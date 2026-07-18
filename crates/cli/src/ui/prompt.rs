@@ -16,7 +16,8 @@
 use {
     crate::{
         ci::{interactive_message, is_ci},
-        ui::fail_message,
+        interface::is_tui,
+        ui::{confirm_dialog::confirm_delete_tui, fail_message},
     },
     anyhow::{anyhow, Result},
     dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
@@ -28,6 +29,20 @@ fn ci_required(what: &str) -> anyhow::Error {
 
 fn io_error(err: dialoguer::Error) -> anyhow::Error {
     anyhow!(fail_message(&format!("Prompt failed: {err}")))
+}
+
+/// Destructive-action confirmation, dispatched by interface. Refuses in CI
+/// (deleting unconfirmed is never safe); renders the full-screen danger dialog
+/// under `--tui`; otherwise asks inline with a `false` default. `what` names
+/// the confirmation for the CI error; `message` is shown to the user.
+pub fn confirm_delete(what: &str, message: &str) -> Result<bool> {
+    if is_ci() {
+        return Err(ci_required(what));
+    }
+    if is_tui() {
+        return confirm_delete_tui(message).map_err(|e| anyhow!(fail_message(&e.to_string())));
+    }
+    confirm(message, false)
 }
 
 /// Yes/no confirmation. In CI mode returns `default` without prompting.

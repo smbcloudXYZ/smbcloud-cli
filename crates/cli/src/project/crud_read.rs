@@ -4,9 +4,10 @@ use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
+    interface::is_tui,
     project::deploy_target::resolve_frontend_app_for_project,
     ui::{
-        fail_message, fail_symbol, project_detail_view::show_project_detail_tui,
+        fail_message, fail_symbol, plain, project_detail_view::show_project_detail_tui,
         project_table::show_projects_tui, succeed_message, succeed_symbol,
     },
 };
@@ -83,11 +84,19 @@ pub(crate) fn show_projects(projects: Vec<Project>) -> Result<()> {
     if projects.is_empty() {
         return Ok(());
     }
-    show_projects_tui(projects).map_err(|e| anyhow!(e))
+    if is_tui() {
+        return show_projects_tui(projects).map_err(|e| anyhow!(e));
+    }
+    plain::render_projects(&projects);
+    Ok(())
 }
 
 pub(crate) fn show_project_detail(project: &Project) -> Result<()> {
-    show_project_detail_tui(project).map_err(|e| anyhow!(e))
+    if is_tui() {
+        return show_project_detail_tui(project).map_err(|e| anyhow!(e));
+    }
+    plain::render_project_detail(project);
+    Ok(())
 }
 
 pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<CommandResult> {
