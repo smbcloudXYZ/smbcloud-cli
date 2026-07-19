@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-cli"
-version = "0.4.8"
+version = "0.4.10"
 edition = "2021"
 authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
 description = "smbCloud command line interface."
@@ -40,6 +40,8 @@ open = { workspace = true }
 ratatui = { workspace = true }
 regex = { workspace = true }
 reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
+rmcp = { workspace = true }
+schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde_repr = { workspace = true }

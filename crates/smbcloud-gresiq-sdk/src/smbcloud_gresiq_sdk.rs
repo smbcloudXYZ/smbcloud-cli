@@ -44,6 +44,7 @@ pub use client::{DocumentQuery, GresiqClient, GresiqDocument};
 pub use client_credentials::{base_url, GresiqCredentials};
 pub use error::GresiqError;
 pub use onde_apps::{
-    assign_model, create_app, list_apps, list_models, rename_app, OndeApp, OndeModel,
+    assign_model, create_app, create_model, list_apps, list_models, rename_app, CreateModelParams,
+    OndeApp, OndeModel,
 };
 pub use smbcloud_network::environment::Environment;
