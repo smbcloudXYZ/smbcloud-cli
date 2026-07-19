@@ -10,10 +10,7 @@ use crate::{
         },
     },
     token::get_smb_token::get_smb_token,
-    ui::{
-        confirm_dialog::confirm_delete_tui, fail_message, fail_symbol, succeed_message,
-        succeed_symbol,
-    },
+    ui::{fail_message, fail_symbol, prompt::confirm_delete, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use smbcloud_mail::{
@@ -187,8 +184,10 @@ async fn process_mail_update(
 
 async fn process_mail_delete(env: Environment, id: String) -> Result<CommandResult> {
     let mail_app_id = normalize_required("mail app id", id)?;
-    let confirmed = confirm_delete_tui(&format!("Delete mail app #{mail_app_id}"))
-        .map_err(|error| anyhow!(error))?;
+    let confirmed = confirm_delete(
+        "Mail app deletion confirmation",
+        &format!("Delete mail app #{mail_app_id}"),
+    )?;
 
     if !confirmed {
         return Ok(done_result("Cancelled."));
@@ -288,10 +287,10 @@ async fn process_mail_inbox_delete(
 ) -> Result<CommandResult> {
     let mail_app_id = normalize_required("mail app id", app_id)?;
     let mail_inbox_id = normalize_required("mail inbox id", id)?;
-    let confirmed = confirm_delete_tui(&format!(
-        "Delete mail inbox #{mail_inbox_id} from mail app #{mail_app_id}"
-    ))
-    .map_err(|error| anyhow!(error))?;
+    let confirmed = confirm_delete(
+        "Mail inbox deletion confirmation",
+        &format!("Delete mail inbox #{mail_inbox_id} from mail app #{mail_app_id}"),
+    )?;
 
     if !confirmed {
         return Ok(done_result("Cancelled."));

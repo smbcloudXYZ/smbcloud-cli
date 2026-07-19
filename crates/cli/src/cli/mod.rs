@@ -34,6 +34,16 @@ pub struct Cli {
     #[arg(long, global = true, env = "SMB_CI")]
     pub ci: bool,
 
+    /// Full-screen TUI mode: render read commands in an interactive ratatui
+    /// view instead of plain text. Mutually exclusive with --mcp.
+    #[arg(long, global = true, conflicts_with = "mcp")]
+    pub tui: bool,
+
+    /// Run as an MCP (Model Context Protocol) server over stdio instead of a
+    /// one-shot command. Implies non-interactive; the subcommand is ignored.
+    #[arg(long, global = true)]
+    pub mcp: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }

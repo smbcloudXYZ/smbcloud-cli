@@ -78,6 +78,39 @@ async fn main() {
     let environment = cli.environment;
     // Resolve CI / non-interactive mode once, before any command can prompt.
     smbcloud_cli::ci::set_ci(smbcloud_cli::ci::resolve(cli.ci));
+
+    // Resolve the interface (headless / TUI / MCP) once, before dispatch.
+    let interface = match smbcloud_cli::interface::resolve(cli.tui, cli.mcp) {
+        Ok(interface) => interface,
+        Err(e) => {
+            eprintln!(
+                "{} {}",
+                style("✘".to_string()).for_stderr().red(),
+                style(e).red()
+            );
+            std::process::exit(1);
+        }
+    };
+    smbcloud_cli::interface::set_interface(interface);
+
+    // MCP mode runs a stdio server instead of a one-shot command. It implies
+    // non-interactive, and all diagnostics must go to stderr so the stdout
+    // JSON-RPC stream stays clean.
+    if smbcloud_cli::interface::is_mcp() {
+        smbcloud_cli::ci::set_ci(true);
+        match run_mcp(cli).await {
+            Ok(()) => std::process::exit(0),
+            Err(e) => {
+                eprintln!(
+                    "{} {}",
+                    style("✘".to_string()).for_stderr().red(),
+                    style(e).red()
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+
     match run(cli).await {
         Ok(result) => {
             result.stop_and_persist();
@@ -101,6 +134,21 @@ async fn main() {
             std::process::exit(1);
         }
     }
+}
+
+/// Run the MCP stdio server. Sets up file logging (never stdout, which is the
+/// JSON-RPC channel) and hands off to the server loop. The global internet
+/// check is skipped here — the server starts regardless, and individual tool
+/// calls surface their own network errors.
+async fn run_mcp(cli: Cli) -> Result<()> {
+    if let Some(user_filter) = &cli.log_level {
+        let filter = EnvFilter::from_str(user_filter)
+            .map_err(|_| anyhow!("Invalid log level: {:?}.", cli.log_level))?;
+        setup_logging(cli.environment, Some(filter))?;
+    } else {
+        setup_logging(cli.environment, None)?;
+    }
+    smbcloud_cli::mcp::serve(cli.environment).await
 }
 
 async fn run(cli: Cli) -> Result<CommandResult> {

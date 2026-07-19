@@ -3,7 +3,10 @@ use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
     cli::CommandResult,
-    ui::{fail_message, fail_symbol, me_view::show_user_tui, succeed_message, succeed_symbol},
+    interface::is_tui,
+    ui::{
+        fail_message, fail_symbol, me_view::show_user_tui, plain, succeed_message, succeed_symbol,
+    },
 };
 use anyhow::{anyhow, Result};
 use smbcloud_auth::me::me;
@@ -30,7 +33,11 @@ pub async fn process_me(env: Environment) -> Result<CommandResult> {
     match me(env, client(), &token).await {
         Ok(user) => {
             spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
-            show_user_tui(&user).map_err(|e| anyhow!(e))?;
+            if is_tui() {
+                show_user_tui(&user).map_err(|e| anyhow!(e))?;
+            } else {
+                plain::render_user(&user);
+            }
             Ok(CommandResult {
                 spinner: Spinner::new(
                     spinners::Spinners::SimpleDotsScrolling,
