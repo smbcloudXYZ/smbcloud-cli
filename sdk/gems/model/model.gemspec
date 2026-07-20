@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = 'smbcloud-model'
   spec.version = Model::VERSION
   spec.authors = ["Seto Elkahfi"]
-  spec.email = ["hej@setoelkahfi.se"]
+  spec.email = ["seto@smbcloud.xyz"]
 
   spec.summary = "Ruby bindings for the smbCloud model types."
   spec.description = "Ruby bindings for shared smbCloud model types, backed by a native Rust extension."
