@@ -22,12 +22,15 @@ use {
     schemars::JsonSchema,
     serde::Deserialize,
     smbcloud_auth::me::me,
+    smbcloud_mail::mail_app::get_mail_apps,
     smbcloud_model::project::ProjectCreate,
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::{
-        crud_project_create::create_project, crud_project_delete::delete_project,
-        crud_project_deployment_read::get_deployments, crud_project_read::get_project,
-        crud_project_read::get_projects, crud_project_update::update_project,
+        crud_project_create::create_project,
+        crud_project_delete::delete_project,
+        crud_project_deployment_read::get_deployments,
+        crud_project_read::{get_project, get_projects},
+        crud_project_update::update_project,
     },
 };
 
@@ -201,6 +204,15 @@ impl SmbMcpServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(
             "Project deleted.",
         )]))
+    }
+
+    #[tool(description = "List the authenticated user's smbCloud Mail apps as a JSON array.")]
+    async fn mail_list(&self) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let projects = get_mail_apps(self.environment, client(), token)
+            .await
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+        json_result(&projects)
     }
 }
 
