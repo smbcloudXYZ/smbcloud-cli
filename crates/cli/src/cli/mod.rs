@@ -1,5 +1,5 @@
 use {
-    crate::{account, cloud_auth, mail, project},
+    crate::{account, cloud_auth, mail, project, tenant},
     clap::{Parser, Subcommand},
     smbcloud_network::environment::Environment,
     spinners::Spinner,
@@ -80,6 +80,11 @@ pub enum Commands {
     Project {
         #[clap(subcommand)]
         command: project::cli::Commands,
+    },
+    #[clap(about = "Manage your tenants.")]
+    Tenant {
+        #[clap(subcommand)]
+        command: tenant::cli::Commands,
     },
     #[clap(about = "Manage smbCloud Mail.")]
     Mail {

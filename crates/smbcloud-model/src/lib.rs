@@ -13,6 +13,7 @@ pub mod repository;
 pub mod reset_password_response;
 pub mod runner;
 pub mod signup;
+pub mod tenant;
 
 pub mod ar_date_format {
     use chrono::{DateTime, Utc};

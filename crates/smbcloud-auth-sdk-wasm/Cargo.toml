@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-auth-sdk-wasm"
-version = "0.4.10"
+version = "0.4.11"
 edition = "2024"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "Browser bindings for the smbCloud Auth SDK."

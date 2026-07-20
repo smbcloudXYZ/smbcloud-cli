@@ -1,7 +1,7 @@
-use crate::url_builder::build_project_url_with_id;
+use crate::{request::request_empty, url_builder::build_project_url_with_id};
 use reqwest::Client;
 use smbcloud_model::error_codes::ErrorResponse;
-use smbcloud_network::{environment::Environment, network::request};
+use smbcloud_network::environment::Environment;
 use smbcloud_networking::{constants::SMB_USER_AGENT, smb_client::SmbClient};
 
 pub async fn delete_project(
@@ -14,5 +14,5 @@ pub async fn delete_project(
         .delete(build_project_url_with_id(env, client, id))
         .header("Authorization", access_token)
         .header("User-agent", SMB_USER_AGENT);
-    request(builder).await
+    request_empty(builder).await
 }
