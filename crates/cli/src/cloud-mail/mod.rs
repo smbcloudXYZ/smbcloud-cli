@@ -1,4 +1,4 @@
 pub mod cli;
-mod current_project;
+pub(crate) mod current_project;
 pub mod process;
 mod render;
