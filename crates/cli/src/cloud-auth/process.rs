@@ -2,7 +2,9 @@ use crate::{
     cli::CommandResult,
     client,
     cloud_auth::{
-        auth_app::{create_auth_app, delete_auth_app, get_auth_app, get_auth_apps, update_auth_app},
+        auth_app::{
+            create_auth_app, delete_auth_app, get_auth_app, get_auth_apps, update_auth_app,
+        },
         cli::Commands,
         render::{print_auth_app_detail, print_auth_apps},
     },
