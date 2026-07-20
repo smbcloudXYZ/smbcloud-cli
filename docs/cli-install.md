@@ -7,7 +7,7 @@ Install directly from [crates.io](https://crates.io/crates/smbcloud-cli) using C
 - [Rust](https://rustup.rs) (stable toolchain)
 - `CLI_CLIENT_SECRET` — required at compile time
 
-The `CLI_CLIENT_SECRET` value is baked into the binary at compile time. Contact [hej@setoelkahfi.se](mailto:hej@setoelkahfi.se) or check your smbCloud account dashboard to obtain it.
+The `CLI_CLIENT_SECRET` value is baked into the binary at compile time. Contact [seto@smbcloud.xyz](mailto:seto@smbcloud.xyz) or check your smbCloud account dashboard to obtain it.
 
 ## Install
 

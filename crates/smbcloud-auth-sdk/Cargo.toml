@@ -2,7 +2,7 @@
 name = "smbcloud-auth-sdk"
 version = "0.4.10"
 edition = "2024"
-authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "Client SDK for smbCloud Auth — authenticate your users via smbCloud Auth service."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
