@@ -6,6 +6,7 @@ use {
         account::{login::process_login, logout::process_logout, me::process_me, process_account},
         clear_smb_token,
         cli::{Cli, CommandResult, Commands},
+        cloud_auth::process::process_cloud_auth,
         deploy::{process_deploy::process_deploy, process_migrate::process_migrate},
         mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
@@ -177,6 +178,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         | Some(Commands::Logout {})
         | Some(Commands::Account { .. })
         | Some(Commands::Mail { .. })
+        | Some(Commands::Auth { .. })
         | Some(Commands::Project { .. })
         | Some(Commands::Migrate {})
         | None => true,
@@ -198,6 +200,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
         Some(Commands::Mail { command }) => process_mail(cli.environment, command).await,
+        Some(Commands::Auth { command }) => process_cloud_auth(cli.environment, command).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
         Some(Commands::Migrate {}) => process_migrate(cli.environment).await,
         None => process_deploy(cli.environment, None).await,

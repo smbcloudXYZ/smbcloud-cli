@@ -1,5 +1,5 @@
 use {
-    crate::{account, mail, project},
+    crate::{account, cloud_auth, mail, project},
     clap::{Parser, Subcommand},
     smbcloud_network::environment::Environment,
     spinners::Spinner,
@@ -85,6 +85,11 @@ pub enum Commands {
     Mail {
         #[clap(subcommand)]
         command: mail::cli::Commands,
+    },
+    #[clap(about = "Manage smbCloud Auth apps.")]
+    Auth {
+        #[clap(subcommand)]
+        command: cloud_auth::cli::Commands,
     },
     #[clap(
         about = "Migrate local .smb/config.toml deploy fields to the smbCloud server.",
