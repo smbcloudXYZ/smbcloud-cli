@@ -10,6 +10,7 @@ use {
         deploy::{process_deploy::process_deploy, process_migrate::process_migrate},
         mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
+        tenant::process::process_tenant,
     },
     smbcloud_network::{environment::Environment, network::check_internet_connection},
     std::{
@@ -180,6 +181,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         | Some(Commands::Mail { .. })
         | Some(Commands::Auth { .. })
         | Some(Commands::Project { .. })
+        | Some(Commands::Tenant { .. })
         | Some(Commands::Migrate {})
         | None => true,
         Some(Commands::Init {}) => true,
@@ -202,6 +204,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Mail { command }) => process_mail(cli.environment, command).await,
         Some(Commands::Auth { command }) => process_cloud_auth(cli.environment, command).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
+        Some(Commands::Tenant { command }) => process_tenant(cli.environment, command).await,
         Some(Commands::Migrate {}) => process_migrate(cli.environment).await,
         None => process_deploy(cli.environment, None).await,
     }

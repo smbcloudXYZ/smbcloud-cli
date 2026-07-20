@@ -3,11 +3,13 @@ use crate::token::get_smb_token::get_smb_token;
 use crate::{
     account::lib::is_logged_in,
     cli::CommandResult,
-    ui::{fail_message, fail_symbol, prompt::confirm_delete, succeed_message, succeed_symbol},
+    ui::{fail_message, fail_symbol, prompt::confirm_delete_typed, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
 use smbcloud_network::environment::Environment;
-use smbcloud_networking_project::crud_project_delete::delete_project;
+use smbcloud_networking_project::{
+    crud_project_delete::delete_project, crud_project_read::get_project,
+};
 use spinners::Spinner;
 
 pub async fn process_project_delete(env: Environment, id: String) -> Result<CommandResult> {
@@ -15,9 +17,16 @@ pub async fn process_project_delete(env: Environment, id: String) -> Result<Comm
         return Err(anyhow!(fail_message("Please log in with `smb init`.")));
     }
 
-    let confirmed = confirm_delete(
+    let access_token = get_smb_token(env)?;
+    let project = get_project(env, client(), access_token.clone(), id.clone()).await?;
+
+    let confirmed = confirm_delete_typed(
         "Project deletion confirmation",
-        &format!("Delete project #{id}"),
+        &format!(
+            "This permanently deletes project #{} and everything under it — repos, apps, and deployment history.",
+            project.id
+        ),
+        &project.name,
     )?;
 
     let spinner = Spinner::new(
@@ -32,7 +41,6 @@ pub async fn process_project_delete(env: Environment, id: String) -> Result<Comm
             msg: succeed_message("Cancelled."),
         });
     }
-    let access_token = get_smb_token(env)?;
     match delete_project(env, client(), access_token, id).await {
         Ok(_) => Ok(CommandResult {
             spinner,
