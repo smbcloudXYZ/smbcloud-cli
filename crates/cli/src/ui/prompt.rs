@@ -20,6 +20,7 @@ use {
         ui::{confirm_dialog::confirm_delete_tui, fail_message},
     },
     anyhow::{anyhow, Result},
+    console::style,
     dialoguer::{console::Term, theme::ColorfulTheme, Confirm, Input, Password, Select},
 };
 
@@ -43,6 +44,82 @@ pub fn confirm_delete(what: &str, message: &str) -> Result<bool> {
         return confirm_delete_tui(message).map_err(|e| anyhow!(fail_message(&e.to_string())));
     }
     confirm(message, false)
+}
+
+fn print_danger_warning(warning: &str) {
+    println!();
+    println!(
+        "{}",
+        style("⚠ This action cannot be undone.").red().bold()
+    );
+    println!("{warning}");
+    println!();
+}
+
+/// Type-to-confirm deletion, mirroring the "type the resource name to
+/// confirm" pattern used for irreversible deletes with real blast radius
+/// (Vercel's project/team deletion, GitHub's repo deletion, …). A plain y/n
+/// is too easy to reflex through; requiring the caller to type the resource's
+/// own identifier back forces them to read it. Refuses in CI, like
+/// [`confirm_delete`] — a typed confirmation can't be safely defaulted. Under
+/// `--tui`, falls back to the boolean danger-zone dialog (no TUI text-input
+/// widget yet).
+pub fn confirm_delete_typed(what: &str, warning: &str, resource_identifier: &str) -> Result<bool> {
+    if is_ci() {
+        return Err(ci_required(what));
+    }
+    if is_tui() {
+        return confirm_delete_tui(warning).map_err(|e| anyhow!(fail_message(&e.to_string())));
+    }
+
+    print_danger_warning(warning);
+
+    let typed = Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!("Type \"{resource_identifier}\" to confirm"))
+        .allow_empty(true)
+        .interact()
+        .map_err(io_error)?;
+
+    Ok(typed.trim() == resource_identifier)
+}
+
+/// Two-step type-to-confirm deletion for the highest-blast-radius actions —
+/// ones that cascade across many owned resources (a tenant owns projects,
+/// auth apps, mail apps, domains, …). First the caller types the resource's
+/// own identifier (proves they're looking at the right thing), then a fixed
+/// intent phrase (proves they mean to delete it, not just rename/inspect it).
+/// Same CI/`--tui` handling as [`confirm_delete_typed`].
+pub fn confirm_delete_double(
+    what: &str,
+    warning: &str,
+    resource_identifier: &str,
+    intent_phrase: &str,
+) -> Result<bool> {
+    if is_ci() {
+        return Err(ci_required(what));
+    }
+    if is_tui() {
+        return confirm_delete_tui(warning).map_err(|e| anyhow!(fail_message(&e.to_string())));
+    }
+
+    print_danger_warning(warning);
+
+    let typed_identifier = Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!("Type \"{resource_identifier}\" to confirm"))
+        .allow_empty(true)
+        .interact()
+        .map_err(io_error)?;
+    if typed_identifier.trim() != resource_identifier {
+        return Ok(false);
+    }
+
+    let typed_phrase = Input::<String>::with_theme(&ColorfulTheme::default())
+        .with_prompt(format!("Type \"{intent_phrase}\" to confirm"))
+        .allow_empty(true)
+        .interact()
+        .map_err(io_error)?;
+
+    Ok(typed_phrase.trim() == intent_phrase)
 }
 
 /// Yes/no confirmation. In CI mode returns `default` without prompting.

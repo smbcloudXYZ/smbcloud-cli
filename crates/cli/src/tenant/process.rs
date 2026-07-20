@@ -7,10 +7,10 @@ use crate::{
         tenant_client::{create_tenant, delete_tenant, get_tenant, get_tenants, update_tenant},
     },
     token::get_smb_token::get_smb_token,
-    ui::{fail_message, fail_symbol, prompt::confirm_delete, succeed_message, succeed_symbol},
+    ui::{fail_message, fail_symbol, prompt::confirm_delete_double, succeed_message, succeed_symbol},
 };
 use anyhow::{anyhow, Result};
-use smbcloud_model::tenant::{TenantCreate, TenantUpdate};
+use smbcloud_model::tenant::{TenantCreate, TenantKind, TenantUpdate};
 use smbcloud_network::environment::Environment;
 use spinners::Spinner;
 
@@ -98,16 +98,34 @@ async fn process_tenant_update(env: Environment, id: String, name: String) -> Re
 
 async fn process_tenant_delete(env: Environment, id: String) -> Result<CommandResult> {
     let tenant_id = normalize_required("Tenant id", id)?;
-    let confirmed = confirm_delete(
+    let access_token = get_smb_token(env)?;
+
+    let tenant = get_tenant(env, client(), access_token.clone(), tenant_id.clone())
+        .await
+        .map_err(api_error)?;
+
+    // The personal tenant is bootstrapped on signup and isn't a
+    // user-manageable resource — mirror the API-side guard client-side so
+    // the failure is immediate instead of after two confirmation prompts.
+    if matches!(tenant.kind, TenantKind::Personal) {
+        return Err(anyhow!("The personal tenant can't be deleted."));
+    }
+
+    let warning = format!(
+        "This permanently deletes \"{}\" and everything it owns — {} project(s), plus its auth apps, mail apps, and domains.",
+        tenant.name, tenant.projects_count
+    );
+    let confirmed = confirm_delete_double(
         "Tenant deletion confirmation",
-        &format!("Delete tenant #{tenant_id}"),
+        &warning,
+        &tenant.slug,
+        "delete my tenant",
     )?;
 
     if !confirmed {
         return Ok(done_result("Cancelled."));
     }
 
-    let access_token = get_smb_token(env)?;
     let spinner = loading_spinner("Deleting tenant");
 
     match delete_tenant(env, client(), access_token, tenant_id).await {
