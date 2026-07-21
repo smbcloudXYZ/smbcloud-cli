@@ -1,2 +1,15 @@
+# sharp (Next's image optimizer) ships native binaries and needs its install
+# script to run. `allowBuilds` is the pnpm 11 spelling; `onlyBuiltDependencies`
+# is kept for older pnpm, which is what the deploy host may still run.
+allowBuilds:
+  sharp: true
+
 onlyBuiltDependencies:
   - sharp
+
+# Nextra 4 pulls zod in transitively and breaks on newer releases — without
+# this pin every docs page 500s at runtime. It lives here rather than in
+# package.json's `pnpm.overrides` because pnpm 11 no longer reads that field:
+# it warns and silently ignores it, which un-pins zod and brings the 500s back.
+overrides:
+  zod: 4.1.12

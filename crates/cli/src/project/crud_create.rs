@@ -137,6 +137,7 @@ pub async fn process_project_init(
     );
 
     let access_token = get_smb_token(env)?;
+    let tenant_id = crate::session_config::current_tenant_id(env).unwrap_or(None);
     let project = match create_project(
         env,
         client(),
@@ -145,6 +146,7 @@ pub async fn process_project_init(
             name: project_name.clone(),
             description: description.clone(),
         },
+        tenant_id,
     )
     .await
     {

@@ -3,7 +3,9 @@ use crate::token::get_smb_token::get_smb_token;
 use crate::{
     account::lib::is_logged_in,
     cli::CommandResult,
-    ui::{fail_message, fail_symbol, prompt::confirm_delete_typed, succeed_message, succeed_symbol},
+    ui::{
+        fail_message, fail_symbol, prompt::confirm_delete_typed, succeed_message, succeed_symbol,
+    },
 };
 use anyhow::{anyhow, Result};
 use smbcloud_network::environment::Environment;

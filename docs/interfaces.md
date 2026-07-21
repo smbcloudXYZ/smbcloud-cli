@@ -11,7 +11,8 @@ pipe, or a script. Two global flags switch interface:
 | `--mcp` | **MCP** | Runs as a Model Context Protocol server over stdio instead of a one-shot command. Implies non-interactive. |
 
 `--tui` and `--mcp` are mutually exclusive. The `--ci` flag is orthogonal: it
-forces non-interactive behavior (see [ci.md](./ci.md)) and applies to the
+forces non-interactive behavior (see
+[CI / non-interactive deploys](./ci.md)) and applies to the
 headless interface; `--mcp` is always non-interactive regardless of `--ci`.
 
 ## Headless (default)
@@ -47,90 +48,17 @@ dialog under `--tui`; in the headless interface they ask inline instead.
 
 ## MCP (`--mcp`)
 
-`smb --mcp` starts an MCP server that speaks JSON-RPC over stdio. Instead of
-running a single command and exiting, it stays up and exposes smbCloud
-operations as MCP **tools** that an MCP-capable client (assistant, IDE, agent)
-can call. The subcommand is ignored in this mode.
+`smb --mcp` starts an MCP (Model Context Protocol) server that speaks
+JSON-RPC over stdio. Instead of running a single command and exiting, it stays
+up and exposes smbCloud operations — 30 tools spanning accounts, projects,
+tenants, Mail, and Auth — as MCP **tools** that an MCP-capable client
+(Claude Desktop, Claude Code, Cursor, or any other assistant/agent) can call.
+The subcommand is ignored in this mode.
 
 Authentication uses the token stored by `smb login`, so log in once before
-starting the server. Tools run non-interactively and return structured JSON.
+starting the server. Tools run non-interactively and return structured JSON —
+including the `*_delete` tools, which apply immediately with no confirmation
+prompt.
 
-### Available tools
-
-| Tool | Arguments | Returns |
-|---|---|---|
-| `me` | _(none)_ | The authenticated user. |
-| `project_list` | _(none)_ | The user's projects. |
-| `project_show` | `id` | A single project by ID. |
-| `deployments` | `project_id` | A project's deployments. |
-| `project_create` | `name`, `description` (optional) | The created project. |
-| `project_update` | `id`, `description` | The updated project (runner preserved). |
-| `project_delete` | `id` | Confirmation. **Destructive and irreversible.** |
-
-Tools run non-interactively, so the write tools apply immediately without a
-confirmation prompt — the calling client is responsible for confirming intent
-before invoking `project_delete`.
-
-### Not exposed as tools (yet)
-
-`deploy` and `migrate` are **deliberately not** MCP tools. Both are tightly
-coupled to the local working directory in ways a stdio tool call can't satisfy
-cleanly:
-
-- **`deploy`** reads `.smb/config.toml` (running interactive `setup_project`
-  when it is missing), builds the app locally, then uploads over rsync and
-  restarts over SSH. It depends on the caller's current directory, local build
-  toolchains, and on-disk SSH keys, and it streams long-running progress — none
-  of which map onto a single non-interactive tool call. For automated deploys,
-  use the headless CLI path instead (`smb --ci deploy`, see [ci.md](./ci.md)),
-  which is what CI and the deploy action already drive.
-- **`migrate`** pushes local `.smb/config.toml` deploy fields up to the server,
-  so it is meaningless without a project directory to read from. The current
-  tools operate on explicit arguments (a project `id`, a `name`), not on
-  whatever directory the server process happens to be running in.
-
-Exposing either as a tool would mean designing an explicit, directory-free
-contract — e.g. accepting the full deploy configuration as arguments and
-returning streamed progress as structured events — rather than wrapping the
-existing directory-coupled handlers. That is intentionally left for a later
-pass; the tools above cover the read and project-management surface that is
-well-defined over stdio today.
-
-### Wiring it into an MCP client
-
-Most MCP clients take a command plus arguments. Point the client at the `smb`
-binary with `--mcp`:
-
-```json
-{
-  "mcpServers": {
-    "smbcloud": {
-      "command": "smb",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
-
-To target a local API during development, add the environment flag —
-`"args": ["-e", "dev", "--mcp"]`.
-
-### Talking to it directly
-
-The server reads newline-delimited JSON-RPC on stdin and writes responses on
-stdout. Diagnostics go to stderr and logging goes to the on-disk log file, so
-stdout stays a clean protocol channel. A minimal handshake:
-
-```sh
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
-  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  | smb --mcp
-```
-
-A tool call names the tool and its arguments:
-
-```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"project_show","arguments":{"id":"<id>"}}}
-```
+For the client setup guide and the full tool reference, see
+[MCP Server](./mcp.md).

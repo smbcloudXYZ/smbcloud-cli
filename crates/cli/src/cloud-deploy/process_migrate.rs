@@ -178,6 +178,7 @@ fn build_payload(
 fn strip_project(project: &Project) -> Project {
     Project {
         id: project.id,
+        tenant_id: project.tenant_id,
         name: project.name.clone(),
         runner: project.runner,
         deployment_method: DeploymentMethod::default(),

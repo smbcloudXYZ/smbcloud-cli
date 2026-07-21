@@ -18,10 +18,5 @@
   },
   "devDependencies": {
     "pagefind": "^1.4.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "zod": "4.1.12"
-    }
   }
 }

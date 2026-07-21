@@ -48,10 +48,7 @@ pub fn confirm_delete(what: &str, message: &str) -> Result<bool> {
 
 fn print_danger_warning(warning: &str) {
     println!();
-    println!(
-        "{}",
-        style("⚠ This action cannot be undone.").red().bold()
-    );
+    println!("{}", style("⚠ This action cannot be undone.").red().bold());
     println!("{warning}");
     println!();
 }

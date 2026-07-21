@@ -1,24 +1,40 @@
 ---
 asIndexPage: true
 title: CLI
+description: Install the smbCloud CLI (smb), run it headless/--tui/--mcp, and connect it to Claude, Cursor, or CI.
 ---
 
 # CLI
 
 `smb` is the smbCloud command-line tool. You use it to log in and to manage and
-deploy your smbCloud resources from the terminal.
+deploy your smbCloud resources — projects, tenants, Mail, and Auth — from the
+terminal, a script, or an MCP-connected AI agent.
 
 ```text
-Usage: smb [OPTIONS] <COMMAND>
+Usage: smb [OPTIONS] [COMMAND]
 
 Commands:
-  login  Login to your account. To create an account, visit https://smbcloud.xyz
-  help   Print this message or the help of the given subcommand(s)
+  deploy   Deploy project. This is smb main command. Requires an smbCloud account.
+  init     Initialize project. Requires an smbCloud account.
+  login    Login to your account.
+  logout   Logout from your account.
+  me       Your account info.
+  migrate  Migrate local .smb/config.toml deploy fields to the smbCloud server.
+  account  Manage your account.
+  project  Manage your projects.
+  tenant   Manage your tenants.
+  mail     Manage smbCloud Mail.
+  auth     Manage smbCloud Auth apps.
+  help     Print this message or the help of the given subcommand(s)
 
 Options:
-  -l, --log-level <LOG_LEVEL>  Log level: trace, debug, info, warn, error, off
-  -h, --help                   Print help
-  -V, --version                Print version
+  -e, --environment <ENVIRONMENT>  Environment: dev, production [default: production]
+  -l, --log-level <LOG_LEVEL>      Log level: trace, debug, info, warn, error, off
+      --ci                        Non-interactive mode for CI/automation
+      --tui                       Full-screen TUI mode for the read commands
+      --mcp                       Run as an MCP server over stdio
+  -h, --help                       Print help
+  -V, --version                    Print version
 ```
 
 ## Install
@@ -41,10 +57,18 @@ smb --version
 You can also download a binary for any release directly from the
 [GitHub releases page](https://github.com/smbcloudXYZ/smbcloud-cli/releases).
 
+## Guides
+
+| Guide | What it covers |
+| --- | --- |
+| [Interfaces](/developer/cli/interfaces) | The three ways `smb` runs — headless, `--tui`, and `--mcp` — and when to use each. |
+| [MCP Server](/developer/cli/mcp) | Connect Claude Desktop, Claude Code, Cursor, or any MCP client to `smb --mcp`; the full 30-tool reference. |
+| [CI](/developer/cli/ci) | Run `smb` non-interactively with `--ci` and deploy from GitHub Actions. |
+
 import { Callout } from 'nextra/components'
 
 <Callout type="info">
-  The install and contributing pages in this section are synced from the
-  [smbcloud-cli](https://github.com/smbcloudXYZ/smbcloud-cli) repository. Edit
-  them there.
+  The install, guide, and contributing pages in this section are synced from
+  the [smbcloud-cli](https://github.com/smbcloudXYZ/smbcloud-cli) repository.
+  Edit them there.
 </Callout>

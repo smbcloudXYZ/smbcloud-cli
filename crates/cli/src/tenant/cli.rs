@@ -26,4 +26,9 @@ pub enum Commands {
         #[clap(short, long, required = true)]
         id: String,
     },
+    #[clap(about = "Select a tenant for the current CLI session.")]
+    Use {
+        #[clap(short, long, required = true)]
+        id: String,
+    },
 }

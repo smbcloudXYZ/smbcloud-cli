@@ -1,4 +1,3 @@
-use crate::ar_date_format;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
@@ -67,7 +66,6 @@ pub struct Tenant {
     /// Whether this is the tenant currently selected for the CLI session.
     #[serde(default)]
     pub current: bool,
-    #[serde(with = "ar_date_format")]
     pub created_at: DateTime<Utc>,
 }
 
