@@ -1,5 +1,5 @@
 use {
-    crate::{app_auth::AuthApp, ar_date_format, runner::Runner},
+    crate::{app_auth::AuthApp, ar_date_format, runner::Runner, tenant::Tenant},
     chrono::{DateTime, Utc},
     serde::{Deserialize, Serialize},
     serde_repr::{Deserialize_repr, Serialize_repr},
@@ -35,7 +35,7 @@ impl Display for DeploymentMethod {
     }
 }
 
-#[derive(Deserialize, Debug, Serialize, Clone)]
+#[derive(Deserialize, Debug, Serialize, Clone, Default)]
 pub struct Config {
     /// Legacy project field — kept for backward compatibility during migration.
     pub current_project: Option<Project>,
@@ -43,6 +43,11 @@ pub struct Config {
     #[serde(default)]
     pub current_frontend_app: Option<crate::frontend_app::FrontendApp>,
     pub current_auth_app: Option<AuthApp>,
+    /// The tenant selected with `smb tenant use`. Determines which workspace
+    /// tenant-scoped operations (e.g. `smb project new`) target — the API
+    /// falls back to the user's personal tenant when this isn't set.
+    #[serde(default)]
+    pub current_tenant: Option<Tenant>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -50,6 +55,10 @@ pub struct Config {
 pub struct Project {
     /// Umbrella smbCloud workspace ID.
     pub id: i32,
+    /// The tenant this project belongs to. Optional for older API responses
+    /// that predate the tenant/workspace split.
+    #[serde(default)]
+    pub tenant_id: Option<i64>,
     #[serde(default)]
     pub name: String,
     #[serde(default)]

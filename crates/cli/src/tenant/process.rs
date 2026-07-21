@@ -7,7 +7,9 @@ use crate::{
         tenant_client::{create_tenant, delete_tenant, get_tenant, get_tenants, update_tenant},
     },
     token::get_smb_token::get_smb_token,
-    ui::{fail_message, fail_symbol, prompt::confirm_delete_double, succeed_message, succeed_symbol},
+    ui::{
+        fail_message, fail_symbol, prompt::confirm_delete_double, succeed_message, succeed_symbol,
+    },
 };
 use anyhow::{anyhow, Result};
 use smbcloud_model::tenant::{TenantCreate, TenantKind, TenantUpdate};
@@ -21,6 +23,7 @@ pub async fn process_tenant(env: Environment, commands: Commands) -> Result<Comm
         Commands::New { name } => process_tenant_new(env, name).await,
         Commands::Update { id, name } => process_tenant_update(env, id, name).await,
         Commands::Delete { id } => process_tenant_delete(env, id).await,
+        Commands::Use { id } => process_tenant_use(env, id).await,
     }
 }
 
@@ -74,7 +77,11 @@ async fn process_tenant_new(env: Environment, name: String) -> Result<CommandRes
     Ok(done_result("Tenant created."))
 }
 
-async fn process_tenant_update(env: Environment, id: String, name: String) -> Result<CommandResult> {
+async fn process_tenant_update(
+    env: Environment,
+    id: String,
+    name: String,
+) -> Result<CommandResult> {
     let access_token = get_smb_token(env)?;
     let tenant_id = normalize_required("Tenant id", id)?;
     let update = TenantUpdate {
@@ -140,6 +147,37 @@ async fn process_tenant_delete(env: Environment, id: String) -> Result<CommandRe
             msg: fail_message(&error.to_string()),
         }),
     }
+}
+
+async fn process_tenant_use(env: Environment, id: String) -> Result<CommandResult> {
+    let access_token = get_smb_token(env)?;
+    let tenant_id = normalize_required("Tenant id", id)?;
+    let mut spinner = loading_spinner("Loading tenant");
+
+    let tenant = get_tenant(env, client(), access_token, tenant_id)
+        .await
+        .map_err(api_error)?;
+
+    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Loaded."));
+    let name = tenant.name.clone();
+    let tenant_id = tenant.id;
+    let had_project_in_scope = crate::session_config::current_project_id(env)
+        .ok()
+        .flatten()
+        .is_some();
+    let updated = crate::session_config::set_current_tenant(env, tenant)?;
+    if had_project_in_scope && updated.current_project.is_none() {
+        println!(
+            "{}",
+            crate::ui::description(
+                "The previously selected project belonged to a different tenant, so it was cleared — run `smb project use --id <project-id>` to pick one in this tenant."
+            )
+        );
+    }
+
+    Ok(done_result(&format!(
+        "Now using tenant \"{name}\" (#{tenant_id})."
+    )))
 }
 
 fn loading_spinner(message: &str) -> Spinner {

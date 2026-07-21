@@ -42,6 +42,9 @@ yarn-error.log*
 /content/developer/cli/homebrew.mdx
 /content/developer/cli/npm.mdx
 /content/developer/cli/pypi.mdx
+/content/developer/cli/interfaces.mdx
+/content/developer/cli/mcp.mdx
+/content/developer/cli/ci.mdx
 /content/developer/contributing/_meta.js
 /content/developer/contributing/debugging.mdx
 /content/developer/contributing/development.mdx

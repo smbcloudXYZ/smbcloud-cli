@@ -111,11 +111,13 @@ pub(crate) async fn create_new_project(
         }
     };
 
+    let tenant_id = crate::session_config::current_tenant_id(env).unwrap_or(None);
     let project = create_project(
         env,
         client(),
         access_token.clone(),
         ProjectCreate { name, description },
+        tenant_id,
     )
     .await?;
 

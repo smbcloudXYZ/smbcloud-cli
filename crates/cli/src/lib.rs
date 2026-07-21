@@ -12,6 +12,7 @@ pub mod interface;
 pub mod mail;
 pub mod mcp;
 pub mod project;
+mod session_config;
 pub mod tenant;
 mod token;
 pub mod ui;

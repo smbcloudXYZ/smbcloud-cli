@@ -65,6 +65,28 @@ cargo test  --workspace --exclude smbcloud-auth-sdk-wasm
 cargo test -p smbcloud-model app_auth::tests::some_test    # a single test
 ```
 
+**Always run `cargo fmt --all` and the `cargo clippy` command above before considering any
+Rust change done** — after every edit, not just before a push. Fix clippy findings rather
+than silencing them with `#[allow(...)]` unless there's a specific reason the lint doesn't
+apply, and note that reason inline.
+
+`ci.yml` runs six jobs on every push; run the ones relevant to what changed, not just the
+main Rust workspace job — a change that only compiles in the main workspace but breaks one
+of these is still a broken CI run:
+
+| Job | Touches | Local check |
+|---|---|---|
+| Rust workspace | any `crates/*` change (except the wasm crate) | `cargo fmt --all -- --check && cargo clippy --workspace --exclude smbcloud-auth-sdk-wasm --tests -- -D warnings && cargo test --workspace --exclude smbcloud-auth-sdk-wasm` |
+| `smbcloud-auth-sdk-wasm` | that crate, or `smbcloud-auth-sdk` it wraps | `cargo check --package smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown` |
+| Python SDK | `sdk/python`, or `smbcloud-auth-sdk` | `cd sdk/python && maturin build --release --locked --out dist` |
+| npm/WASM SDK | `sdk/npm/smbcloud-auth`, or `smbcloud-auth-sdk` | `cd sdk/npm/smbcloud-auth && node ./prepare-package.mjs` (needs `wasm-pack` installed) |
+| NuGet .NET tool | `nuget/smbcloud-cli` | `dotnet build nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release` |
+| Ruby gem | `sdk/gems/auth`, or `smbcloud-auth-sdk` | `cd sdk/gems/auth && bundle exec rake compile` |
+
+The last four jobs need their own toolchain (maturin/PyO3, wasm-pack + Node, the .NET SDK,
+Ruby/bundler) — if it isn't installed, say so explicitly rather than skipping the check
+silently, so the user knows it wasn't verified.
+
 `smbcloud-auth-sdk-wasm` targets `wasm32-unknown-unknown` and cannot build or test on the host — it is always excluded from workspace clippy/test and checked separately: `cargo check -p smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown`.
 
 `CLI_CLIENT_SECRET` (see `.env.example`) is the OAuth client-credentials secret read at runtime; tests and `cargo check` don't need it, but login flows against a real API do.

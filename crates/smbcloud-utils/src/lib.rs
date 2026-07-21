@@ -27,12 +27,7 @@ pub async fn get_config() -> Result<Config> {
         Some(mut path) => {
             path.push(".smb/config.json");
             if !path.exists() {
-                let config = Config {
-                    current_project: None,
-                    current_frontend_app: None,
-                    current_auth_app: None,
-                };
-                return Ok(config);
+                return Ok(Config::default());
             }
             let config_string = std::fs::read_to_string(path).map_err(|e| {
                 debug!("Error while reading config file: {}", e);
@@ -45,14 +40,7 @@ pub async fn get_config() -> Result<Config> {
 
             Ok(config)
         }
-        None => {
-            let config = Config {
-                current_project: None,
-                current_frontend_app: None,
-                current_auth_app: None,
-            };
-            Ok(config)
-        }
+        None => Ok(Config::default()),
     }
 }
 
