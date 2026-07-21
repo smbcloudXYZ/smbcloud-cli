@@ -98,7 +98,7 @@ dependencies = [
 
 [[package]]
 name = "auth"
-version = "0.4.11"
+version = "0.4.12"
 dependencies = [
  "magnus",
  "serde",
@@ -785,9 +785,9 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
-version = "0.2.186"
+version = "0.2.187"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68ab91017fe16c622486840e4c83c9a37afeff978bd239b5293d61ece587de66"
+checksum = "a7743783ea728ef5c31194c6590797eed286449b4a4e87d626d8a51f0a94e732"
 
 [[package]]
 name = "libloading"
@@ -1437,9 +1437,9 @@ checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
 name = "smbcloud-auth-sdk"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70e4385931d3a44d3f50d89d53832be40a3dcecc0b58a2130013b397fa06eb09"
+checksum = "c2a0d54edbae1d2e821f5e1232c10e5f73c7e39169cda769669e67aca9be4802"
 dependencies = [
  "base64",
  "reqwest",
@@ -1454,9 +1454,9 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-model"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f59b1c446cc1295dadbf69dffbe0d5b28c4d77e8712bd86f68db581f54035d6f"
+checksum = "b0162dd217cc25df3bd9f7382109b10b6d8f28791525968ce36809e528f30f82"
 dependencies = [
  "chrono",
  "log",
@@ -1472,9 +1472,9 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-network"
-version = "0.4.10"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49b23158b2440e25233609152702cf00311dabe26f3491333a98bc102177a1fe"
+checksum = "301cc9f908783833427813bf249c277f47979d6ef33547720ad9e9f05d7d22a7"
 dependencies = [
  "clap 4.6.3",
  "log",

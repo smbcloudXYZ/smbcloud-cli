@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-utils"
-version = "0.4.11"
+version = "0.4.12"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "Command line tool for deploying NextJS app on the smbCloud platform."

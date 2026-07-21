@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-network"
-version = "0.4.11"
+version = "0.4.12"
 edition = "2024"
 readme = "README.md"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
