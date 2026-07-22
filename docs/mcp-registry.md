@@ -64,21 +64,24 @@ documented in [Install](./cli-install.md).
 — and both are updated by `make patch | minor | major` along with the rest of
 the release metadata (`scripts/sync-release-version.mjs`).
 
-After tagging and running the npm and NuGet release workflows, run the
-**MCP Registry Release** workflow with the same tag:
+Publishing is chained off the release: pushing a `v*` tag runs the crates.io
+workflow, which fans out to the distribution workflows, and **NuGet CLI
+Release** triggers **MCP Registry Release** once its publish job succeeds. It
+hangs off NuGet rather than the fan-out because the listing needs both npm and
+NuGet live at that version, and NuGet is the slower of the two.
+
+The registry fetches the package metadata during publish, so
+`@smbcloud/cli@<version>` and `SmbCloud.Cli <version>` must already exist. npm
+is queryable within seconds of publishing; nuget.org validates first and takes
+roughly 5–15 minutes to reach the flat container. The workflow polls both for up
+to ten minutes rather than failing on that gap.
+
+To publish by hand — a re-run after a transient failure, say — dispatch it with
+the tag:
 
 ```sh
-gh workflow run release-mcp-registry.yml --ref development -f tag=v0.4.12
+gh workflow run release-mcp-registry.yml -f tag=v0.4.13
 ```
-
-The workflow publishes the `server.json` on the branch you dispatch from, not
-the one at the tag — it uploads metadata rather than building from source, and
-the metadata can change after a tag is cut. The tag input only selects which
-version to publish.
-
-Order matters. The registry fetches the package metadata during publish, so
-`@smbcloud/cli@<version>` and `SmbCloud.Cli <version>` must already be live —
-the workflow checks for both and stops early if they aren't.
 
 Confirm the listing afterwards:
 

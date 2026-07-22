@@ -18,12 +18,10 @@ jobs:
     name: Publish server.json to the MCP Registry
     runs-on: ubuntu-latest
     steps:
-      # Unlike the other release workflows, this one builds nothing from source:
-      # it uploads metadata. So it checks out the branch it was dispatched on
-      # rather than the tag — `server.json` may have landed after the tag was
-      # cut — and uses the tag input only to pick the version to publish.
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -64,7 +62,21 @@ jobs:
           # landed will still be missing it. Both comparisons are case-sensitive.
           server_name="$(jq -r '.name' server.json)"
 
-          npm view "@smbcloud/cli@${RELEASE_VERSION}" version
+          # npm is queryable within seconds of publishing, but the npm release
+          # workflow runs in parallel with the NuGet one that triggers this, so
+          # it may still be building its six platform packages.
+          for attempt in $(seq 1 20); do
+            if npm view "@smbcloud/cli@${RELEASE_VERSION}" version; then
+              break
+            fi
+            if [ "${attempt}" -eq 20 ]; then
+              echo "@smbcloud/cli@${RELEASE_VERSION} is still not on npm after 10 minutes." >&2
+              exit 1
+            fi
+            echo "Waiting for @smbcloud/cli@${RELEASE_VERSION} on npm (attempt ${attempt}/20)..."
+            sleep 30
+          done
+
           npm_mcp_name="$(npm view "@smbcloud/cli@${RELEASE_VERSION}" mcpName)"
           if [ "${npm_mcp_name}" != "${server_name}" ]; then
             echo "@smbcloud/cli@${RELEASE_VERSION} declares mcpName '${npm_mcp_name}', expected '${server_name}'." >&2
@@ -72,8 +84,22 @@ jobs:
             exit 1
           fi
 
-          nuget_versions="$(curl -fsSL https://api.nuget.org/v3-flatcontainer/smbcloud.cli/index.json)"
-          echo "${nuget_versions}" | jq -e --arg v "${RELEASE_VERSION}" '.versions | index($v)'
+          # nuget.org validates a package before it reaches the flat container,
+          # so a version pushed minutes ago is not queryable yet. Poll instead
+          # of failing the release on that race.
+          for attempt in $(seq 1 20); do
+            nuget_versions="$(curl -fsSL "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/index.json")"
+            if echo "${nuget_versions}" | jq -e --arg v "${RELEASE_VERSION}" '.versions | index($v)' >/dev/null; then
+              echo "SmbCloud.Cli ${RELEASE_VERSION} is indexed."
+              break
+            fi
+            if [ "${attempt}" -eq 20 ]; then
+              echo "SmbCloud.Cli ${RELEASE_VERSION} is still not indexed on nuget.org after 10 minutes." >&2
+              exit 1
+            fi
+            echo "Waiting for nuget.org to index ${RELEASE_VERSION} (attempt ${attempt}/20)..."
+            sleep 30
+          done
 
           curl -fsSL -o package.nupkg \
             "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/${RELEASE_VERSION}/smbcloud.cli.${RELEASE_VERSION}.nupkg"
