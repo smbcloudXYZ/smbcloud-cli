@@ -3,7 +3,7 @@
   "name": "io.github.smbcloudXYZ/smbcloud-cli",
   "title": "smbCloud CLI",
   "description": "Manage smbCloud projects, deployments, tenants, Mail apps, and Auth apps.",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "websiteUrl": "https://smbcloud.xyz/",
   "repository": {
     "url": "https://github.com/smbcloudXYZ/smbcloud-cli",
@@ -15,7 +15,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@smbcloud/cli",
-      "version": "0.4.12",
+      "version": "0.4.13",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
@@ -33,7 +33,7 @@
       "registryType": "nuget",
       "registryBaseUrl": "https://api.nuget.org/v3/index.json",
       "identifier": "SmbCloud.Cli",
-      "version": "0.4.12",
+      "version": "0.4.13",
       "runtimeHint": "dnx",
       "transport": {
         "type": "stdio"
