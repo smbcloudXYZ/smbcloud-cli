@@ -8,6 +8,7 @@ const authGemVersionPath = resolve(repoRoot, "sdk/gems/auth/lib/auth/version.rb"
 const authGemCargoTomlPath = resolve(repoRoot, "sdk/gems/auth/ext/auth/Cargo.toml");
 const modelGemVersionPath = resolve(repoRoot, "sdk/gems/model/lib/model/version.rb");
 const modelGemCargoTomlPath = resolve(repoRoot, "sdk/gems/model/ext/model/Cargo.toml");
+const mcpServerJsonPath = resolve(repoRoot, "server.json");
 
 function readText(path) {
   return readFileSync(path, "utf8");
@@ -127,6 +128,21 @@ if (
   )
 ) {
   updatedPaths.push(modelGemCargoTomlPath);
+}
+
+if (
+  updateFile(mcpServerJsonPath, (content) => {
+    const parsed = JSON.parse(content);
+    parsed.version = releaseVersion;
+
+    for (const pkg of parsed.packages ?? []) {
+      pkg.version = releaseVersion;
+    }
+
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  })
+) {
+  updatedPaths.push(mcpServerJsonPath);
 }
 
 console.log(`Release version: ${releaseVersion}`);
