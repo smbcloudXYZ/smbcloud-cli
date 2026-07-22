@@ -9,7 +9,9 @@ tools covering the account, project, tenant, Mail, and Auth surfaces.
 
 This page is the setup guide and the full tool reference. For how `--mcp`
 compares to the CLI's other two interfaces (headless and `--tui`), see
-[Interfaces](./interfaces.md).
+[Interfaces](./interfaces.md). The server is also listed in the official MCP
+Registry as `io.github.smbcloudxyz/smbcloud-cli`, so clients that browse the
+registry can install it for you — see [MCP Registry](./mcp-registry.md).
 
 ## Prerequisites
 

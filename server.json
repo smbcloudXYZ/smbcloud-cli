@@ -1,0 +1,51 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.smbcloudxyz/smbcloud-cli",
+  "title": "smbCloud CLI",
+  "description": "Manage smbCloud projects, deployments, tenants, Mail apps, and Auth apps.",
+  "version": "0.4.12",
+  "websiteUrl": "https://smbcloud.xyz/",
+  "repository": {
+    "url": "https://github.com/smbcloudXYZ/smbcloud-cli",
+    "source": "github",
+    "id": "597171611"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@smbcloud/cli",
+      "version": "0.4.12",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--mcp",
+          "description": "Run the CLI as an MCP server over stdio instead of executing a one-shot command.",
+          "isRequired": true
+        }
+      ]
+    },
+    {
+      "registryType": "nuget",
+      "registryBaseUrl": "https://api.nuget.org/v3/index.json",
+      "identifier": "SmbCloud.Cli",
+      "version": "0.4.12",
+      "runtimeHint": "dnx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--mcp",
+          "description": "Run the CLI as an MCP server over stdio instead of executing a one-shot command.",
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

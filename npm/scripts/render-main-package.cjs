@@ -12,6 +12,8 @@ if (!outputPath || !version) {
 const packageJson = {
     name: "@smbcloud/cli",
     version,
+    // Ownership proof for the MCP Registry: must match `name` in ../../server.json.
+    mcpName: "io.github.smbcloudxyz/smbcloud-cli",
     keywords: [
         "smbcloud",
         "cli",
