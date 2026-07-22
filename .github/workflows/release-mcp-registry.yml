@@ -55,15 +55,33 @@ jobs:
           mv server.tmp server.json
           cat server.json
 
-      - name: Verify the packages are published
+      - name: Verify the published packages carry the ownership marker
         shell: bash
         run: |
-          # The registry only stores metadata and validates it against the real
-          # packages, so both must already exist at this version.
+          # The registry stores metadata only, and validates it by fetching each
+          # listed package and looking for a marker naming this server. Checking
+          # the sources isn't enough: a package published before the marker
+          # landed will still be missing it. Both comparisons are case-sensitive.
+          server_name="$(jq -r '.name' server.json)"
+
           npm view "@smbcloud/cli@${RELEASE_VERSION}" version
+          npm_mcp_name="$(npm view "@smbcloud/cli@${RELEASE_VERSION}" mcpName)"
+          if [ "${npm_mcp_name}" != "${server_name}" ]; then
+            echo "@smbcloud/cli@${RELEASE_VERSION} declares mcpName '${npm_mcp_name}', expected '${server_name}'." >&2
+            echo "npm versions are immutable — cut a new release with the marker in place." >&2
+            exit 1
+          fi
 
           nuget_versions="$(curl -fsSL https://api.nuget.org/v3-flatcontainer/smbcloud.cli/index.json)"
           echo "${nuget_versions}" | jq -e --arg v "${RELEASE_VERSION}" '.versions | index($v)'
+
+          curl -fsSL -o package.nupkg \
+            "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/${RELEASE_VERSION}/smbcloud.cli.${RELEASE_VERSION}.nupkg"
+          if ! unzip -p package.nupkg README.md | grep -q "mcp-name: ${server_name}"; then
+            echo "SmbCloud.Cli ${RELEASE_VERSION} README is missing the 'mcp-name: ${server_name}' marker." >&2
+            exit 1
+          fi
+          rm package.nupkg
 
       - name: Install mcp-publisher
         shell: bash
