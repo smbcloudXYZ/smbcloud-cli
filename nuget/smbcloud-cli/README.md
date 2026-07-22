@@ -1,6 +1,6 @@
 # smbCloud CLI for .NET
 
-<!-- mcp-name: io.github.smbcloudxyz/smbcloud-cli -->
+<!-- mcp-name: io.github.smbcloudXYZ/smbcloud-cli -->
 
 `smb` is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 

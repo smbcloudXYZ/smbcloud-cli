@@ -1,7 +1,7 @@
 # MCP Registry
 
 The smbCloud CLI's MCP server is listed in the [official MCP Registry](https://registry.modelcontextprotocol.io)
-as **`io.github.smbcloudxyz/smbcloud-cli`**. The registry is a metadata index —
+as **`io.github.smbcloudXYZ/smbcloud-cli`**. The registry is a metadata index —
 it doesn't host binaries — so the listing points at packages we already publish
 to npm and NuGet, and clients that browse the registry can offer a one-click
 install of `smb --mcp`.
@@ -19,15 +19,26 @@ For running and configuring the server itself, see [MCP Server](./mcp.md).
 
 The registry checks each listed package for a marker naming the server. If the
 marker is missing or doesn't match `name` in `server.json`, publishing fails
-with "Registry validation failed for package". The publish workflow greps for
-both markers before it does anything else, so a mismatch shows up as a failed
-job rather than a rejected upload.
+with "Registry validation failed for package".
 
-### Why the name is `io.github.smbcloudxyz/...`
+The markers ship *inside* the published artifacts, so they have to be in place
+before the npm and NuGet packages are built — a version published before the
+marker landed can never be listed, since neither registry lets you overwrite a
+version. The publish workflow checks the real published artifacts (not just the
+sources in this repo) and stops early if a marker is missing.
+
+### Why the name is `io.github.smbcloudXYZ/...`
 
 The namespace has to match the authentication method. We authenticate with
-GitHub OIDC from Actions, which grants the `io.github.smbcloudxyz/*` namespace
-(the reverse-DNS form of the `smbcloudXYZ` org). Publishing under
+GitHub OIDC from Actions, which grants the `io.github.smbcloudXYZ/*` namespace
+(the reverse-DNS form of the `smbcloudXYZ` org).
+
+**The casing matters.** The registry grants the namespace with the org's exact
+GitHub casing, and compares case-sensitively — `io.github.smbcloudxyz/...` is
+rejected with a 403 even though GitHub itself treats org names
+case-insensitively. Every marker has to use the same `smbcloudXYZ` spelling.
+
+Publishing under
 `xyz.smbcloud/*` instead would mean domain-based auth: a `v=MCPv1` TXT record on
 `smbcloud.xyz` plus an Ed25519 private key stored as a repo secret. OIDC needs
 no secret at all, so that's what we use.
@@ -72,7 +83,7 @@ the workflow checks for both and stops early if they aren't.
 Confirm the listing afterwards:
 
 ```sh
-curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.smbcloudxyz/smbcloud-cli"
+curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.smbcloudXYZ/smbcloud-cli"
 ```
 
 ## Publishing by hand
