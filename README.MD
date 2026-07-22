@@ -5,7 +5,7 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    smbCloud Deploy, Auth, Mail, and GresIQ interface from the terminal.
+    smbCloud Mail, Auth, Deploy, and GresIQ from your terminal or your AI agent.
     <br />
     <br />
     <a href="https://smbcloud.xyz/">Website</a>
@@ -28,9 +28,13 @@
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/).
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/). It is
+also an MCP server, so Claude, Cursor, and other AI agents can run the same operations
+you do.
 
-Deploy Rust, Node.js, Ruby, or Swift apps from your terminal.
+Set up email domains and inbox routing on [smbCloud Mail](https://smbcloudmail.com),
+manage authentication apps on [smbCloud Auth](https://smbcloudauth.com), and deploy
+Rust, Node.js, Ruby, or Swift apps. One binary, no runtime to install.
 
 ## Install
 
@@ -84,6 +88,35 @@ smb deploy
 ```
 
 That gets you from login to first deploy.
+
+## MCP server
+
+`smb --mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io) over
+stdio, exposing 30 tools across smbCloud Mail, Auth, projects, and deployments. It is
+listed in the official MCP Registry as `io.github.smbcloudXYZ/smbcloud-cli`.
+
+Claude Code:
+
+```sh
+claude mcp add smbcloud -- smb --mcp
+```
+
+Claude Desktop, Cursor, and anything else that takes a JSON config:
+
+```json
+{
+  "mcpServers": {
+    "smbcloud": {
+      "command": "npx",
+      "args": ["@smbcloud/cli", "--mcp"]
+    }
+  }
+}
+```
+
+Auth comes from `smb login`, so a terminal session and an agent session share the same
+token and the same selected project. See [`docs/mcp.md`](./docs/mcp.md) for the full tool
+reference.
 
 ## CI / non-interactive mode
 

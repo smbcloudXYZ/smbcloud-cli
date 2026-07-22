@@ -1,10 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.smbcloudXYZ/smbcloud-cli",
-  "title": "smbCloud CLI",
-  "description": "Manage smbCloud projects, deployments, tenants, Mail apps, and Auth apps.",
+  "title": "smbCloud Mail & Auth",
+  "description": "Email infrastructure and authentication for developers: domains, inbox routes, auth apps, deploys.",
   "version": "0.4.13",
-  "websiteUrl": "https://smbcloud.xyz/",
+  "websiteUrl": "https://docs.smbcloud.xyz/developer/cli",
+  "icons": [
+    {
+      "src": "https://smbcloud.xyz/logo.png",
+      "mimeType": "image/png",
+      "sizes": ["866x866"]
+    }
+  ],
   "repository": {
     "url": "https://github.com/smbcloudXYZ/smbcloud-cli",
     "source": "github",
@@ -47,5 +54,24 @@
         }
       ]
     }
-  ]
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "categories": ["email", "authentication", "developer-tools"],
+      "keywords": [
+        "transactional email",
+        "email api",
+        "email domains",
+        "inbox routing",
+        "authentication",
+        "oauth",
+        "identity",
+        "deployment"
+      ],
+      "products": {
+        "smbCloud Mail": "https://smbcloudmail.com",
+        "smbCloud Auth": "https://smbcloudauth.com"
+      }
+    }
+  }
 }
