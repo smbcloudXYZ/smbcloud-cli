@@ -18,20 +18,18 @@ jobs:
     name: Publish server.json to the MCP Registry
     runs-on: ubuntu-latest
     steps:
+      # Unlike the other release workflows, this one builds nothing from source:
+      # it uploads metadata. So it checks out the branch it was dispatched on
+      # rather than the tag — `server.json` may have landed after the tag was
+      # cut — and uses the tag input only to pick the version to publish.
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            release_version="${GITHUB_REF_NAME#v}"
-          else
-            release_version="${{ github.event.inputs.tag }}"
-            release_version="${release_version#v}"
-          fi
+          release_version="${{ github.event.inputs.tag }}"
+          release_version="${release_version#v}"
 
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 

@@ -57,8 +57,13 @@ After tagging and running the npm and NuGet release workflows, run the
 **MCP Registry Release** workflow with the same tag:
 
 ```sh
-gh workflow run release-mcp-registry.yml -f tag=v0.4.12
+gh workflow run release-mcp-registry.yml --ref development -f tag=v0.4.12
 ```
+
+The workflow publishes the `server.json` on the branch you dispatch from, not
+the one at the tag — it uploads metadata rather than building from source, and
+the metadata can change after a tag is cut. The tag input only selects which
+version to publish.
 
 Order matters. The registry fetches the package metadata during publish, so
 `@smbcloud/cli@<version>` and `SmbCloud.Cli <version>` must already be live —
