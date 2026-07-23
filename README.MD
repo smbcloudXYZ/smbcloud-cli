@@ -32,9 +32,10 @@
 also an MCP server, so Claude, Cursor, and other AI agents can run the same operations
 you do.
 
-Set up email domains and inbox routing on [smbCloud Mail](https://smbcloudmail.com),
-manage authentication apps on [smbCloud Auth](https://smbcloudauth.com), and deploy
-Rust, Node.js, Ruby, or Swift apps. One binary, no runtime to install.
+Send transactional email and set up domains and inbox routing on
+[smbCloud Mail](https://smbcloudmail.com), manage authentication apps on
+[smbCloud Auth](https://smbcloudauth.com), and deploy Rust, Node.js, Ruby, or Swift
+apps. One binary, no runtime to install.
 
 ## Install
 
@@ -92,7 +93,7 @@ That gets you from login to first deploy.
 ## MCP server
 
 `smb --mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io) over
-stdio, exposing 30 tools across smbCloud Mail, Auth, projects, and deployments. It is
+stdio, exposing 31 tools across smbCloud Mail, Auth, projects, and deployments. It is
 listed in the official MCP Registry as `io.github.smbcloudXYZ/smbcloud-cli`.
 
 Claude Code:

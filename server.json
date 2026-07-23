@@ -9,7 +9,9 @@
     {
       "src": "https://smbcloud.xyz/logo.png",
       "mimeType": "image/png",
-      "sizes": ["866x866"]
+      "sizes": [
+        "866x866"
+      ]
     }
   ],
   "repository": {
@@ -34,6 +36,15 @@
           "description": "Run the CLI as an MCP server over stdio instead of executing a one-shot command.",
           "isRequired": true
         }
+      ],
+      "environmentVariables": [
+        {
+          "name": "SMB_MAIL_API_KEY",
+          "description": "Mail app API key (smb_mail_...) used by the mail_send tool. Optional: every other tool uses the session from `smb login`.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
       ]
     },
     {
@@ -52,12 +63,25 @@
           "description": "Run the CLI as an MCP server over stdio instead of executing a one-shot command.",
           "isRequired": true
         }
+      ],
+      "environmentVariables": [
+        {
+          "name": "SMB_MAIL_API_KEY",
+          "description": "Mail app API key (smb_mail_...) used by the mail_send tool. Optional: every other tool uses the session from `smb login`.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
       ]
     }
   ],
   "_meta": {
     "io.modelcontextprotocol.registry/publisher-provided": {
-      "categories": ["email", "authentication", "developer-tools"],
+      "categories": [
+        "email",
+        "authentication",
+        "developer-tools"
+      ],
       "keywords": [
         "transactional email",
         "email api",

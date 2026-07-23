@@ -2611,6 +2611,7 @@ dependencies = [
  "serde_repr",
  "smbcloud-auth",
  "smbcloud-deploy",
+ "smbcloud-email-sdk",
  "smbcloud-mail",
  "smbcloud-model",
  "smbcloud-network",
