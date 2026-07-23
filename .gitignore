@@ -28,3 +28,6 @@
 
 # smbCloud deploy config — carries workspace/app IDs; keep out of this public repo
 /.smb/
+
+# MCP Registry DNS/HTTP auth keypair — never commit the private half
+/mcp-registry-key.pem
