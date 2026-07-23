@@ -47,6 +47,7 @@ serde_json = { workspace = true }
 serde_repr = { workspace = true }
 smbcloud-auth = { workspace = true }
 smbcloud-deploy = { workspace = true }
+smbcloud-email-sdk = { workspace = true }
 smbcloud-mail = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-network = { workspace = true }

@@ -1,4 +1,5 @@
 use console::style;
+use smbcloud_email_sdk::EmailMessage;
 use smbcloud_model::mail::{MailApp, MailInbox, MailMessage, MailTestEmailDelivery};
 use std::collections::HashMap;
 
@@ -115,6 +116,17 @@ pub(crate) fn print_mail_test_delivery(delivery: &MailTestEmailDelivery) {
     print_field("Recipient", &delivery.recipient_email);
     print_field("Delivery method", &delivery.delivery_method);
     print_field("Sent at", &delivery.sent_at);
+}
+
+pub(crate) fn print_sent_email(message: &EmailMessage) {
+    print_heading("Sent email");
+    print_field("Message ID", &message.id);
+    print_field("Status", format!("{:?}", message.status));
+    print_field("From", &message.from_email);
+    print_field("To", message.to_emails.join(", "));
+    print_optional_field("Subject", message.subject.as_deref());
+    print_optional_field("Sent at", message.sent_at.as_deref());
+    print_optional_field("Idempotency key", message.idempotency_key.as_deref());
 }
 
 pub(crate) fn print_mail_messages(messages: &[MailMessage]) {
