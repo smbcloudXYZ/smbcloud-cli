@@ -9,6 +9,12 @@ pub mod mcp;
 
 const IOS_SIMULATOR_DESTINATION_PREFIX: &str = "platform=iOS Simulator,id=";
 
+pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+
+    STANDARD.encode(data)
+}
+
 #[derive(Debug, Clone)]
 pub struct XcodeCommandLineTools {
     xcrun_path: PathBuf,
@@ -167,6 +173,20 @@ impl Simctl<'_> {
     pub fn open_url(&self, udid: &str, url: &str) -> Result<()> {
         self.tools.run_xcrun(["simctl", "openurl", udid, url])?;
         Ok(())
+    }
+
+    pub fn screenshot(&self, udid: &str) -> Result<Vec<u8>> {
+        let temporary_directory = tempfile::tempdir()?;
+        let screenshot_path = temporary_directory.path().join("screenshot.png");
+        let screenshot_path_string = screenshot_path
+            .to_str()
+            .ok_or_else(|| anyhow!("screenshot path is not valid UTF-8"))?;
+
+        self.tools
+            .run_xcrun(["simctl", "io", udid, "screenshot", screenshot_path_string])?;
+
+        std::fs::read(&screenshot_path)
+            .with_context(|| format!("failed to read {}", screenshot_path.display()))
     }
 
     pub fn app_container_path(&self, udid: &str, bundle_id: &str) -> Result<PathBuf> {

@@ -5,6 +5,7 @@ members = ["crates/cli", "crates/smbcloud-*", "crates/xcrs"]
 [workspace.dependencies]
 anyhow = "1.0.58"
 async-trait = "0.1.51"
+base64 = "0.22"
 chrono = "0.4"
 clap = "4.1.6"
 clap_mangen = "0.2.10"

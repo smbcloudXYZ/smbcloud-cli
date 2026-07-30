@@ -3999,11 +3999,13 @@ name = "xcrs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "clap 4.6.2",
  "rmcp",
  "schemars",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
