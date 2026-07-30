@@ -50,8 +50,8 @@ dialog under `--tui`; in the headless interface they ask inline instead.
 
 `smb --mcp` starts an MCP (Model Context Protocol) server that speaks
 JSON-RPC over stdio. Instead of running a single command and exiting, it stays
-up and exposes smbCloud operations — 30 tools spanning accounts, projects,
-tenants, Mail, and Auth — as MCP **tools** that an MCP-capable client
+up and exposes 50 tools spanning accounts, projects, tenants, Mail, Auth,
+simulators, and ControlKit runners as MCP **tools** that an MCP-capable client
 (Claude Desktop, Claude Code, Cursor, or any other assistant/agent) can call.
 The subcommand is ignored in this mode.
 
@@ -61,4 +61,5 @@ including the `*_delete` tools, which apply immediately with no confirmation
 prompt.
 
 For the client setup guide and the full tool reference, see
-[MCP Server](./mcp.md).
+[MCP Server](./mcp.md). For running the native Apple-platform runners, see
+[ControlKit runners](./controlkit.md).
