@@ -7,6 +7,7 @@ use {
         clear_smb_token,
         cli::{Cli, CommandResult, Commands},
         cloud_auth::process::process_cloud_auth,
+        controlkit::process_controlkit,
         deploy::{process_deploy::process_deploy, process_migrate::process_migrate},
         mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
@@ -184,6 +185,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         | Some(Commands::Tenant { .. })
         | Some(Commands::Migrate {})
         | None => true,
+        Some(Commands::ControlKit { .. }) => false,
         Some(Commands::Init {}) => true,
     };
 
@@ -205,6 +207,7 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Auth { command }) => process_cloud_auth(cli.environment, command).await,
         Some(Commands::Project { command }) => process_project(cli.environment, command).await,
         Some(Commands::Tenant { command }) => process_tenant(cli.environment, command).await,
+        Some(Commands::ControlKit { command }) => process_controlkit(command).await,
         Some(Commands::Migrate {}) => process_migrate(cli.environment).await,
         None => process_deploy(cli.environment, None).await,
     }

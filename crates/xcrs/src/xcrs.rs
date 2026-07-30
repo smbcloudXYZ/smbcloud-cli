@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output, Stdio};
 use std::time::Duration;
 
 pub mod mcp;
@@ -90,10 +90,38 @@ impl Default for ControlKit {
 
 impl ControlKit {
     pub fn new(port: u16) -> Self {
+        Self::with_host("127.0.0.1", port)
+    }
+
+    pub fn with_host(host: &str, port: u16) -> Self {
+        let host = if host.contains(':') && !host.starts_with('[') {
+            format!("[{host}]")
+        } else {
+            host.to_string()
+        };
         Self {
             client: reqwest::Client::new(),
-            base_url: format!("http://127.0.0.1:{port}"),
+            base_url: format!("http://{host}:{port}"),
         }
+    }
+
+    pub async fn health(&self) -> Result<()> {
+        let response = self
+            .client
+            .get(format!("{}/health", self.base_url))
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await
+            .with_context(|| format!("failed to connect to ControlKit at {}", self.base_url))?;
+
+        if !response.status().is_success() {
+            return Err(anyhow!(
+                "ControlKit health check returned HTTP {}",
+                response.status()
+            ));
+        }
+
+        Ok(())
     }
 
     pub async fn call(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
@@ -455,6 +483,176 @@ impl XcodeCommandLineTools {
             app_container_path,
         })
     }
+
+    pub fn device_tunnel_address(&self, device_udid: &str) -> Result<String> {
+        let output = self.run_xcrun([
+            "devicectl",
+            "device",
+            "info",
+            "details",
+            "--device",
+            device_udid,
+        ])?;
+
+        parse_device_tunnel_address(&output)
+            .ok_or_else(|| anyhow!("device {device_udid} did not report a tunnel IP address"))
+    }
+
+    pub fn build_controlkit_device_runner(
+        &self,
+        request: &BuildControlKitDeviceRunner,
+    ) -> Result<PathBuf> {
+        ensure_path_exists(&request.project_path)?;
+        let args = [
+            "build-for-testing".to_string(),
+            "-project".to_string(),
+            path_to_string(&request.project_path)?,
+            "-scheme".to_string(),
+            request.scheme.clone(),
+            "-configuration".to_string(),
+            request.configuration.clone(),
+            "-destination".to_string(),
+            format!("id={}", request.device_udid),
+            "-derivedDataPath".to_string(),
+            path_to_string(&request.derived_data_path)?,
+        ];
+        self.run_xcodebuild(args)?;
+
+        let products_path = request.derived_data_path.join("Build/Products");
+        let entries = std::fs::read_dir(&products_path)
+            .with_context(|| format!("failed to read {}", products_path.display()))?;
+        let mut test_run_paths = entries
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "xctestrun")
+            })
+            .collect::<Vec<_>>();
+        test_run_paths.sort();
+
+        test_run_paths.into_iter().next().ok_or_else(|| {
+            anyhow!(
+                "Xcode did not create an .xctestrun file in {}",
+                products_path.display()
+            )
+        })
+    }
+
+    pub fn start_controlkit_device_runner(
+        &self,
+        request: &StartControlKitDeviceRunner,
+    ) -> Result<RunningControlKitDeviceRunner> {
+        ensure_path_exists(&request.xctestrun_path)?;
+        set_xctestrun_environment(
+            &request.xctestrun_path,
+            "CONTROLKIT_LISTEN_HOST",
+            &request.listen_host,
+        )?;
+        set_xctestrun_environment(
+            &request.xctestrun_path,
+            "CONTROLKIT_LISTEN_PORT",
+            &request.listen_port.to_string(),
+        )?;
+
+        let tunnel_host = self.device_tunnel_address(&request.device_udid)?;
+        let log_file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&request.log_path)
+            .with_context(|| format!("failed to open {}", request.log_path.display()))?;
+        let error_log_file = log_file
+            .try_clone()
+            .with_context(|| format!("failed to clone {}", request.log_path.display()))?;
+
+        let child = Command::new(&self.xcodebuild_path)
+            .arg("test-without-building")
+            .arg("-xctestrun")
+            .arg(&request.xctestrun_path)
+            .arg("-destination")
+            .arg(format!("id={}", request.device_udid))
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(log_file))
+            .stderr(Stdio::from(error_log_file))
+            .spawn()
+            .with_context(|| {
+                format!(
+                    "failed to start ControlKit runner for device {}",
+                    request.device_udid
+                )
+            })?;
+
+        Ok(RunningControlKitDeviceRunner {
+            process: child,
+            tunnel_host,
+            listen_port: request.listen_port,
+            log_path: request.log_path.clone(),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BuildControlKitDeviceRunner {
+    pub project_path: PathBuf,
+    pub scheme: String,
+    pub configuration: String,
+    pub device_udid: String,
+    pub derived_data_path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct StartControlKitDeviceRunner {
+    pub device_udid: String,
+    pub xctestrun_path: PathBuf,
+    pub listen_host: String,
+    pub listen_port: u16,
+    pub log_path: PathBuf,
+}
+
+#[derive(Debug)]
+pub struct RunningControlKitDeviceRunner {
+    pub process: Child,
+    pub tunnel_host: String,
+    pub listen_port: u16,
+    pub log_path: PathBuf,
+}
+
+fn set_xctestrun_environment(path: &Path, name: &str, value: &str) -> Result<()> {
+    let key = format!(":TestConfigurations:0:TestTargets:0:EnvironmentVariables:{name}");
+    let set_status = Command::new("/usr/libexec/PlistBuddy")
+        .arg("-c")
+        .arg(format!("Set {key} {value}"))
+        .arg(path)
+        .status()
+        .with_context(|| format!("failed to update {}", path.display()))?;
+
+    if set_status.success() {
+        return Ok(());
+    }
+
+    let add_status = Command::new("/usr/libexec/PlistBuddy")
+        .arg("-c")
+        .arg(format!("Add {key} string {value}"))
+        .arg(path)
+        .status()
+        .with_context(|| format!("failed to update {}", path.display()))?;
+
+    if add_status.success() {
+        return Ok(());
+    }
+
+    Err(anyhow!(
+        "failed to set {name} in XCTest plan {}",
+        path.display()
+    ))
+}
+
+fn parse_device_tunnel_address(output: &str) -> Option<String> {
+    output
+        .lines()
+        .find_map(|line| line.split_once("Tunnel IP Address:"))
+        .map(|(_, address)| address.trim().to_string())
+        .filter(|address| !address.is_empty())
 }
 
 pub fn parse_simctl_devices(output: &str) -> Result<Vec<Simulator>> {
@@ -566,5 +764,20 @@ mod tests {
         assert_eq!(devices[0].name, "Test-iOS-26");
         assert_eq!(devices[0].state, "Booted");
         assert!(devices[0].is_booted());
+    }
+
+    #[test]
+    fn formats_ipv6_controlkit_url() {
+        let controlkit = ControlKit::with_host("fdb4:e020:7377::1", 12006);
+        assert_eq!(controlkit.base_url, "http://[fdb4:e020:7377::1]:12006");
+    }
+
+    #[test]
+    fn parses_device_tunnel_address() {
+        let output = "• Device Name: iPhone\n• Tunnel IP Address: fd55:33ce:ad87::1\n";
+        assert_eq!(
+            parse_device_tunnel_address(output).as_deref(),
+            Some("fd55:33ce:ad87::1")
+        );
     }
 }
