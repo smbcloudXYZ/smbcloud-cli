@@ -21,5 +21,6 @@ xcrs::xcrs_mcp_tools!(
     "smb_controlkit_capabilities",
     "smb_macos_click",
     "smb_visionos_spatial_tap",
-    "smb_watchos_tap"
+    "smb_watchos_tap",
+    "smb_device_screenshot"
 );

@@ -57,6 +57,38 @@ The shared XCTest runner starts a local ControlKit JSON-RPC server on
 The macOS UI-test target includes the network-server entitlement required to
 bind the local port.
 
+## Run on a physical device
+
+The same runner also works installed on a real iOS, tvOS, watchOS, or
+visionOS device, not just a simulator. Build and start it against the
+device's UDID (find it with `xcrun devicectl list devices`) instead of a
+simulator destination:
+
+```sh
+xcodebuild -project XCRSControlKitRunner.xcodeproj \
+  -scheme ControlKit-<platform> \
+  -destination 'id=<device-udid>' \
+  build-for-testing
+
+TEST_RUNNER_CONTROLKIT_LISTEN_HOST=0.0.0.0 xcodebuild \
+  -project XCRSControlKitRunner.xcodeproj \
+  -scheme ControlKit-<platform> \
+  -destination 'id=<device-udid>' \
+  test-without-building
+```
+
+The `CONTROLKIT_LISTEN_HOST` environment variable controls what the
+in-process RPC server binds to (`Shared/ControlKitRPCServer.swift`) — it
+defaults to `127.0.0.1`, which is loopback-only *on the device itself* and
+unreachable from your Mac. `xcodebuild` forwards any `TEST_RUNNER_`-prefixed
+environment variable into the test process with the prefix stripped, so
+setting `TEST_RUNNER_CONTROLKIT_LISTEN_HOST=0.0.0.0` makes the server bind on
+every interface, including the one reachable over your LAN. Find the device's
+address with its Bonjour hostname (`<device-name>.local`, discoverable via
+`dns-sd -B _airplay._tcp local` for an Apple TV) or its CoreDevice tunnel
+address (`xcrun devicectl device info details --device <udid>`, under
+`Tunnel IP Address`).
+
 ## Connect through `smb --mcp`
 
 Start the CLI MCP server:
@@ -65,8 +97,10 @@ Start the CLI MCP server:
 smb --mcp
 ```
 
-The runner tools accept either `simulator_name` or `simulator_udid`. The
-standalone `xcrs --mcp` server exposes the same tools with the `xcrs_` prefix.
+The runner tools accept either `simulator_name` or `simulator_udid` for a
+simulator, or `host` (plus `controlkit_port`, defaulting to `12004`) for a
+physical device or any other remote runner. The standalone `xcrs --mcp`
+server exposes the same tools with the `xcrs_` prefix.
 
 | Tool | Runner | Purpose |
 | --- | --- | --- |
@@ -74,10 +108,13 @@ standalone `xcrs --mcp` server exposes the same tools with the `xcrs_` prefix.
 | `smb_macos_click` | macOS | Click at screen coordinates. |
 | `smb_visionos_spatial_tap` | visionOS | Perform a spatial tap. |
 | `smb_watchos_tap` | watchOS | Perform a touch tap. |
-| `smb_simulator_tap` | iOS / tvOS | Perform a touch tap. |
-| `smb_simulator_type_text` | iOS / tvOS | Type into the focused field. |
-| `smb_simulator_swipe` | iOS / tvOS | Swipe between coordinates. |
-| `smb_simulator_screenshot` | All simulator runners | Capture a PNG screenshot. |
+| `smb_simulator_tap` | iOS / tvOS, simulator or physical | Perform a touch tap. |
+| `smb_simulator_type_text` | iOS / tvOS, simulator or physical | Type into the focused field. |
+| `smb_simulator_swipe` | iOS / tvOS, simulator or physical | Swipe between coordinates. |
+| `smb_simulator_press_button` | iOS / tvOS, simulator or physical | Press a Home or tvOS remote button. |
+| `smb_simulator_launch_app`/`terminate_app` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. |
+| `smb_simulator_screenshot` | Simulator only | Capture a PNG screenshot via `simctl`. |
+| `smb_device_screenshot` | Physical device only | Capture a PNG screenshot via `devicectl device capture screenshot` — works independently of the ControlKit runner, so it succeeds even if the RPC server isn't running. |
 | `smb_simulator_ui_dump` | All UI-test runners | Read the accessibility hierarchy. |
 
 For a local macOS runner, omit simulator fields and pass `host` and
@@ -89,6 +126,17 @@ For a local macOS runner, omit simulator fields and pass `host` and
   "controlkit_port": 12004,
   "x": 400,
   "y": 300
+}
+```
+
+For a physical device, pass its Bonjour hostname or tunnel address as `host`
+instead:
+
+```json
+{
+  "host": "<device-name>.local",
+  "controlkit_port": 12004,
+  "button": "select"
 }
 ```
 

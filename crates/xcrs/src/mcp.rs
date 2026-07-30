@@ -17,6 +17,13 @@ pub struct SimulatorFindArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct DeviceScreenshotArgs {
+    /// Physical device identifier known to CoreDevice: UDID, ECID, serial
+    /// number, user-provided name, or DNS name.
+    pub device: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct IosAppTestArgs {
     /// Exact simulator name to use.
     #[serde(default)]
@@ -261,7 +268,8 @@ macro_rules! xcrs_mcp_tools {
         $controlkit_capabilities_name:literal,
         $macos_click_name:literal,
         $visionos_spatial_tap_name:literal,
-        $watchos_tap_name:literal
+        $watchos_tap_name:literal,
+        $device_screenshot_name:literal
     ) => {
         #[::rmcp::tool_router(router = xcrs_tool_router, vis = "pub(crate)")]
         impl $server {
@@ -611,6 +619,33 @@ macro_rules! xcrs_mcp_tools {
                 let screenshot = $crate::XcodeCommandLineTools::new()
                     .simctl()
                     .screenshot(&simulator.udid)
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                let encoded = $crate::encode_base64(screenshot);
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::image(encoded, "image/png"),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $device_screenshot_name,
+                description = "Capture a PNG screenshot from a physical iOS, tvOS, watchOS, or visionOS device paired with this Mac. Accepts a UDID, ECID, serial number, user-provided name, or DNS name."
+            )]
+            async fn device_screenshot(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::DeviceScreenshotArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let screenshot = $crate::XcodeCommandLineTools::new()
+                    .devicectl()
+                    .screenshot(&args.device)
                     .map_err(|error| {
                         ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
                     })?;
@@ -1143,7 +1178,8 @@ xcrs_mcp_tools!(
     "xcrs_controlkit_capabilities",
     "xcrs_macos_click",
     "xcrs_visionos_spatial_tap",
-    "xcrs_watchos_tap"
+    "xcrs_watchos_tap",
+    "xcrs_device_screenshot"
 );
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]

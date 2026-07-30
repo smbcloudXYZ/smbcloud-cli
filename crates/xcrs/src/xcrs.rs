@@ -194,6 +194,10 @@ impl XcodeCommandLineTools {
         Xcodebuild { tools: self }
     }
 
+    pub fn devicectl(&self) -> Devicectl<'_> {
+        Devicectl { tools: self }
+    }
+
     fn run_xcrun<I, S>(&self, args: I) -> Result<String>
     where
         I: IntoIterator<Item = S>,
@@ -381,6 +385,37 @@ impl Simctl<'_> {
         }
 
         Ok(PathBuf::from(path))
+    }
+}
+
+pub struct Devicectl<'a> {
+    tools: &'a XcodeCommandLineTools,
+}
+
+impl Devicectl<'_> {
+    /// Captures a PNG screenshot from a physical device known to CoreDevice.
+    /// `device` accepts anything `devicectl --device` does: UDID, ECID,
+    /// serial number, user-provided name, or DNS name.
+    pub fn screenshot(&self, device: &str) -> Result<Vec<u8>> {
+        let temporary_directory = tempfile::tempdir()?;
+        let screenshot_path = temporary_directory.path().join("screenshot.png");
+        let screenshot_path_string = screenshot_path
+            .to_str()
+            .ok_or_else(|| anyhow!("screenshot path is not valid UTF-8"))?;
+
+        self.tools.run_xcrun([
+            "devicectl",
+            "device",
+            "capture",
+            "screenshot",
+            "--device",
+            device,
+            "--destination",
+            screenshot_path_string,
+        ])?;
+
+        std::fs::read(&screenshot_path)
+            .with_context(|| format!("failed to read {}", screenshot_path.display()))
     }
 }
 

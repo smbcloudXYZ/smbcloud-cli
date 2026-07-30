@@ -223,6 +223,17 @@ ControlKit arguments default to `127.0.0.1:12004`. For a local macOS runner,
 omit the simulator fields and use the optional `host` and `controlkit_port`
 fields.
 
+The same `host` field also targets a **physical** iOS/tvOS/watchOS/visionOS
+device running a ControlKit runner reachable over the network (see
+[ControlKit runners](./controlkit.md)) — omit `simulator_name`/`simulator_udid`
+and pass the device's host and the runner's listen port instead. This applies
+to `smb_simulator_tap`, `smb_simulator_type_text`, `smb_simulator_swipe`,
+`smb_simulator_press_button`, `smb_simulator_press_home`,
+`smb_simulator_orientation_get`/`set`, `smb_simulator_ui_dump`,
+`smb_simulator_list_elements`, and `smb_simulator_launch_app`/`terminate_app`
+(the latter two route through the runner's `device.apps.launch`/`terminate`
+RPC methods instead of `simctl` when `host` is given).
+
 | Tool | Arguments | Returns |
 | --- | --- | --- |
 | `smb_simulator_list` | _(none)_ | All Apple simulator devices known to Xcode. |
@@ -231,17 +242,18 @@ fields.
 | `smb_macos_click` | `x`, `y`, plus optional endpoint fields | A pointer click on a macOS runner. |
 | `smb_visionos_spatial_tap` | `x`, `y`, plus optional endpoint fields | A spatial tap on a visionOS runner. |
 | `smb_watchos_tap` | `x`, `y`, plus optional endpoint fields | A touch tap on a watchOS runner. |
-| `smb_simulator_tap` | simulator target, `x`, `y` | A touch tap through ControlKit. |
-| `smb_simulator_type_text` | simulator target, `text` | Text input through ControlKit. |
-| `smb_simulator_swipe` | simulator target, `x1`, `y1`, `x2`, `y2` | A swipe through ControlKit. |
-| `smb_simulator_press_button` | simulator target, `button` | A supported remote-button press. |
-| `smb_simulator_press_home` | simulator target | An iOS Home-button press. |
-| `smb_simulator_orientation_get`/`set` | simulator target; `orientation` for `set` | Current or updated iOS orientation. |
-| `smb_simulator_launch_app`/`terminate_app` | simulator target, `bundle_id` | App lifecycle confirmation. |
+| `smb_simulator_tap` | simulator target or `host`, `x`, `y` | A touch tap through ControlKit. |
+| `smb_simulator_type_text` | simulator target or `host`, `text` | Text input through ControlKit. |
+| `smb_simulator_swipe` | simulator target or `host`, `x1`, `y1`, `x2`, `y2` | A swipe through ControlKit. |
+| `smb_simulator_press_button` | simulator target or `host`, `button` | A supported remote-button press. |
+| `smb_simulator_press_home` | simulator target or `host` | An iOS Home-button press. |
+| `smb_simulator_orientation_get`/`set` | simulator target or `host`; `orientation` for `set` | Current or updated iOS orientation. |
+| `smb_simulator_launch_app`/`terminate_app` | simulator target or `host`, `bundle_id` | App lifecycle confirmation. |
 | `smb_simulator_open_url` | simulator target, `url` | URL-open confirmation. |
-| `smb_simulator_ui_dump` | simulator target | Accessibility UI hierarchy. |
-| `smb_simulator_list_elements` | simulator target | Actionable accessibility elements. |
+| `smb_simulator_ui_dump` | simulator target or `host` | Accessibility UI hierarchy. |
+| `smb_simulator_list_elements` | simulator target or `host` | Actionable accessibility elements. |
 | `smb_simulator_screenshot` | simulator target | A PNG image. |
+| `smb_device_screenshot` | `device` (UDID, ECID, serial number, name, or DNS name) | A PNG image captured from a physical device via `devicectl`. |
 | `smb_ios_app_test` | simulator target, `app_path`, `bundle_id` | Installed/launched app details. |
 
 The standalone `xcrs --mcp` server exposes the same runner surface with the
