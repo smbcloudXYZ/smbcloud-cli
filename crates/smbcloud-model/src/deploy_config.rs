@@ -35,6 +35,11 @@ pub struct DeployConfig {
     pub pm2_app: Option<String>,
     #[serde(default)]
     pub pm2_env: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// Runtime supervisor for `nextjs-ssr` apps: `"pm2"` (default) or
+    /// `"systemd"`. When `systemd`, deploys restart via a git-owned
+    /// `systemctl --user restart <pm2_app>.service` instead of `pm2`.
+    #[serde(default)]
+    pub process_manager: Option<String>,
     #[serde(default)]
     pub port: Option<u16>,
     #[serde(default)]
