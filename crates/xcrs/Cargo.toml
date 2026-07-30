@@ -1,6 +1,6 @@
 [package]
 name = "xcrs"
-version = "0.1.0"
+version = "0.4.13"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "Rust abstraction for Xcode command line tools."

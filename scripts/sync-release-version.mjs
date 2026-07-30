@@ -3,12 +3,19 @@ import { resolve } from "node:path";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const cliCargoTomlPath = resolve(repoRoot, "crates/cli/Cargo.toml");
+const npmCliPackageJsonPath = resolve(repoRoot, "npm/smbcloud-cli/package.json");
+const npmCliPackageLockPath = resolve(repoRoot, "npm/smbcloud-cli/package-lock.json");
+const nugetCliProjectPath = resolve(repoRoot, "nuget/smbcloud-cli/SmbCloud.Cli.csproj");
 const sdkNpmPackageJsonPath = resolve(repoRoot, "sdk/npm/smbcloud-auth/package.json");
 const authGemVersionPath = resolve(repoRoot, "sdk/gems/auth/lib/auth/version.rb");
 const authGemCargoTomlPath = resolve(repoRoot, "sdk/gems/auth/ext/auth/Cargo.toml");
 const modelGemVersionPath = resolve(repoRoot, "sdk/gems/model/lib/model/version.rb");
 const modelGemCargoTomlPath = resolve(repoRoot, "sdk/gems/model/ext/model/Cargo.toml");
+const emailGemVersionPath = resolve(repoRoot, "sdk/gems/email/lib/email/version.rb");
+const emailGemCargoTomlPath = resolve(repoRoot, "sdk/gems/email/ext/email/Cargo.toml");
+const emailGemLockPath = resolve(repoRoot, "sdk/gems/email/Gemfile.lock");
 const mcpServerJsonPath = resolve(repoRoot, "server.json");
+const xcrsMcpServerJsonPath = resolve(repoRoot, "server-xcrs.json");
 
 function readText(path) {
   return readFileSync(path, "utf8");
@@ -52,6 +59,50 @@ const releaseVersion = readCargoPackageVersion(cliCargoTomlPath);
 const [major = "0", minor = "0"] = releaseVersion.split(".");
 const rubySdkRequirement = `${major}.${minor}`;
 const updatedPaths = [];
+
+if (
+  updateFile(npmCliPackageJsonPath, (content) => {
+    const parsed = JSON.parse(content);
+    parsed.version = releaseVersion;
+
+    for (const packageName of Object.keys(parsed.optionalDependencies ?? {})) {
+      parsed.optionalDependencies[packageName] = releaseVersion;
+    }
+
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  })
+) {
+  updatedPaths.push(npmCliPackageJsonPath);
+}
+
+if (
+  updateFile(npmCliPackageLockPath, (content) => {
+    const parsed = JSON.parse(content);
+    parsed.version = releaseVersion;
+    parsed.packages[""].version = releaseVersion;
+
+    for (const packageName of Object.keys(parsed.packages[""].optionalDependencies ?? {})) {
+      parsed.packages[""].optionalDependencies[packageName] = releaseVersion;
+    }
+
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  })
+) {
+  updatedPaths.push(npmCliPackageLockPath);
+}
+
+if (
+  updateFile(nugetCliProjectPath, (content) =>
+    replaceOrThrow(
+      content,
+      /<PackageVersion>[^<]+<\/PackageVersion>/,
+      `<PackageVersion>${releaseVersion}</PackageVersion>`,
+      `${nugetCliProjectPath} package version`,
+    ),
+  )
+) {
+  updatedPaths.push(nugetCliProjectPath);
+}
 
 if (
   updateFile(sdkNpmPackageJsonPath, (content) => {
@@ -131,6 +182,45 @@ if (
 }
 
 if (
+  updateFile(emailGemVersionPath, (content) =>
+    replaceOrThrow(
+      content,
+      /VERSION\s*=\s*'[^']+'/,
+      `VERSION = '${releaseVersion}'`,
+      `${emailGemVersionPath} VERSION constant`,
+    ),
+  )
+) {
+  updatedPaths.push(emailGemVersionPath);
+}
+
+if (
+  updateFile(emailGemCargoTomlPath, (content) =>
+    replaceOrThrow(
+      content,
+      /^version\s*=\s*"[^"]+"/m,
+      `version = "${releaseVersion}"`,
+      `${emailGemCargoTomlPath} package version`,
+    ),
+  )
+) {
+  updatedPaths.push(emailGemCargoTomlPath);
+}
+
+if (
+  updateFile(emailGemLockPath, (content) =>
+    replaceOrThrow(
+      content,
+      /(smbcloud-email \()[^)]+(\))/,
+      `$1${releaseVersion}$2`,
+      `${emailGemLockPath} gem version`,
+    ),
+  )
+) {
+  updatedPaths.push(emailGemLockPath);
+}
+
+if (
   updateFile(mcpServerJsonPath, (content) => {
     const parsed = JSON.parse(content);
     parsed.version = releaseVersion;
@@ -143,6 +233,21 @@ if (
   })
 ) {
   updatedPaths.push(mcpServerJsonPath);
+}
+
+if (
+  updateFile(xcrsMcpServerJsonPath, (content) => {
+    const parsed = JSON.parse(content);
+    parsed.version = releaseVersion;
+
+    for (const pkg of parsed.packages ?? []) {
+      pkg.version = releaseVersion;
+    }
+
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  })
+) {
+  updatedPaths.push(xcrsMcpServerJsonPath);
 }
 
 console.log(`Release version: ${releaseVersion}`);
