@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/cli", "crates/smbcloud-*"]
+members = ["crates/cli", "crates/smbcloud-*", "crates/xcrs"]
 
 [workspace.dependencies]
 anyhow = "1.0.58"
@@ -55,3 +55,4 @@ tsync = "2"
 uniffi = "0.31"
 url-builder = "0.1.1"
 wasm-bindgen = "0.2"
+xcrs = { version = "0.1.0", path = "crates/xcrs" }
