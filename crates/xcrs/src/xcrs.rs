@@ -16,13 +16,13 @@ pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     STANDARD.encode(data)
 }
 
-pub fn extract_devicekit_elements(root: &serde_json::Value) -> Vec<serde_json::Value> {
+pub fn extract_controlkit_elements(root: &serde_json::Value) -> Vec<serde_json::Value> {
     let mut elements = Vec::new();
-    collect_devicekit_elements(root, &mut elements);
+    collect_controlkit_elements(root, &mut elements);
     elements
 }
 
-fn collect_devicekit_elements(element: &serde_json::Value, elements: &mut Vec<serde_json::Value>) {
+fn collect_controlkit_elements(element: &serde_json::Value, elements: &mut Vec<serde_json::Value>) {
     let object = match element.as_object() {
         Some(object) => object,
         None => return,
@@ -71,24 +71,24 @@ fn collect_devicekit_elements(element: &serde_json::Value, elements: &mut Vec<se
 
     if let Some(children) = object.get("children").and_then(serde_json::Value::as_array) {
         for child in children {
-            collect_devicekit_elements(child, elements);
+            collect_controlkit_elements(child, elements);
         }
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct DeviceKit {
+pub struct ControlKit {
     client: reqwest::Client,
     base_url: String,
 }
 
-impl Default for DeviceKit {
+impl Default for ControlKit {
     fn default() -> Self {
         Self::new(12004)
     }
 }
 
-impl DeviceKit {
+impl ControlKit {
     pub fn new(port: u16) -> Self {
         Self {
             client: reqwest::Client::new(),
@@ -109,25 +109,25 @@ impl DeviceKit {
             }))
             .send()
             .await
-            .with_context(|| format!("failed to connect to DeviceKit at {}", self.base_url))?;
+            .with_context(|| format!("failed to connect to ControlKit at {}", self.base_url))?;
 
         let status = response.status();
         let body: serde_json::Value = response
             .json()
             .await
-            .context("failed to decode DeviceKit JSON-RPC response")?;
+            .context("failed to decode ControlKit JSON-RPC response")?;
 
         if !status.is_success() {
-            return Err(anyhow!("DeviceKit returned HTTP {}: {}", status, body));
+            return Err(anyhow!("ControlKit returned HTTP {}: {}", status, body));
         }
 
         if let Some(error) = body.get("error") {
-            return Err(anyhow!("DeviceKit method '{method}' failed: {error}"));
+            return Err(anyhow!("ControlKit method '{method}' failed: {error}"));
         }
 
         body.get("result")
             .cloned()
-            .ok_or_else(|| anyhow!("DeviceKit response for '{method}' did not contain a result"))
+            .ok_or_else(|| anyhow!("ControlKit response for '{method}' did not contain a result"))
     }
 }
 
