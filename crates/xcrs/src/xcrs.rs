@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::time::Duration;
 
 pub mod mcp;
 
@@ -13,6 +14,121 @@ pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
 
     STANDARD.encode(data)
+}
+
+pub fn extract_devicekit_elements(root: &serde_json::Value) -> Vec<serde_json::Value> {
+    let mut elements = Vec::new();
+    collect_devicekit_elements(root, &mut elements);
+    elements
+}
+
+fn collect_devicekit_elements(element: &serde_json::Value, elements: &mut Vec<serde_json::Value>) {
+    let object = match element.as_object() {
+        Some(object) => object,
+        None => return,
+    };
+
+    let rect = object.get("rect").and_then(serde_json::Value::as_object);
+    let has_visible_rect = rect
+        .and_then(|rect| {
+            Some((
+                rect.get("x")?.as_f64()?,
+                rect.get("y")?.as_f64()?,
+                rect.get("width")?.as_f64()?,
+                rect.get("height")?.as_f64()?,
+            ))
+        })
+        .is_some_and(|(x, y, width, height)| x >= 0.0 && y >= 0.0 && width > 0.0 && height > 0.0);
+    let has_identity = ["label", "name", "value", "rawIdentifier"]
+        .iter()
+        .any(|key| {
+            object
+                .get(*key)
+                .and_then(serde_json::Value::as_str)
+                .is_some()
+        });
+
+    if has_visible_rect && has_identity {
+        let keys = [
+            "type",
+            "label",
+            "name",
+            "value",
+            "placeholderValue",
+            "rawIdentifier",
+            "rect",
+        ];
+        let element = keys
+            .iter()
+            .filter_map(|key| {
+                object
+                    .get(*key)
+                    .map(|value| ((*key).to_string(), value.clone()))
+            })
+            .collect();
+        elements.push(serde_json::Value::Object(element));
+    }
+
+    if let Some(children) = object.get("children").and_then(serde_json::Value::as_array) {
+        for child in children {
+            collect_devicekit_elements(child, elements);
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DeviceKit {
+    client: reqwest::Client,
+    base_url: String,
+}
+
+impl Default for DeviceKit {
+    fn default() -> Self {
+        Self::new(12004)
+    }
+}
+
+impl DeviceKit {
+    pub fn new(port: u16) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            base_url: format!("http://127.0.0.1:{port}"),
+        }
+    }
+
+    pub async fn call(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
+        let response = self
+            .client
+            .post(format!("{}/rpc", self.base_url))
+            .timeout(Duration::from_secs(30))
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": params,
+                "id": 1,
+            }))
+            .send()
+            .await
+            .with_context(|| format!("failed to connect to DeviceKit at {}", self.base_url))?;
+
+        let status = response.status();
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .context("failed to decode DeviceKit JSON-RPC response")?;
+
+        if !status.is_success() {
+            return Err(anyhow!("DeviceKit returned HTTP {}: {}", status, body));
+        }
+
+        if let Some(error) = body.get("error") {
+            return Err(anyhow!("DeviceKit method '{method}' failed: {error}"));
+        }
+
+        body.get("result")
+            .cloned()
+            .ok_or_else(|| anyhow!("DeviceKit response for '{method}' did not contain a result"))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +184,38 @@ impl XcodeCommandLineTools {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum ApplePlatform {
+    #[serde(rename = "iOS")]
+    Ios,
+    #[serde(rename = "tvOS")]
+    Tvos,
+    #[serde(rename = "watchOS")]
+    Watchos,
+    #[serde(rename = "visionOS")]
+    Visionos,
+    #[serde(rename = "unknown")]
+    Unknown,
+}
+
+impl ApplePlatform {
+    fn from_runtime_identifier(runtime_identifier: &str) -> Self {
+        if runtime_identifier.contains(".iOS-") {
+            Self::Ios
+        } else if runtime_identifier.contains(".tvOS-") {
+            Self::Tvos
+        } else if runtime_identifier.contains(".watchOS-") {
+            Self::Watchos
+        } else if runtime_identifier.contains(".visionOS-") {
+            Self::Visionos
+        } else {
+            Self::Unknown
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Simulator {
+    pub platform: ApplePlatform,
     pub runtime_identifier: String,
     pub name: String,
     pub udid: String,
@@ -318,6 +465,7 @@ pub fn parse_simctl_devices(output: &str) -> Result<Vec<Simulator>> {
     for (runtime_identifier, devices) in list.devices {
         for device in devices {
             simulators.push(Simulator {
+                platform: ApplePlatform::from_runtime_identifier(&runtime_identifier),
                 runtime_identifier: runtime_identifier.clone(),
                 name: device.name,
                 udid: device.udid,
@@ -414,6 +562,7 @@ mod tests {
         let devices = parse_simctl_devices(output).expect("devices should parse");
 
         assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].platform, ApplePlatform::Ios);
         assert_eq!(devices[0].name, "Test-iOS-26");
         assert_eq!(devices[0].state, "Booted");
         assert!(devices[0].is_booted());

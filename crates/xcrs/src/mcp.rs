@@ -41,6 +41,9 @@ pub struct SimulatorTargetArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -51,6 +54,9 @@ pub struct SimulatorAppArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
     /// App bundle identifier.
     pub bundle_id: String,
 }
@@ -63,8 +69,107 @@ pub struct SimulatorOpenUrlArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
     /// HTTP(S) URL or custom URL scheme.
     pub url: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SimulatorTapArgs {
+    /// Exact simulator name.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
+    /// Horizontal screen coordinate.
+    pub x: f32,
+    /// Vertical screen coordinate.
+    pub y: f32,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SimulatorTextArgs {
+    /// Exact simulator name.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
+    /// Text to type into the focused field.
+    pub text: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SimulatorSwipeArgs {
+    /// Exact simulator name.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
+    /// Swipe start horizontal coordinate.
+    pub x1: i32,
+    /// Swipe start vertical coordinate.
+    pub y1: i32,
+    /// Swipe end horizontal coordinate.
+    pub x2: i32,
+    /// Swipe end vertical coordinate.
+    pub y2: i32,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SimulatorOrientationArgs {
+    /// Exact simulator name.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
+    /// Desired orientation: PORTRAIT or LANDSCAPE.
+    pub orientation: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SimulatorDeviceKitArgs {
+    /// Exact simulator name.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SimulatorButtonArgs {
+    /// Exact simulator name.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// Local DeviceKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub devicekit_port: Option<u16>,
+    /// tvOS button: up, down, left, right, select, menu, home, or playPause.
+    pub button: String,
 }
 
 #[derive(Debug, Default)]
@@ -86,7 +191,16 @@ macro_rules! xcrs_mcp_tools {
         $simulator_screenshot_name:literal,
         $simulator_launch_app_name:literal,
         $simulator_terminate_app_name:literal,
-        $simulator_open_url_name:literal
+        $simulator_open_url_name:literal,
+        $simulator_ui_dump_name:literal,
+        $simulator_list_elements_name:literal,
+        $simulator_tap_name:literal,
+        $simulator_text_name:literal,
+        $simulator_swipe_name:literal,
+        $simulator_home_name:literal,
+        $simulator_button_name:literal,
+        $simulator_orientation_get_name:literal,
+        $simulator_orientation_set_name:literal
     ) => {
         #[::rmcp::tool_router(router = xcrs_tool_router, vis = "pub(crate)")]
         impl $server {
@@ -112,6 +226,26 @@ macro_rules! xcrs_mcp_tools {
                         None,
                     )),
                 }
+            }
+
+            fn devicekit_from_target(
+                simulator_name: &Option<String>,
+                simulator_udid: &Option<String>,
+                devicekit_port: Option<u16>,
+            ) -> ::std::result::Result<
+                ($crate::Simulator, $crate::DeviceKit),
+                ::rmcp::model::ErrorData,
+            > {
+                let target = $crate::mcp::SimulatorTargetArgs {
+                    simulator_name: simulator_name.clone(),
+                    simulator_udid: simulator_udid.clone(),
+                    devicekit_port,
+                };
+                let simulator = Self::simulator_from_target(&target)?;
+                Ok((
+                    simulator,
+                    $crate::DeviceKit::new(devicekit_port.unwrap_or(12004)),
+                ))
             }
 
             #[::rmcp::tool(
@@ -245,6 +379,7 @@ macro_rules! xcrs_mcp_tools {
                 let target = $crate::mcp::SimulatorTargetArgs {
                     simulator_name: args.simulator_name,
                     simulator_udid: args.simulator_udid,
+                    devicekit_port: args.devicekit_port,
                 };
                 let simulator = Self::simulator_from_target(&target)?;
                 $crate::XcodeCommandLineTools::new()
@@ -279,6 +414,7 @@ macro_rules! xcrs_mcp_tools {
                 let target = $crate::mcp::SimulatorTargetArgs {
                     simulator_name: args.simulator_name,
                     simulator_udid: args.simulator_udid,
+                    devicekit_port: args.devicekit_port,
                 };
                 let simulator = Self::simulator_from_target(&target)?;
                 $crate::XcodeCommandLineTools::new()
@@ -313,6 +449,7 @@ macro_rules! xcrs_mcp_tools {
                 let target = $crate::mcp::SimulatorTargetArgs {
                     simulator_name: args.simulator_name,
                     simulator_udid: args.simulator_udid,
+                    devicekit_port: args.devicekit_port,
                 };
                 let simulator = Self::simulator_from_target(&target)?;
                 $crate::XcodeCommandLineTools::new()
@@ -328,6 +465,353 @@ macro_rules! xcrs_mcp_tools {
                     )),
                 ]))
             }
+
+            #[::rmcp::tool(
+                name = $simulator_ui_dump_name,
+                description = "Return the accessibility UI hierarchy from the foreground iOS app through DeviceKit."
+            )]
+            async fn simulator_ui_dump(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorDeviceKitArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                let result = devicekit
+                    .call("device.dump.ui", ::serde_json::json!({ "format": "json" }))
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::json(&::serde_json::json!({
+                        "simulator": simulator,
+                        "ui": result,
+                    }))?,
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_list_elements_name,
+                description = "List actionable accessibility elements and coordinates from the foreground iOS app through DeviceKit."
+            )]
+            async fn simulator_list_elements(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorDeviceKitArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                let ui = devicekit
+                    .call("device.dump.ui", ::serde_json::json!({ "format": "json" }))
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                let elements = $crate::extract_devicekit_elements(&ui);
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::json(&::serde_json::json!({
+                        "simulator": simulator,
+                        "elements": elements,
+                    }))?,
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_tap_name,
+                description = "Tap the iOS simulator screen at the given coordinates through DeviceKit."
+            )]
+            async fn simulator_tap(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorTapArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                devicekit
+                    .call(
+                        "device.io.tap",
+                        ::serde_json::json!({ "x": args.x, "y": args.y }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Tapped ({}, {}) on {}.",
+                        args.x, args.y, simulator.name
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_text_name,
+                description = "Type text into the focused iOS simulator field through DeviceKit."
+            )]
+            async fn simulator_text(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorTextArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                devicekit
+                    .call("device.io.text", ::serde_json::json!({ "text": args.text }))
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Typed text on {}.",
+                        simulator.name
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_swipe_name,
+                description = "Swipe between two screen coordinates on an iOS simulator through DeviceKit."
+            )]
+            async fn simulator_swipe(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorSwipeArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                devicekit
+                    .call(
+                        "device.io.swipe",
+                        ::serde_json::json!({
+                            "x1": args.x1,
+                            "y1": args.y1,
+                            "x2": args.x2,
+                            "y2": args.y2,
+                        }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Swiped on {}.",
+                        simulator.name
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_home_name,
+                description = "Press the iOS simulator Home button through DeviceKit."
+            )]
+            async fn simulator_home(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorDeviceKitArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                devicekit
+                    .call("device.io.button", ::serde_json::json!({ "button": "home" }))
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Pressed Home on {}.",
+                        simulator.name
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_button_name,
+                description = "Press a DeviceKit remote button on an iOS or tvOS simulator. tvOS supports up, down, left, right, select, menu, home, and playPause."
+            )]
+            async fn simulator_button(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorButtonArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                let supported_buttons = [
+                    "up",
+                    "down",
+                    "left",
+                    "right",
+                    "select",
+                    "menu",
+                    "home",
+                    "playPause",
+                ];
+                if !supported_buttons.contains(&args.button.as_str()) {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        "button must be one of up, down, left, right, select, menu, home, or playPause",
+                        None,
+                    ));
+                }
+                devicekit
+                    .call(
+                        "device.io.button",
+                        ::serde_json::json!({ "button": args.button }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Pressed {} on {}.",
+                        args.button, simulator.name
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_orientation_get_name,
+                description = "Read the current iOS simulator orientation through DeviceKit."
+            )]
+            async fn simulator_orientation_get(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorDeviceKitArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                let result = devicekit
+                    .call("device.io.orientation.get", ::serde_json::json!({}))
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::json(&::serde_json::json!({
+                        "simulator": simulator,
+                        "orientation": result,
+                    }))?,
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $simulator_orientation_set_name,
+                description = "Set the iOS simulator orientation to PORTRAIT or LANDSCAPE through DeviceKit."
+            )]
+            async fn simulator_orientation_set(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::SimulatorOrientationArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (simulator, devicekit) = Self::devicekit_from_target(
+                    &args.simulator_name,
+                    &args.simulator_udid,
+                    args.devicekit_port,
+                )?;
+                let orientation = args.orientation.to_uppercase();
+                if orientation != "PORTRAIT" && orientation != "LANDSCAPE" {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        "orientation must be PORTRAIT or LANDSCAPE",
+                        None,
+                    ));
+                }
+                devicekit
+                    .call(
+                        "device.io.orientation.set",
+                        ::serde_json::json!({ "orientation": orientation }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Set orientation to {} on {}.",
+                        orientation, simulator.name
+                    )),
+                ]))
+            }
         }
     };
 }
@@ -340,7 +824,16 @@ xcrs_mcp_tools!(
     "xcrs_simulator_screenshot",
     "xcrs_simulator_launch_app",
     "xcrs_simulator_terminate_app",
-    "xcrs_simulator_open_url"
+    "xcrs_simulator_open_url",
+    "xcrs_simulator_ui_dump",
+    "xcrs_simulator_list_elements",
+    "xcrs_simulator_tap",
+    "xcrs_simulator_type_text",
+    "xcrs_simulator_swipe",
+    "xcrs_simulator_press_home",
+    "xcrs_simulator_press_button",
+    "xcrs_simulator_orientation_get",
+    "xcrs_simulator_orientation_set"
 );
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]

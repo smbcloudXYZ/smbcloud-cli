@@ -4001,6 +4001,7 @@ dependencies = [
  "anyhow",
  "base64",
  "clap 4.6.2",
+ "reqwest",
  "rmcp",
  "schemars",
  "serde",
