@@ -54,6 +54,9 @@ pub struct SimulatorAppArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// ControlKit host for a physical device or remote runner. Omit for a local simulator.
+    #[serde(default)]
+    pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
@@ -84,6 +87,9 @@ pub struct SimulatorTapArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// ControlKit host for a physical device or remote runner. Omit for a local simulator.
+    #[serde(default)]
+    pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
@@ -101,6 +107,9 @@ pub struct SimulatorTextArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// ControlKit host for a physical device or remote runner. Omit for a local simulator.
+    #[serde(default)]
+    pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
@@ -116,6 +125,9 @@ pub struct SimulatorSwipeArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// ControlKit host for a physical device or remote runner. Omit for a local simulator.
+    #[serde(default)]
+    pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
@@ -137,6 +149,9 @@ pub struct SimulatorOrientationArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// ControlKit host for a physical device or remote runner. Omit for a local simulator.
+    #[serde(default)]
+    pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
@@ -152,6 +167,9 @@ pub struct SimulatorControlKitArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// ControlKit host for a physical device or remote runner. Omit for a local simulator.
+    #[serde(default)]
+    pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
@@ -165,6 +183,9 @@ pub struct SimulatorButtonArgs {
     /// Simulator UDID.
     #[serde(default)]
     pub simulator_udid: Option<String>,
+    /// ControlKit host for a physical device or remote runner. Omit for a local simulator.
+    #[serde(default)]
+    pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
@@ -271,11 +292,18 @@ macro_rules! xcrs_mcp_tools {
             fn controlkit_from_target(
                 simulator_name: &Option<String>,
                 simulator_udid: &Option<String>,
+                host: &Option<String>,
                 controlkit_port: Option<u16>,
             ) -> ::std::result::Result<
-                ($crate::Simulator, $crate::ControlKit),
+                (Option<$crate::Simulator>, $crate::ControlKit),
                 ::rmcp::model::ErrorData,
             > {
+                if let Some(host) = host {
+                    return Ok((
+                        None,
+                        $crate::ControlKit::with_host(host, controlkit_port.unwrap_or(12004)),
+                    ));
+                }
                 let target = $crate::mcp::SimulatorTargetArgs {
                     simulator_name: simulator_name.clone(),
                     simulator_udid: simulator_udid.clone(),
@@ -283,9 +311,16 @@ macro_rules! xcrs_mcp_tools {
                 };
                 let simulator = Self::simulator_from_target(&target)?;
                 Ok((
-                    simulator,
+                    Some(simulator),
                     $crate::ControlKit::new(controlkit_port.unwrap_or(12004)),
                 ))
+            }
+
+            fn target_label(simulator: &Option<$crate::Simulator>, host: &Option<String>) -> String {
+                if let Some(simulator) = simulator {
+                    return simulator.name.clone();
+                }
+                host.clone().unwrap_or_else(|| "127.0.0.1".to_string())
             }
 
             fn controlkit_from_endpoint(
@@ -600,6 +635,25 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                if let Some(host) = &args.host {
+                    let controlkit =
+                        $crate::ControlKit::with_host(host, args.controlkit_port.unwrap_or(12004));
+                    controlkit
+                        .call(
+                            "device.apps.launch",
+                            ::serde_json::json!({ "bundleId": args.bundle_id }),
+                        )
+                        .await
+                        .map_err(|error| {
+                            ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                        })?;
+                    return Ok(::rmcp::model::CallToolResult::success(vec![
+                        ::rmcp::model::ContentBlock::text(format!(
+                            "Launched {} on {}.",
+                            args.bundle_id, host
+                        )),
+                    ]));
+                }
                 let target = $crate::mcp::SimulatorTargetArgs {
                     simulator_name: args.simulator_name,
                     simulator_udid: args.simulator_udid,
@@ -635,6 +689,25 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                if let Some(host) = &args.host {
+                    let controlkit =
+                        $crate::ControlKit::with_host(host, args.controlkit_port.unwrap_or(12004));
+                    controlkit
+                        .call(
+                            "device.apps.terminate",
+                            ::serde_json::json!({ "bundleId": args.bundle_id }),
+                        )
+                        .await
+                        .map_err(|error| {
+                            ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                        })?;
+                    return Ok(::rmcp::model::CallToolResult::success(vec![
+                        ::rmcp::model::ContentBlock::text(format!(
+                            "Terminated {} on {}.",
+                            args.bundle_id, host
+                        )),
+                    ]));
+                }
                 let target = $crate::mcp::SimulatorTargetArgs {
                     simulator_name: args.simulator_name,
                     simulator_udid: args.simulator_udid,
@@ -708,6 +781,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 let result = controlkit
@@ -742,6 +816,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 let ui = controlkit
@@ -777,6 +852,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 controlkit
@@ -791,7 +867,7 @@ macro_rules! xcrs_mcp_tools {
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::text(format!(
                         "Tapped ({}, {}) on {}.",
-                        args.x, args.y, simulator.name
+                        args.x, args.y, Self::target_label(&simulator, &args.host)
                     )),
                 ]))
             }
@@ -814,6 +890,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 controlkit
@@ -825,7 +902,7 @@ macro_rules! xcrs_mcp_tools {
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::text(format!(
                         "Typed text on {}.",
-                        simulator.name
+                        Self::target_label(&simulator, &args.host)
                     )),
                 ]))
             }
@@ -848,6 +925,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 controlkit
@@ -867,7 +945,7 @@ macro_rules! xcrs_mcp_tools {
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::text(format!(
                         "Swiped on {}.",
-                        simulator.name
+                        Self::target_label(&simulator, &args.host)
                     )),
                 ]))
             }
@@ -890,6 +968,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 controlkit
@@ -901,7 +980,7 @@ macro_rules! xcrs_mcp_tools {
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::text(format!(
                         "Pressed Home on {}.",
-                        simulator.name
+                        Self::target_label(&simulator, &args.host)
                     )),
                 ]))
             }
@@ -924,6 +1003,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 let supported_buttons = [
@@ -954,7 +1034,7 @@ macro_rules! xcrs_mcp_tools {
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::text(format!(
                         "Pressed {} on {}.",
-                        args.button, simulator.name
+                        args.button, Self::target_label(&simulator, &args.host)
                     )),
                 ]))
             }
@@ -977,6 +1057,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 let result = controlkit
@@ -1011,6 +1092,7 @@ macro_rules! xcrs_mcp_tools {
                 let (simulator, controlkit) = Self::controlkit_from_target(
                     &args.simulator_name,
                     &args.simulator_udid,
+                    &args.host,
                     args.controlkit_port,
                 )?;
                 let orientation = args.orientation.to_uppercase();
@@ -1032,7 +1114,7 @@ macro_rules! xcrs_mcp_tools {
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::text(format!(
                         "Set orientation to {} on {}.",
-                        orientation, simulator.name
+                        orientation, Self::target_label(&simulator, &args.host)
                     )),
                 ]))
             }
