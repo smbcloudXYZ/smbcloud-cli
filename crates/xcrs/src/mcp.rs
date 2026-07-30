@@ -172,6 +172,42 @@ pub struct SimulatorButtonArgs {
     pub button: String,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ControlKitEndpointArgs {
+    /// Exact simulator name. Omit this when connecting to a local macOS runner.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID. Omit this when connecting to a local macOS runner.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// ControlKit host. Defaults to 127.0.0.1 for local runners.
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Local ControlKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub controlkit_port: Option<u16>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ControlKitCoordinateArgs {
+    /// Exact simulator name. Omit this when connecting to a local macOS runner.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Simulator UDID. Omit this when connecting to a local macOS runner.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// ControlKit host. Defaults to 127.0.0.1 for local runners.
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Local ControlKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub controlkit_port: Option<u16>,
+    /// Horizontal screen coordinate.
+    pub x: f32,
+    /// Vertical screen coordinate.
+    pub y: f32,
+}
+
 #[derive(Debug, Default)]
 pub struct XcrsMcpServer;
 
@@ -200,7 +236,11 @@ macro_rules! xcrs_mcp_tools {
         $simulator_home_name:literal,
         $simulator_button_name:literal,
         $simulator_orientation_get_name:literal,
-        $simulator_orientation_set_name:literal
+        $simulator_orientation_set_name:literal,
+        $controlkit_capabilities_name:literal,
+        $macos_click_name:literal,
+        $visionos_spatial_tap_name:literal,
+        $watchos_tap_name:literal
     ) => {
         #[::rmcp::tool_router(router = xcrs_tool_router, vis = "pub(crate)")]
         impl $server {
@@ -248,9 +288,193 @@ macro_rules! xcrs_mcp_tools {
                 ))
             }
 
+            fn controlkit_from_endpoint(
+                endpoint: &$crate::mcp::ControlKitEndpointArgs,
+            ) -> ::std::result::Result<
+                ($crate::ControlKit, Option<$crate::Simulator>),
+                ::rmcp::model::ErrorData,
+            > {
+                let simulator = match (&endpoint.simulator_udid, &endpoint.simulator_name) {
+                    (Some(udid), _) => Some(
+                        $crate::XcodeCommandLineTools::new()
+                            .simctl()
+                            .find_simulator_by_udid(udid)
+                            .map_err(|error| {
+                                ::rmcp::model::ErrorData::invalid_request(
+                                    error.to_string(),
+                                    None,
+                                )
+                            })?,
+                    ),
+                    (None, Some(name)) => Some(
+                        $crate::XcodeCommandLineTools::new()
+                            .simctl()
+                            .find_simulator_by_name(name)
+                            .map_err(|error| {
+                                ::rmcp::model::ErrorData::invalid_request(
+                                    error.to_string(),
+                                    None,
+                                )
+                            })?,
+                    ),
+                    (None, None) => None,
+                };
+                let host = endpoint.host.as_deref().unwrap_or("127.0.0.1");
+                Ok((
+                    $crate::ControlKit::with_host(
+                        host,
+                        endpoint.controlkit_port.unwrap_or(12004),
+                    ),
+                    simulator,
+                ))
+            }
+
+            fn endpoint_from_coordinate(
+                args: &$crate::mcp::ControlKitCoordinateArgs,
+            ) -> $crate::mcp::ControlKitEndpointArgs {
+                $crate::mcp::ControlKitEndpointArgs {
+                    simulator_name: args.simulator_name.clone(),
+                    simulator_udid: args.simulator_udid.clone(),
+                    host: args.host.clone(),
+                    controlkit_port: args.controlkit_port,
+                }
+            }
+
+            #[::rmcp::tool(
+                name = $controlkit_capabilities_name,
+                description = "Read the platform and supported capabilities from a ControlKit runner. Use a simulator name/UDID for iOS, tvOS, watchOS, or visionOS; omit them for a local macOS runner."
+            )]
+            async fn controlkit_capabilities(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::ControlKitEndpointArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let (controlkit, simulator) = Self::controlkit_from_endpoint(&args)?;
+                let result = controlkit
+                    .call("device.capabilities", ::serde_json::json!({}))
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::json(&::serde_json::json!({
+                        "simulator": simulator,
+                        "capabilities": result,
+                    }))?,
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $macos_click_name,
+                description = "Click a macOS ControlKit runner at screen coordinates. Omit simulator_name and simulator_udid for the local Mac."
+            )]
+            async fn macos_click(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::ControlKitCoordinateArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let endpoint = Self::endpoint_from_coordinate(&args);
+                let (controlkit, _) = Self::controlkit_from_endpoint(&endpoint)?;
+                controlkit
+                    .call(
+                        "device.io.click",
+                        ::serde_json::json!({ "x": args.x, "y": args.y }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Clicked ({}, {}).",
+                        args.x, args.y
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $visionos_spatial_tap_name,
+                description = "Perform a spatial tap on a visionOS ControlKit runner."
+            )]
+            async fn visionos_spatial_tap(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::ControlKitCoordinateArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let endpoint = Self::endpoint_from_coordinate(&args);
+                let (controlkit, _) = Self::controlkit_from_endpoint(&endpoint)?;
+                controlkit
+                    .call(
+                        "device.io.spatial.tap",
+                        ::serde_json::json!({ "x": args.x, "y": args.y }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Performed spatial tap at ({}, {}).",
+                        args.x, args.y
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $watchos_tap_name,
+                description = "Tap a watchOS ControlKit runner at screen coordinates."
+            )]
+            async fn watchos_tap(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::ControlKitCoordinateArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let endpoint = Self::endpoint_from_coordinate(&args);
+                let (controlkit, _) = Self::controlkit_from_endpoint(&endpoint)?;
+                controlkit
+                    .call(
+                        "device.io.tap",
+                        ::serde_json::json!({ "x": args.x, "y": args.y }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Tapped ({}, {}).",
+                        args.x, args.y
+                    )),
+                ]))
+            }
+
             #[::rmcp::tool(
                 name = $simulator_list_name,
-                description = "List all iOS simulators known to Xcode, including their runtime, UDID, availability, and current state."
+                description = "List all Apple simulator devices known to Xcode, including their platform, runtime, UDID, availability, and current state."
             )]
             async fn simulator_list(
                 &self,
@@ -271,7 +495,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_find_name,
-                description = "Find an iOS simulator by its exact name and return its details as JSON."
+                description = "Find an Apple simulator by its exact name and return its details as JSON."
             )]
             async fn simulator_find(
                 &self,
@@ -335,7 +559,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_screenshot_name,
-                description = "Capture a PNG screenshot from an iOS simulator."
+                description = "Capture a PNG screenshot from an Apple simulator."
             )]
             async fn simulator_screenshot(
                 &self,
@@ -363,7 +587,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_launch_app_name,
-                description = "Launch an installed app on an iOS simulator by bundle identifier."
+                description = "Launch an installed app on an Apple simulator by bundle identifier."
             )]
             async fn simulator_launch_app(
                 &self,
@@ -398,7 +622,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_terminate_app_name,
-                description = "Terminate an installed app on an iOS simulator by bundle identifier."
+                description = "Terminate an installed app on an Apple simulator by bundle identifier."
             )]
             async fn simulator_terminate_app(
                 &self,
@@ -433,7 +657,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_open_url_name,
-                description = "Open a URL or custom URL scheme on an iOS simulator."
+                description = "Open a URL or custom URL scheme on an Apple simulator."
             )]
             async fn simulator_open_url(
                 &self,
@@ -468,7 +692,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_ui_dump_name,
-                description = "Return the accessibility UI hierarchy from the foreground iOS app through ControlKit."
+                description = "Return the accessibility UI hierarchy from the foreground Apple app through ControlKit."
             )]
             async fn simulator_ui_dump(
                 &self,
@@ -502,7 +726,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_list_elements_name,
-                description = "List actionable accessibility elements and coordinates from the foreground iOS app through ControlKit."
+                description = "List actionable accessibility elements and coordinates from the foreground Apple app through ControlKit."
             )]
             async fn simulator_list_elements(
                 &self,
@@ -537,7 +761,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_tap_name,
-                description = "Tap the iOS simulator screen at the given coordinates through ControlKit."
+                description = "Tap an Apple simulator screen at the given coordinates through ControlKit."
             )]
             async fn simulator_tap(
                 &self,
@@ -574,7 +798,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_text_name,
-                description = "Type text into the focused iOS simulator field through ControlKit."
+                description = "Type text into the focused Apple simulator field through ControlKit."
             )]
             async fn simulator_text(
                 &self,
@@ -608,7 +832,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_swipe_name,
-                description = "Swipe between two screen coordinates on an iOS simulator through ControlKit."
+                description = "Swipe between two screen coordinates on an Apple simulator through ControlKit."
             )]
             async fn simulator_swipe(
                 &self,
@@ -650,7 +874,7 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $simulator_home_name,
-                description = "Press the iOS simulator Home button through ControlKit."
+                description = "Press the iOS Home button through ControlKit."
             )]
             async fn simulator_home(
                 &self,
@@ -833,7 +1057,11 @@ xcrs_mcp_tools!(
     "xcrs_simulator_press_home",
     "xcrs_simulator_press_button",
     "xcrs_simulator_orientation_get",
-    "xcrs_simulator_orientation_set"
+    "xcrs_simulator_orientation_set",
+    "xcrs_controlkit_capabilities",
+    "xcrs_macos_click",
+    "xcrs_visionos_spatial_tap",
+    "xcrs_watchos_tap"
 );
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]
@@ -846,7 +1074,7 @@ impl ServerHandler for XcrsMcpServer {
         ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(implementation)
             .with_instructions(
-                "xcrs exposes Xcode command line tools for iOS simulators and app testing.",
+                "xcrs exposes Xcode command line tools and ControlKit runners for Apple platform testing.",
             )
     }
 }

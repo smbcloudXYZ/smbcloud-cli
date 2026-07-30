@@ -932,7 +932,8 @@ impl ServerHandler for SmbMcpServer {
                 "smbCloud CLI exposed as MCP tools. Authentication uses the token stored by \
                  `smb login`; tools run non-interactively. `tenant_use` / `project_use` select \
                  the tenant/project context other tools default to, shared with the CLI's own \
-                 `smb tenant use` / `smb project use`.",
+                 `smb tenant use` / `smb project use`. ControlKit tools cover iOS, tvOS, \
+                 visionOS, watchOS, and macOS runners.",
             )
     }
 }

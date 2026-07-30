@@ -83,15 +83,25 @@ pub async fn process_controlkit(command: ControlKitCommands) -> Result<CommandRe
         }
         ControlKitCommands::Call {
             device_udid,
+            host,
             port,
             method,
             params,
         } => {
-            let tools = XcodeCommandLineTools::new();
-            let tunnel_host = tools.device_tunnel_address(&device_udid)?;
+            let host = match (host, device_udid) {
+                (Some(host), None) => host,
+                (None, Some(device_udid)) => {
+                    XcodeCommandLineTools::new().device_tunnel_address(&device_udid)?
+                }
+                _ => {
+                    return Err(anyhow!(
+                        "provide either --host or --device-udid for the ControlKit runner"
+                    ));
+                }
+            };
             let params = serde_json::from_str(&params)
                 .with_context(|| format!("invalid JSON for --params: {params}"))?;
-            let result = ControlKit::with_host(&tunnel_host, port)
+            let result = ControlKit::with_host(&host, port)
                 .call(&method, params)
                 .await?;
             Ok(done_result(&serde_json::to_string_pretty(&result)?))

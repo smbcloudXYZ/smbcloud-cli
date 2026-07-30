@@ -217,6 +217,8 @@ pub enum ApplePlatform {
     Ios,
     #[serde(rename = "tvOS")]
     Tvos,
+    #[serde(rename = "macOS")]
+    Macos,
     #[serde(rename = "watchOS")]
     Watchos,
     #[serde(rename = "visionOS")]
@@ -231,9 +233,12 @@ impl ApplePlatform {
             Self::Ios
         } else if runtime_identifier.contains(".tvOS-") {
             Self::Tvos
+        } else if runtime_identifier.contains(".macOS-") {
+            Self::Macos
         } else if runtime_identifier.contains(".watchOS-") {
             Self::Watchos
-        } else if runtime_identifier.contains(".visionOS-") {
+        } else if runtime_identifier.contains(".visionOS-") || runtime_identifier.contains(".xrOS-")
+        {
             Self::Visionos
         } else {
             Self::Unknown
@@ -764,6 +769,49 @@ mod tests {
         assert_eq!(devices[0].name, "Test-iOS-26");
         assert_eq!(devices[0].state, "Booted");
         assert!(devices[0].is_booted());
+    }
+
+    #[test]
+    fn parses_xros_simulator_runtime() {
+        let output = r#"{
+          "devices": {
+            "com.apple.CoreSimulator.SimRuntime.xrOS-26-5": [
+              {
+                "udid": "00000000-0000-0000-0000-000000000001",
+                "isAvailable": true,
+                "state": "Shutdown",
+                "name": "Apple Vision Pro"
+              }
+            ]
+          }
+        }"#;
+
+        let devices = parse_simctl_devices(output).expect("devices should parse");
+
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].platform, ApplePlatform::Visionos);
+        assert_eq!(devices[0].name, "Apple Vision Pro");
+    }
+
+    #[test]
+    fn parses_macos_runtime() {
+        let output = r#"{
+          "devices": {
+            "com.apple.CoreSimulator.SimRuntime.macOS-26-0": [
+              {
+                "udid": "00000000-0000-0000-0000-000000000002",
+                "isAvailable": true,
+                "state": "Booted",
+                "name": "Mac"
+              }
+            ]
+          }
+        }"#;
+
+        let devices = parse_simctl_devices(output).expect("devices should parse");
+
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].platform, ApplePlatform::Macos);
     }
 
     #[test]

@@ -141,8 +141,10 @@ pub enum ControlKitCommands {
     },
     #[clap(about = "Call a running ControlKit JSON-RPC method.")]
     Call {
-        #[arg(long)]
-        device_udid: String,
+        #[arg(long, required_unless_present = "host", conflicts_with = "host")]
+        device_udid: Option<String>,
+        #[arg(long, conflicts_with = "device_udid")]
+        host: Option<String>,
         #[arg(long, default_value_t = 12004)]
         port: u16,
         #[arg(long)]
