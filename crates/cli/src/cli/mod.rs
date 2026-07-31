@@ -1,6 +1,6 @@
 use {
     crate::{account, cloud_auth, mail, project, tenant},
-    clap::{Parser, Subcommand},
+    clap::{Parser, Subcommand, ValueEnum},
     smbcloud_network::environment::Environment,
     spinners::Spinner,
     std::path::PathBuf,
@@ -16,6 +16,13 @@ impl CommandResult {
     pub fn stop_and_persist(mut self) {
         self.spinner.stop_and_persist(&self.symbol, self.msg);
     }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum)]
+pub enum McpScope {
+    #[default]
+    Cloud,
+    Automation,
 }
 
 #[derive(Parser)]
@@ -44,6 +51,17 @@ pub struct Cli {
     /// one-shot command. Implies non-interactive; the subcommand is ignored.
     #[arg(long, global = true)]
     pub mcp: bool,
+
+    /// MCP tool profile to expose. Cloud serves smbCloud resources; automation
+    /// serves cross-platform mobile and TV device tools.
+    #[arg(
+        long = "scope",
+        global = true,
+        value_enum,
+        default_value_t,
+        requires = "mcp"
+    )]
+    pub mcp_scope: McpScope,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -107,6 +125,43 @@ pub enum Commands {
         display_order = 4
     )]
     Migrate {},
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mcp_defaults_to_cloud_scope() {
+        let cli = Cli::try_parse_from(["smb", "--mcp"]).expect("MCP arguments should parse");
+
+        assert_eq!(cli.mcp_scope, McpScope::Cloud);
+    }
+
+    #[test]
+    fn mcp_accepts_automation_scope() {
+        let cli = Cli::try_parse_from(["smb", "--mcp", "--scope", "automation"])
+            .expect("automation MCP arguments should parse");
+
+        assert_eq!(cli.mcp_scope, McpScope::Automation);
+    }
+
+    #[test]
+    fn scope_requires_mcp_mode() {
+        // `Cli` has no `Debug` impl (clap's `Parser` doesn't require one), so
+        // `expect_err`/`unwrap_err` (which bound the `Ok` type on `Debug`)
+        // don't apply here; match the `Result` instead.
+        let result = Cli::try_parse_from(["smb", "--scope", "automation"]);
+        let error = match result {
+            Err(error) => error,
+            Ok(_) => panic!("scope without MCP mode should be rejected"),
+        };
+
+        assert_eq!(
+            error.kind(),
+            clap::error::ErrorKind::MissingRequiredArgument
+        );
+    }
 }
 
 #[derive(Subcommand)]

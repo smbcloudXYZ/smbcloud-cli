@@ -2,19 +2,16 @@
 
 The smbCloud CLI can run as a **Model Context Protocol (MCP) server**, so an AI
 assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
-<<<<<<< HEAD
-MCP-capable client — can manage your smbCloud projects, tenants, Mail apps, and
-Auth apps directly, without you leaving the chat to run `smb` commands by hand.
-Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 50
-tools covering the account, project, tenant, Mail, Auth, simulator, and
-ControlKit runner surfaces.
-=======
 MCP-capable client — can send transactional email and manage your smbCloud
 projects, tenants, Mail apps, and Auth apps directly, without you leaving the
 chat to run `smb` commands by hand.
 Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 31
 tools covering the account, project, tenant, Mail, and Auth surfaces.
->>>>>>> development
+
+Cross-platform mobile and TV app testing is exposed as a separate, focused MCP
+profile through `xcrs --mcp` or `smb --mcp --scope automation`. Keeping cloud
+and device tools in separate profiles makes tool selection more predictable for
+agents.
 
 This page is the setup guide and the full tool reference. For how `--mcp`
 compares to the CLI's other two interfaces (headless and `--tui`), see
@@ -251,50 +248,79 @@ users; it belongs to a project.
 | `auth_app_update` | `id`, `name`/`support_email` (at least one) | The updated Auth app. |
 | `auth_app_delete` | `id` | Confirmation. **Destructive and irreversible.** |
 
-### Apple platform automation
+### Mobile and TV app automation
 
-The `smb` MCP server also exposes tools for driving Apple apps under test. Most
-of the action tools are **host-agnostic**: the same tool works against an Xcode
-simulator *or* a physical iOS/tvOS/watchOS/visionOS device *or* the local Mac,
-because they talk to an on-target [ControlKit runner](./controlkit.md).
+Start a dedicated automation server instead of mixing device tools into the
+cloud profile:
 
-**Recommended flow — select a target, then act:**
+```sh
+smb --mcp --scope automation
+# or install the smaller standalone crate:
+xcrs --mcp
+```
 
-1. `smb_list_simulators` (or `smb_find_simulator`) to pick a simulator, or note
-   a device's `host`.
-2. `smb_use_target` once with the chosen `simulator_name`/`simulator_udid` (a
-   simulator) or `host` + optional `controlkit_port` (a device/remote runner).
-   The server remembers it, so later action tools need **no** target arguments.
-3. `smb_describe_ui` / `smb_list_elements` to see the screen, then
-   `smb_tap` / `smb_type_text` / `smb_swipe` / `smb_button` and
-   `smb_screenshot` to drive and verify it.
+Both commands expose the same target-aware tools with the same names. Tool
+names do not repeat the server brand because MCP clients already namespace
+them by server.
 
-Any action tool can still override the selected target inline with its own
-`simulator_name`/`simulator_udid` or `host` fields. Simulator arguments accept
-either a name or a UDID; ControlKit arguments default to `127.0.0.1:12004`.
+**Recommended flow:**
 
-| Tool | Arguments | Returns |
-| --- | --- | --- |
-| `smb_use_target` | `simulator_name`/`simulator_udid`, or `host` + optional `controlkit_port` | The remembered active target. |
-| `smb_list_simulators` | _(none)_ | All Apple simulator devices known to Xcode. |
-| `smb_find_simulator` | `name` | A simulator's details (resolve a UDID). |
-| `smb_capabilities` | optional target | Target platform and supported input capabilities. |
-| `smb_describe_ui` | optional target | Full accessibility hierarchy of the foreground app. |
-| `smb_list_elements` | optional target | Actionable accessibility elements with tap coordinates. |
-| `smb_tap` | optional target, `x`, `y` | A touch tap (iOS/tvOS/watchOS). |
-| `smb_click` | optional endpoint, `x`, `y` | A pointer click (macOS). |
-| `smb_gesture` | optional endpoint, `x`, `y` | A spatial tap (visionOS). |
-| `smb_type_text` | optional target, `text` | Text typed into the focused field. |
-| `smb_swipe` | optional target, `x1`, `y1`, `x2`, `y2` | A swipe. |
-| `smb_button` | optional target, `button` | A hardware/remote button press (e.g. `home`). |
-| `smb_orientation_get`/`set` | optional target; `orientation` for `set` | Current or updated screen orientation. |
-| `smb_launch_app`/`terminate_app` | optional target, `bundle_id` | App lifecycle confirmation (routes through the runner's `device.apps.launch`/`terminate` RPC on a device, `simctl` on a simulator). |
-| `smb_open_url` | simulator target, `url` | URL-open confirmation (simulator only). |
-| `smb_screenshot` | simulator target, or `device` (UDID/ECID/serial/name/DNS) | A PNG image (`simctl` for a simulator, `devicectl` for a physical device). |
-| `smb_boot_and_install` | simulator target, `app_path`, `bundle_id` | Boots a simulator, installs and launches an app (simulator only). |
+1. Call `device_list` to discover Apple simulators and adb-connected Android
+   phones, tablets, emulators, and TV devices.
+2. Call `device_select` with the Apple simulator/runner details or Android adb
+   serial. Later actions use that target by default.
+3. Call `device_capabilities` before choosing an input or inspection action.
+4. Use `screen_capture` or the Apple-only `ui_describe`/`ui_element_list` to
+   inspect the app, then drive it with the `input_*` tools.
 
-The standalone `xcrs --mcp` server exposes the same surface with the `xcrs_`
-prefix instead of `smb_`.
+| Tool | Purpose |
+| --- | --- |
+| `device_list` | Discover available Apple simulators and Android adb devices. |
+| `device_select` | Remember the Apple or Android target used by later actions. |
+| `device_capabilities` | Report the selected target's supported automation operations. |
+| `app_install_launch` | Boot, install, and launch an iOS simulator app bundle. |
+| `app_launch` / `app_terminate` | Start or stop an installed app on the selected target. |
+| `screen_capture` | Capture the selected target as a PNG image. |
+| `url_open` | Open an HTTP(S) URL or custom scheme where the target supports it. |
+| `ui_describe` / `ui_element_list` | Inspect the Apple ControlKit accessibility hierarchy. |
+| `input_tap` / `input_text` / `input_swipe` / `input_button` | Drive shared touch, text, gesture, and button actions. |
+| `input_click` | Click a macOS target with pointer coordinates. |
+| `input_spatial_tap` | Perform a visionOS spatial tap. |
+| `orientation_get` / `orientation_set` | Read or update orientation where supported. |
+
+See [ControlKit runners](./controlkit.md) for Apple runner setup. Android tools
+require adb and an authorized device; Android TV app launches resolve the
+device's Leanback launcher activity.
+
+#### Automation migration in 0.5.0
+
+The automation profile is a clean breaking replacement. Old Apple-default and
+Android-prefixed names are not exposed as aliases because duplicate tools make
+agent selection less reliable.
+
+| Previous tools | Replacement |
+| --- | --- |
+| `smb_list_simulators`, `smb_android_device_list` | `device_list` |
+| `smb_use_target` | `device_select` |
+| `smb_capabilities` | `device_capabilities` |
+| `smb_boot_and_install` | `app_install_launch` |
+| `smb_launch_app`, `smb_android_app_launch` | `app_launch` |
+| `smb_terminate_app`, `smb_android_app_terminate` | `app_terminate` |
+| `smb_screenshot`, `smb_android_screenshot` | `screen_capture` |
+| `smb_open_url`, `smb_android_open_url` | `url_open` |
+| `smb_describe_ui` | `ui_describe` |
+| `smb_list_elements` | `ui_element_list` |
+| `smb_tap`, `smb_android_tap` | `input_tap` |
+| `smb_type_text`, `smb_android_type_text` | `input_text` |
+| `smb_swipe`, `smb_android_swipe` | `input_swipe` |
+| `smb_button`, `smb_android_press_button` | `input_button` |
+| `smb_click` | `input_click` |
+| `smb_gesture` | `input_spatial_tap` |
+| `smb_orientation_get` | `orientation_get` |
+| `smb_orientation_set` | `orientation_set` |
+
+The standalone server makes the same replacement without the former `xcrs_`
+prefix.
 
 ## Safety: tools run without confirmation
 
