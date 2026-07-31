@@ -1,0 +1,52 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.smbcloudXYZ/xcrs",
+  "title": "XCRS Xcode Simulator Tools",
+  "description": "Rust-native Xcode command-line and Apple simulator automation tools exposed through MCP.",
+  "version": "0.4.13",
+  "websiteUrl": "https://github.com/smbcloudXYZ/smbcloud-cli/tree/main/crates/xcrs",
+  "repository": {
+    "url": "https://github.com/smbcloudXYZ/smbcloud-cli",
+    "source": "github",
+    "id": "597171611",
+    "subfolder": "crates/xcrs"
+  },
+  "packages": [
+    {
+      "registryType": "cargo",
+      "registryBaseUrl": "https://crates.io",
+      "identifier": "xcrs",
+      "version": "0.4.13",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--mcp",
+          "description": "Run the XCRS server as an MCP server over stdio.",
+          "isRequired": true
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "categories": [
+        "developer-tools",
+        "xcode",
+        "ios",
+        "simulator"
+      ],
+      "keywords": [
+        "Xcode",
+        "iOS simulator",
+        "tvOS",
+        "visionOS",
+        "watchOS",
+        "macOS",
+        "ControlKit"
+      ]
+    }
+  }
+}

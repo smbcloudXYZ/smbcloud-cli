@@ -66,6 +66,9 @@ pub struct SmbMcpServer {
     environment: Environment,
 }
 
+#[path = "mcp_xcrs.rs"]
+mod mcp_xcrs;
+
 impl SmbMcpServer {
     pub fn new(environment: Environment) -> Self {
         Self { environment }
@@ -371,7 +374,7 @@ struct AuthAppDeleteArgs {
     id: String,
 }
 
-#[tool_router]
+#[tool_router(router = cloud_tool_router, vis = "pub(crate)")]
 impl SmbMcpServer {
     #[tool(description = "Get the authenticated smbCloud user's account info. \
                           Requires a prior `smb login`; returns the user as JSON.")]
@@ -975,7 +978,9 @@ impl SmbMcpServer {
     }
 }
 
-#[tool_handler]
+#[tool_handler(
+    router = (Self::cloud_tool_router() + Self::xcrs_tool_router())
+)]
 impl ServerHandler for SmbMcpServer {
     fn get_info(&self) -> ServerInfo {
         // `Implementation` is `#[non_exhaustive]`, so start from the build-env
@@ -990,7 +995,8 @@ impl ServerHandler for SmbMcpServer {
                 "smbCloud CLI exposed as MCP tools. Authentication uses the token stored by \
                  `smb login`; tools run non-interactively. `tenant_use` / `project_use` select \
                  the tenant/project context other tools default to, shared with the CLI's own \
-                 `smb tenant use` / `smb project use`.",
+                 `smb tenant use` / `smb project use`. ControlKit tools cover iOS, tvOS, \
+                 visionOS, watchOS, and macOS runners.",
             )
     }
 }

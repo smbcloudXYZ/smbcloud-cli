@@ -69,7 +69,14 @@ const MANIFEST = {
         slug: 'mcp',
         title: 'MCP Server',
         description:
-          'Run the smbCloud CLI as an MCP server and connect Claude Desktop, Claude Code, Cursor, or any MCP client to manage your projects, tenants, Mail, and Auth apps. Setup guide plus the full 30-tool reference.'
+          'Run the smbCloud CLI as an MCP server and connect Claude Desktop, Claude Code, Cursor, or any MCP client to manage smbCloud resources, simulators, and ControlKit runners. Setup guide plus the full tool reference.'
+      },
+      {
+        src: 'controlkit.md',
+        slug: 'controlkit',
+        title: 'ControlKit runners',
+        description:
+          'Build and connect the native ControlKit runners for iOS, tvOS, visionOS, watchOS, and macOS through the smbCloud and xcrs MCP servers.'
       },
       {
         src: 'ci.md',

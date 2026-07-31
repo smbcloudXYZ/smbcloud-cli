@@ -5,6 +5,7 @@ pub mod ci;
 pub mod cli;
 #[path = "cloud-auth/mod.rs"]
 pub mod cloud_auth;
+pub mod controlkit;
 #[path = "cloud-deploy/mod.rs"]
 pub mod deploy;
 pub mod interface;
