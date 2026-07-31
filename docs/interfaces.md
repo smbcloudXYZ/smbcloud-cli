@@ -50,13 +50,8 @@ dialog under `--tui`; in the headless interface they ask inline instead.
 
 `smb --mcp` starts an MCP (Model Context Protocol) server that speaks
 JSON-RPC over stdio. Instead of running a single command and exiting, it stays
-<<<<<<< HEAD
 up and exposes 50 tools spanning accounts, projects, tenants, Mail, Auth,
 simulators, and ControlKit runners as MCP **tools** that an MCP-capable client
-=======
-up and exposes smbCloud operations — 31 tools spanning accounts, projects,
-tenants, Mail, and Auth — as MCP **tools** that an MCP-capable client
->>>>>>> development
 (Claude Desktop, Claude Code, Cursor, or any other assistant/agent) can call.
 The subcommand is ignored in this mode.
 

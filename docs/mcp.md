@@ -2,19 +2,11 @@
 
 The smbCloud CLI can run as a **Model Context Protocol (MCP) server**, so an AI
 assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
-<<<<<<< HEAD
 MCP-capable client — can manage your smbCloud projects, tenants, Mail apps, and
 Auth apps directly, without you leaving the chat to run `smb` commands by hand.
 Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 50
 tools covering the account, project, tenant, Mail, Auth, simulator, and
 ControlKit runner surfaces.
-=======
-MCP-capable client — can send transactional email and manage your smbCloud
-projects, tenants, Mail apps, and Auth apps directly, without you leaving the
-chat to run `smb` commands by hand.
-Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 31
-tools covering the account, project, tenant, Mail, and Auth surfaces.
->>>>>>> development
 
 This page is the setup guide and the full tool reference. For how `--mcp`
 compares to the CLI's other two interfaces (headless and `--tui`), see

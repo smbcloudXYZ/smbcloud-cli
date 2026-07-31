@@ -143,3 +143,8 @@ instead:
 Platform-specific operations intentionally reject unsupported input. For
 example, visionOS rejects raw touch, watchOS rejects pointer and spatial input,
 and macOS rejects touch and Home-button requests.
+
+## See also
+
+For the product-level overview of end-to-end testing with xcrs and
+ControlKit, see [smbcloud.xyz/xcrs-end-to-end-testing](https://smbcloud.xyz/xcrs-end-to-end-testing).
