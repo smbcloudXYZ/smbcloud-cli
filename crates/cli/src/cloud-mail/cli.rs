@@ -39,6 +39,40 @@ pub enum Commands {
         #[clap(long, required = true)]
         id: String,
     },
+    #[clap(about = "Send a transactional email from a verified domain.")]
+    Send {
+        /// Sender address. Must sit on the domain the API key's Mail app has verified.
+        #[clap(long, required = true)]
+        from: String,
+        /// Recipient address. Repeat for several recipients.
+        #[clap(long, required = true)]
+        to: Vec<String>,
+        /// Subject line.
+        #[clap(long)]
+        subject: Option<String>,
+        /// HTML body. At least one of --html or --text is required.
+        #[clap(long)]
+        html: Option<String>,
+        /// Plain-text body. At least one of --html or --text is required.
+        #[clap(long)]
+        text: Option<String>,
+        /// Copy recipient. Repeat for several.
+        #[clap(long)]
+        cc: Vec<String>,
+        /// Blind copy recipient. Repeat for several.
+        #[clap(long)]
+        bcc: Vec<String>,
+        /// Address replies should go to. Repeat for several.
+        #[clap(long)]
+        reply_to: Vec<String>,
+        /// Reuse a key to make a retry safe: the original message comes back
+        /// instead of a second send.
+        #[clap(long)]
+        idempotency_key: Option<String>,
+        /// Mail app API key (`smb_mail_…`). Read from SMB_MAIL_API_KEY when omitted.
+        #[clap(long, env = "SMB_MAIL_API_KEY", hide_env_values = true)]
+        api_key: Option<String>,
+    },
     #[clap(about = "Manage mail inbox routes.")]
     Inbox {
         #[clap(subcommand)]

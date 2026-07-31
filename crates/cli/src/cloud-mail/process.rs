@@ -7,7 +7,9 @@ use crate::{
         render::{
             print_mail_app_detail, print_mail_apps, print_mail_inbox_detail,
             print_mail_message_detail, print_mail_messages, print_mail_test_delivery,
+            print_sent_email,
         },
+        send::{resolve_api_key, send_email, OutboundEmail},
     },
     token::get_smb_token::get_smb_token,
     ui::{fail_message, fail_symbol, prompt::confirm_delete, succeed_message, succeed_symbol},
@@ -41,6 +43,35 @@ pub async fn process_mail(env: Environment, commands: Commands) -> Result<Comman
             aws_region,
         } => process_mail_update(env, id, name, domain, aws_region).await,
         Commands::Delete { id } => process_mail_delete(env, id).await,
+        Commands::Send {
+            from,
+            to,
+            subject,
+            html,
+            text,
+            cc,
+            bcc,
+            reply_to,
+            idempotency_key,
+            api_key,
+        } => {
+            process_mail_send(
+                env,
+                OutboundEmail {
+                    from,
+                    to,
+                    subject,
+                    html,
+                    text,
+                    cc,
+                    bcc,
+                    reply_to,
+                    idempotency_key,
+                },
+                api_key,
+            )
+            .await
+        }
         Commands::Inbox { command } => process_mail_inbox(env, command).await,
         Commands::Message { command } => process_mail_message(env, command).await,
     }
@@ -344,6 +375,28 @@ async fn process_mail_inbox_test(
     print_mail_test_delivery(&delivery);
 
     Ok(done_result("Mail test email sent."))
+}
+
+async fn process_mail_send(
+    env: Environment,
+    email: OutboundEmail,
+    api_key: Option<String>,
+) -> Result<CommandResult> {
+    let api_key = resolve_api_key(api_key)?;
+    let mut spinner = loading_spinner("Sending email");
+
+    let sent = match send_email(env, &api_key, email).await {
+        Ok(sent) => sent,
+        Err(error) => {
+            spinner.stop_and_persist(&fail_symbol(), fail_message("Send failed."));
+            return Err(error);
+        }
+    };
+
+    spinner.stop_and_persist(&succeed_symbol(), succeed_message("Sent."));
+    print_sent_email(&sent);
+
+    Ok(done_result("Email sent."))
 }
 
 async fn process_mail_message_list(

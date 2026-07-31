@@ -18,7 +18,10 @@ use {
     crate::{
         account::lib::is_logged_in,
         client,
-        mail::current_project::{resolve_optional_project_id, resolve_required_project_id},
+        mail::{
+            current_project::{resolve_optional_project_id, resolve_required_project_id},
+            send::{resolve_api_key, send_email, OutboundEmail},
+        },
         token::get_smb_token::get_smb_token,
     },
     anyhow::{anyhow, Result},
@@ -276,6 +279,33 @@ struct MailInboxTestArgs {
     subject: Option<String>,
     #[serde(default)]
     body: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct MailSendArgs {
+    /// Sender address. Must sit on the verified domain of the Mail app the
+    /// configured API key belongs to.
+    from: String,
+    /// One or more recipient addresses.
+    to: Vec<String>,
+    #[serde(default)]
+    subject: Option<String>,
+    /// HTML body. At least one of `html` or `text` is required.
+    #[serde(default)]
+    html: Option<String>,
+    /// Plain-text body. At least one of `html` or `text` is required.
+    #[serde(default)]
+    text: Option<String>,
+    #[serde(default)]
+    cc: Vec<String>,
+    #[serde(default)]
+    bcc: Vec<String>,
+    #[serde(default)]
+    reply_to: Vec<String>,
+    /// Reuse a key to make a retry safe: the original message comes back
+    /// instead of a second send.
+    #[serde(default)]
+    idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -765,6 +795,39 @@ impl SmbMcpServer {
         .await
         .map_err(to_error_data)?;
         json_result(&delivery)
+    }
+
+    #[tool(
+        description = "Send a transactional email from a verified smbCloud Mail domain. \
+                       Returns the created message with its delivery status as JSON. \
+                       This tool authenticates with a Mail app API key from \
+                       SMB_MAIL_API_KEY, not the `smb login` session the other tools use."
+    )]
+    async fn mail_send(
+        &self,
+        Parameters(args): Parameters<MailSendArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let api_key = resolve_api_key(None).map_err(|error| invalid_request(error.to_string()))?;
+
+        let sent = send_email(
+            self.environment,
+            &api_key,
+            OutboundEmail {
+                from: args.from,
+                to: args.to,
+                subject: args.subject,
+                html: args.html,
+                text: args.text,
+                cc: args.cc,
+                bcc: args.bcc,
+                reply_to: args.reply_to,
+                idempotency_key: args.idempotency_key,
+            },
+        )
+        .await
+        .map_err(to_error_data)?;
+
+        json_result(&sent)
     }
 
     // ── Mail messages ────────────────────────────────────────────────────

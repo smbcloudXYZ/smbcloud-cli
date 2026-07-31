@@ -2,11 +2,19 @@
 
 The smbCloud CLI can run as a **Model Context Protocol (MCP) server**, so an AI
 assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
+<<<<<<< HEAD
 MCP-capable client — can manage your smbCloud projects, tenants, Mail apps, and
 Auth apps directly, without you leaving the chat to run `smb` commands by hand.
 Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 50
 tools covering the account, project, tenant, Mail, Auth, simulator, and
 ControlKit runner surfaces.
+=======
+MCP-capable client — can send transactional email and manage your smbCloud
+projects, tenants, Mail apps, and Auth apps directly, without you leaving the
+chat to run `smb` commands by hand.
+Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 31
+tools covering the account, project, tenant, Mail, and Auth surfaces.
+>>>>>>> development
 
 This page is the setup guide and the full tool reference. For how `--mcp`
 compares to the CLI's other two interfaces (headless and `--tui`), see
@@ -182,6 +190,34 @@ A Mail app owns one domain's mail routing; it belongs to a project.
 | `mail_update` | `id`, `name`/`domain`/`aws_region` (at least one) | The updated Mail app. |
 | `mail_delete` | `id` | Confirmation. **Destructive and irreversible.** |
 
+### Sending email
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `mail_send` | `from`, `to`, `subject`/`html`/`text`/`cc`/`bcc`/`reply_to`/`idempotency_key` (optional; one of `html` or `text` required) | The sent message with its delivery status. |
+
+`mail_send` is the one tool that does not use the `smb login` session. The send API
+authenticates with a Mail app API key scoped to that app's verified sending domain,
+so the key has to reach the server through its environment:
+
+```json
+{
+  "mcpServers": {
+    "smbcloud": {
+      "command": "smb",
+      "args": ["--mcp"],
+      "env": { "SMB_MAIL_API_KEY": "smb_mail_your_key" }
+    }
+  }
+}
+```
+
+Mint the key for your Mail app in the smbCloud console. Without it, `mail_send`
+fails with a message saying so and every other tool keeps working.
+
+Reuse an `idempotency_key` and the original message comes back instead of a second
+send, which is what you want when an agent retries after a timeout.
+
 ### Mail inboxes
 
 An inbox route forwards mail arriving at one address under a Mail app's domain.
@@ -326,7 +362,9 @@ project list`, and so on. There's nothing extra to install.
 
 **Do I need to log in separately for MCP?**
 No. Log in once with `smb login` on a terminal; every interface (headless,
-`--tui`, `--mcp`) reads the same token from `~/.smb/token`.
+`--tui`, `--mcp`) reads the same token from `~/.smb/token`. The one exception is
+`mail_send`, which needs a Mail app API key in `SMB_MAIL_API_KEY` because the send
+API authenticates per sending domain rather than per user.
 
 **Can I run multiple smbCloud MCP servers for different environments?**
 Yes — register two entries with different `args` (e.g. one with `-e dev`, one
