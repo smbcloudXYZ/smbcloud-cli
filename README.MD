@@ -119,6 +119,17 @@ Auth comes from `smb login`, so a terminal session and an agent session share th
 token and the same selected project. See [`docs/mcp.md`](./docs/mcp.md) for the full tool
 reference.
 
+For mobile and TV app testing, run the focused **XCRS Mobile & TV
+Automation** profile:
+
+```sh
+claude mcp add xcrs -- smb --mcp --scope automation
+```
+
+It exposes target-aware Xcode, ControlKit, CoreDevice, and adb tools without
+mixing them into the cloud tool set. The same profile is also available from
+the standalone `xcrs --mcp` crate.
+
 ## CI / non-interactive mode
 
 Pass `--ci` (or set `SMB_CI=1`, or run under any provider that sets `CI`) to

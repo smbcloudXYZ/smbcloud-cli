@@ -2,8 +2,8 @@
 
 The repository publishes two MCP servers to the [official MCP Registry](https://registry.modelcontextprotocol.io):
 
-- **`io.github.smbcloudXYZ/smbcloud-cli`** — the `smb --mcp` server for smbCloud resources, simulators, and ControlKit runners.
-- **`io.github.smbcloudXYZ/xcrs`** — the standalone Rust `xcrs --mcp` server for Xcode and Apple simulator tooling.
+- **`io.github.smbcloudXYZ/smbcloud-cli`** — the `smb --mcp` server for smbCloud projects, Mail, Auth, tenants, and deployments.
+- **`io.github.smbcloudXYZ/xcrs`** — **XCRS Mobile & TV Automation**, available through `xcrs --mcp` or `smb --mcp --scope automation` for Xcode, ControlKit, CoreDevice, and adb workflows.
 
 The registry is a metadata index — it doesn't host binaries. The smbCloud
 listing points at packages published to npm and NuGet, while the standalone

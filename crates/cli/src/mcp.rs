@@ -1,8 +1,9 @@
 //! MCP (Model Context Protocol) server interface.
 //!
 //! When `smb` is started with `--mcp`, it runs as an MCP server over stdio
-//! instead of executing a one-shot command. The server exposes smbCloud
-//! operations as MCP tools built on the official `rmcp` SDK.
+//! instead of executing a one-shot command. The default profile exposes
+//! smbCloud operations; `--scope automation` exposes the shared XCRS mobile
+//! and TV automation profile.
 //!
 //! Tools call the same library functions the CLI handlers use, but return
 //! structured JSON rather than rendering spinners or a TUI — the stdout stream
@@ -17,6 +18,7 @@
 use {
     crate::{
         account::lib::is_logged_in,
+        cli::McpScope,
         client,
         mail::{
             current_project::{resolve_optional_project_id, resolve_required_project_id},
@@ -978,9 +980,7 @@ impl SmbMcpServer {
     }
 }
 
-#[tool_handler(
-    router = (Self::cloud_tool_router() + Self::xcrs_tool_router())
-)]
+#[tool_handler(router = Self::cloud_tool_router())]
 impl ServerHandler for SmbMcpServer {
     fn get_info(&self) -> ServerInfo {
         // `Implementation` is `#[non_exhaustive]`, so start from the build-env
@@ -995,14 +995,18 @@ impl ServerHandler for SmbMcpServer {
                 "smbCloud CLI exposed as MCP tools. Authentication uses the token stored by \
                  `smb login`; tools run non-interactively. `tenant_use` / `project_use` select \
                  the tenant/project context other tools default to, shared with the CLI's own \
-                 `smb tenant use` / `smb project use`. ControlKit tools cover iOS, tvOS, \
-                 visionOS, watchOS, and macOS runners.",
+                 `smb tenant use` / `smb project use`. Use `smb --mcp --scope automation` \
+                 instead for mobile and TV app automation tools.",
             )
     }
 }
 
 /// Run the MCP server over stdio until the client disconnects.
-pub async fn serve(environment: Environment) -> Result<()> {
+pub async fn serve(environment: Environment, scope: McpScope) -> Result<()> {
+    if scope == McpScope::Automation {
+        return mcp_xcrs::serve().await;
+    }
+
     let running = SmbMcpServer::new(environment)
         .serve(stdio())
         .await
@@ -1012,4 +1016,62 @@ pub async fn serve(environment: Environment) -> Result<()> {
         .await
         .map_err(|e| anyhow!("MCP server stopped unexpectedly: {e}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cloud_router_exposes_known_cloud_tools() {
+        let tools = SmbMcpServer::cloud_tool_router().list_all();
+        let names: Vec<&str> = tools.iter().map(|tool| tool.name.as_ref()).collect();
+
+        for cloud_only in [
+            "me",
+            "project_list",
+            "tenant_list",
+            "mail_list",
+            "auth_app_list",
+        ] {
+            assert!(
+                names.contains(&cloud_only),
+                "cloud router should expose {cloud_only:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn cloud_router_excludes_automation_tools() {
+        let tools = SmbMcpServer::cloud_tool_router().list_all();
+        let names: Vec<&str> = tools.iter().map(|tool| tool.name.as_ref()).collect();
+
+        const AUTOMATION_TOOL_NAMES: [&str; 18] = [
+            "device_list",
+            "device_select",
+            "device_capabilities",
+            "app_install_launch",
+            "screen_capture",
+            "app_launch",
+            "app_terminate",
+            "url_open",
+            "ui_describe",
+            "ui_element_list",
+            "input_tap",
+            "input_text",
+            "input_swipe",
+            "input_button",
+            "input_click",
+            "input_spatial_tap",
+            "orientation_get",
+            "orientation_set",
+        ];
+
+        for automation_only in AUTOMATION_TOOL_NAMES {
+            assert!(
+                !names.contains(&automation_only),
+                "cloud router should not expose automation tool {automation_only:?}"
+            );
+        }
+    }
 }
