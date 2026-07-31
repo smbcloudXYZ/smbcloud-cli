@@ -2,19 +2,16 @@
 
 The smbCloud CLI can run as a **Model Context Protocol (MCP) server**, so an AI
 assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
-<<<<<<< HEAD
-MCP-capable client — can manage your smbCloud projects, tenants, Mail apps, and
-Auth apps directly, without you leaving the chat to run `smb` commands by hand.
-Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 50
-tools covering the account, project, tenant, Mail, Auth, simulator, and
-ControlKit runner surfaces.
-=======
 MCP-capable client — can send transactional email and manage your smbCloud
 projects, tenants, Mail apps, and Auth apps directly, without you leaving the
 chat to run `smb` commands by hand.
 Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 31
 tools covering the account, project, tenant, Mail, and Auth surfaces.
->>>>>>> development
+
+Cross-platform mobile and TV app testing is exposed as a separate, focused MCP
+profile through `xcrs --mcp` or `smb --mcp --scope automation`. Keeping cloud
+and device tools in separate profiles makes tool selection more predictable for
+agents.
 
 This page is the setup guide and the full tool reference. For how `--mcp`
 compares to the CLI's other two interfaces (headless and `--tui`), see
@@ -251,49 +248,79 @@ users; it belongs to a project.
 | `auth_app_update` | `id`, `name`/`support_email` (at least one) | The updated Auth app. |
 | `auth_app_delete` | `id` | Confirmation. **Destructive and irreversible.** |
 
-### ControlKit runners
+### Mobile and TV app automation
 
-The `smb` MCP server also exposes local Xcode simulator and ControlKit runner
-tools. Simulator arguments accept either `simulator_name` or `simulator_udid`;
-ControlKit arguments default to `127.0.0.1:12004`. For a local macOS runner,
-omit the simulator fields and use the optional `host` and `controlkit_port`
-fields.
+Start a dedicated automation server instead of mixing device tools into the
+cloud profile:
 
-The same `host` field also targets a **physical** iOS/tvOS/watchOS/visionOS
-device running a ControlKit runner reachable over the network (see
-[ControlKit runners](./controlkit.md)) — omit `simulator_name`/`simulator_udid`
-and pass the device's host and the runner's listen port instead. This applies
-to `smb_simulator_tap`, `smb_simulator_type_text`, `smb_simulator_swipe`,
-`smb_simulator_press_button`, `smb_simulator_press_home`,
-`smb_simulator_orientation_get`/`set`, `smb_simulator_ui_dump`,
-`smb_simulator_list_elements`, and `smb_simulator_launch_app`/`terminate_app`
-(the latter two route through the runner's `device.apps.launch`/`terminate`
-RPC methods instead of `simctl` when `host` is given).
+```sh
+smb --mcp --scope automation
+# or install the smaller standalone crate:
+xcrs --mcp
+```
 
-| Tool | Arguments | Returns |
-| --- | --- | --- |
-| `smb_simulator_list` | _(none)_ | All Apple simulator devices known to Xcode. |
-| `smb_simulator_find` | `name` | A simulator's details. |
-| `smb_controlkit_capabilities` | simulator target or optional `host`, `controlkit_port` | Runner platform and capabilities. |
-| `smb_macos_click` | `x`, `y`, plus optional endpoint fields | A pointer click on a macOS runner. |
-| `smb_visionos_spatial_tap` | `x`, `y`, plus optional endpoint fields | A spatial tap on a visionOS runner. |
-| `smb_watchos_tap` | `x`, `y`, plus optional endpoint fields | A touch tap on a watchOS runner. |
-| `smb_simulator_tap` | simulator target or `host`, `x`, `y` | A touch tap through ControlKit. |
-| `smb_simulator_type_text` | simulator target or `host`, `text` | Text input through ControlKit. |
-| `smb_simulator_swipe` | simulator target or `host`, `x1`, `y1`, `x2`, `y2` | A swipe through ControlKit. |
-| `smb_simulator_press_button` | simulator target or `host`, `button` | A supported remote-button press. |
-| `smb_simulator_press_home` | simulator target or `host` | An iOS Home-button press. |
-| `smb_simulator_orientation_get`/`set` | simulator target or `host`; `orientation` for `set` | Current or updated iOS orientation. |
-| `smb_simulator_launch_app`/`terminate_app` | simulator target or `host`, `bundle_id` | App lifecycle confirmation. |
-| `smb_simulator_open_url` | simulator target, `url` | URL-open confirmation. |
-| `smb_simulator_ui_dump` | simulator target or `host` | Accessibility UI hierarchy. |
-| `smb_simulator_list_elements` | simulator target or `host` | Actionable accessibility elements. |
-| `smb_simulator_screenshot` | simulator target | A PNG image. |
-| `smb_device_screenshot` | `device` (UDID, ECID, serial number, name, or DNS name) | A PNG image captured from a physical device via `devicectl`. |
-| `smb_ios_app_test` | simulator target, `app_path`, `bundle_id` | Installed/launched app details. |
+Both commands expose the same target-aware tools with the same names. Tool
+names do not repeat the server brand because MCP clients already namespace
+them by server.
 
-The standalone `xcrs --mcp` server exposes the same runner surface with the
-`xcrs_` prefix instead of `smb_`.
+**Recommended flow:**
+
+1. Call `device_list` to discover Apple simulators and adb-connected Android
+   phones, tablets, emulators, and TV devices.
+2. Call `device_select` with the Apple simulator/runner details or Android adb
+   serial. Later actions use that target by default.
+3. Call `device_capabilities` before choosing an input or inspection action.
+4. Use `screen_capture` or the Apple-only `ui_describe`/`ui_element_list` to
+   inspect the app, then drive it with the `input_*` tools.
+
+| Tool | Purpose |
+| --- | --- |
+| `device_list` | Discover available Apple simulators and Android adb devices. |
+| `device_select` | Remember the Apple or Android target used by later actions. |
+| `device_capabilities` | Report the selected target's supported automation operations. |
+| `app_install_launch` | Boot, install, and launch an iOS simulator app bundle. |
+| `app_launch` / `app_terminate` | Start or stop an installed app on the selected target. |
+| `screen_capture` | Capture the selected target as a PNG image. |
+| `url_open` | Open an HTTP(S) URL or custom scheme where the target supports it. |
+| `ui_describe` / `ui_element_list` | Inspect the Apple ControlKit accessibility hierarchy. |
+| `input_tap` / `input_text` / `input_swipe` / `input_button` | Drive shared touch, text, gesture, and button actions. |
+| `input_click` | Click a macOS target with pointer coordinates. |
+| `input_spatial_tap` | Perform a visionOS spatial tap. |
+| `orientation_get` / `orientation_set` | Read or update orientation where supported. |
+
+See [ControlKit runners](./controlkit.md) for Apple runner setup. Android tools
+require adb and an authorized device; Android TV app launches resolve the
+device's Leanback launcher activity.
+
+#### Automation migration in 0.5.0
+
+The automation profile is a clean breaking replacement. Old Apple-default and
+Android-prefixed names are not exposed as aliases because duplicate tools make
+agent selection less reliable.
+
+| Previous tools | Replacement |
+| --- | --- |
+| `smb_list_simulators`, `smb_android_device_list` | `device_list` |
+| `smb_use_target` | `device_select` |
+| `smb_capabilities` | `device_capabilities` |
+| `smb_boot_and_install` | `app_install_launch` |
+| `smb_launch_app`, `smb_android_app_launch` | `app_launch` |
+| `smb_terminate_app`, `smb_android_app_terminate` | `app_terminate` |
+| `smb_screenshot`, `smb_android_screenshot` | `screen_capture` |
+| `smb_open_url`, `smb_android_open_url` | `url_open` |
+| `smb_describe_ui` | `ui_describe` |
+| `smb_list_elements` | `ui_element_list` |
+| `smb_tap`, `smb_android_tap` | `input_tap` |
+| `smb_type_text`, `smb_android_type_text` | `input_text` |
+| `smb_swipe`, `smb_android_swipe` | `input_swipe` |
+| `smb_button`, `smb_android_press_button` | `input_button` |
+| `smb_click` | `input_click` |
+| `smb_gesture` | `input_spatial_tap` |
+| `smb_orientation_get` | `orientation_get` |
+| `smb_orientation_set` | `orientation_set` |
+
+The standalone server makes the same replacement without the former `xcrs_`
+prefix.
 
 ## Safety: tools run without confirmation
 

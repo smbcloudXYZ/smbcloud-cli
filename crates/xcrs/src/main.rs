@@ -5,7 +5,7 @@ use xcrs::{IosAppTest, XcodeCommandLineTools};
 
 #[derive(Debug, Parser)]
 #[command(name = "xcrs")]
-#[command(about = "Rust abstraction over Xcode command line tools")]
+#[command(about = "Cross-platform mobile and TV app automation")]
 struct Cli {
     /// Run as a standalone Model Context Protocol server over stdio.
     #[arg(long)]

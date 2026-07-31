@@ -89,33 +89,36 @@ address with its Bonjour hostname (`<device-name>.local`, discoverable via
 address (`xcrun devicectl device info details --device <udid>`, under
 `Tunnel IP Address`).
 
-## Connect through `smb --mcp`
+## Connect through the automation MCP profile
 
-Start the CLI MCP server:
+Start either automation server:
 
 ```sh
-smb --mcp
+xcrs --mcp
+# or
+smb --mcp --scope automation
 ```
 
 The runner tools accept either `simulator_name` or `simulator_udid` for a
 simulator, or `host` (plus `controlkit_port`, defaulting to `12004`) for a
-physical device or any other remote runner. The standalone `xcrs --mcp`
-server exposes the same tools with the `xcrs_` prefix.
+physical device or any other remote runner. Call `device_select` once to
+remember the target so later tools need no target arguments. Both commands
+expose the same unprefixed tool names.
 
 | Tool | Runner | Purpose |
 | --- | --- | --- |
-| `smb_controlkit_capabilities` | All platforms | Read platform and capability information. |
-| `smb_macos_click` | macOS | Click at screen coordinates. |
-| `smb_visionos_spatial_tap` | visionOS | Perform a spatial tap. |
-| `smb_watchos_tap` | watchOS | Perform a touch tap. |
-| `smb_simulator_tap` | iOS / tvOS, simulator or physical | Perform a touch tap. |
-| `smb_simulator_type_text` | iOS / tvOS, simulator or physical | Type into the focused field. |
-| `smb_simulator_swipe` | iOS / tvOS, simulator or physical | Swipe between coordinates. |
-| `smb_simulator_press_button` | iOS / tvOS, simulator or physical | Press a Home or tvOS remote button. |
-| `smb_simulator_launch_app`/`terminate_app` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. |
-| `smb_simulator_screenshot` | Simulator only | Capture a PNG screenshot via `simctl`. |
-| `smb_device_screenshot` | Physical device only | Capture a PNG screenshot via `devicectl device capture screenshot` — works independently of the ControlKit runner, so it succeeds even if the RPC server isn't running. |
-| `smb_simulator_ui_dump` | All UI-test runners | Read the accessibility hierarchy. |
+| `device_select` | All platforms | Remember the active simulator or device for later tools. |
+| `device_capabilities` | All platforms | Read platform and capability information. |
+| `input_click` | macOS | Click at screen coordinates. |
+| `input_spatial_tap` | visionOS | Perform a spatial tap. |
+| `input_tap` | iOS / tvOS / watchOS, simulator or physical | Perform a touch tap. |
+| `input_text` | iOS / tvOS, simulator or physical | Type into the focused field. |
+| `input_swipe` | iOS / tvOS, simulator or physical | Swipe between coordinates. |
+| `input_button` | iOS / tvOS, simulator or physical | Press a Home or tvOS remote button. |
+| `app_launch`/`app_terminate` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. |
+| `screen_capture` | Simulator or physical | Capture a PNG screenshot. Uses `simctl` for a simulator, or `devicectl device capture screenshot` when a `device` identifier is given. |
+| `ui_describe` | All UI-test runners | Read the accessibility hierarchy. |
+| `ui_element_list` | All UI-test runners | Read only actionable elements with tap coordinates. |
 
 For a local macOS runner, omit simulator fields and pass `host` and
 `controlkit_port` when needed:

@@ -151,7 +151,7 @@ async fn run_mcp(cli: Cli) -> Result<()> {
     } else {
         setup_logging(cli.environment, None)?;
     }
-    smbcloud_cli::mcp::serve(cli.environment).await
+    smbcloud_cli::mcp::serve(cli.environment, cli.mcp_scope).await
 }
 
 async fn run(cli: Cli) -> Result<CommandResult> {

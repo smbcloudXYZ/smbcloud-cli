@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::env;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
@@ -419,6 +420,385 @@ impl Devicectl<'_> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AndroidDevice {
+    pub serial: String,
+    pub state: String,
+    pub product: Option<String>,
+    pub model: Option<String>,
+    pub device: Option<String>,
+    pub transport_id: Option<String>,
+}
+
+impl AndroidDevice {
+    pub fn is_connected(&self) -> bool {
+        self.state == "device"
+    }
+}
+
+/// The automation platform a normalized `device_list` entry belongs to.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DevicePlatform {
+    Apple,
+    Android,
+}
+
+/// The kind of device a normalized `device_list` entry represents. Apple physical
+/// devices are not represented here: this crate has no reliable Apple
+/// device-discovery command, so only Apple simulators are ever listed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceKind {
+    Simulator,
+    Emulator,
+    PhysicalDevice,
+}
+
+/// A device entry normalized across Apple simulators and Android devices/emulators
+/// for the cross-platform `device_list` tool.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NormalizedDevice {
+    pub platform: DevicePlatform,
+    pub kind: DeviceKind,
+    /// Simulator UDID (Apple) or device serial (Android).
+    pub identifier: String,
+    pub name: String,
+    pub state: String,
+    /// The tool used to reach this device: "simctl" or "adb".
+    pub transport: String,
+}
+
+impl NormalizedDevice {
+    pub fn from_simulator(simulator: &Simulator) -> Self {
+        Self {
+            platform: DevicePlatform::Apple,
+            kind: DeviceKind::Simulator,
+            identifier: simulator.udid.clone(),
+            name: simulator.name.clone(),
+            state: simulator.state.clone(),
+            transport: "simctl".to_string(),
+        }
+    }
+
+    pub fn from_android_device(device: &AndroidDevice) -> Self {
+        let kind = if device.serial.starts_with("emulator-") {
+            DeviceKind::Emulator
+        } else {
+            DeviceKind::PhysicalDevice
+        };
+        let name = device
+            .model
+            .clone()
+            .or_else(|| device.device.clone())
+            .or_else(|| device.product.clone())
+            .unwrap_or_else(|| device.serial.clone());
+        Self {
+            platform: DevicePlatform::Android,
+            kind,
+            identifier: device.serial.clone(),
+            name,
+            state: device.state.clone(),
+            transport: "adb".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AndroidDebugBridge {
+    adb_path: PathBuf,
+}
+
+impl Default for AndroidDebugBridge {
+    fn default() -> Self {
+        Self {
+            adb_path: discover_adb_path(),
+        }
+    }
+}
+
+impl AndroidDebugBridge {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_path(adb_path: impl Into<PathBuf>) -> Self {
+        Self {
+            adb_path: adb_path.into(),
+        }
+    }
+
+    pub fn list_devices(&self) -> Result<Vec<AndroidDevice>> {
+        let output = run_command(&self.adb_path, ["devices", "-l"])?;
+        parse_adb_devices(&output)
+    }
+
+    pub fn resolve_device(&self, serial: Option<&str>) -> Result<AndroidDevice> {
+        let devices = self.list_devices()?;
+        if let Some(serial) = serial {
+            let device = devices
+                .into_iter()
+                .find(|device| device.serial == serial)
+                .ok_or_else(|| anyhow!("Android device '{serial}' was not found"))?;
+            if !device.is_connected() {
+                return Err(anyhow!(
+                    "Android device '{}' is {}",
+                    device.serial,
+                    device.state
+                ));
+            }
+            return Ok(device);
+        }
+
+        let connected_devices = devices
+            .into_iter()
+            .filter(AndroidDevice::is_connected)
+            .collect::<Vec<_>>();
+        match connected_devices.as_slice() {
+            [device] => Ok(device.clone()),
+            [] => Err(anyhow!(
+                "no authorized Android device is connected; check `adb devices -l`"
+            )),
+            _ => Err(anyhow!(
+                "multiple Android devices are connected; provide a device serial"
+            )),
+        }
+    }
+
+    pub fn screenshot(&self, serial: &str) -> Result<Vec<u8>> {
+        self.run_for_device_bytes(serial, ["exec-out", "screencap", "-p"])
+    }
+
+    pub fn launch_app(&self, serial: &str, package_name: &str) -> Result<()> {
+        validate_android_package_name(package_name)?;
+        let component = [
+            "android.intent.category.LEANBACK_LAUNCHER",
+            "android.intent.category.LAUNCHER",
+        ]
+        .into_iter()
+        .find_map(|category| {
+            let output = self
+                .run_shell(
+                    serial,
+                    &format!(
+                        "cmd package resolve-activity --brief -a android.intent.action.MAIN -c {category} {}",
+                        shell_escape(package_name)
+                    ),
+                )
+                .ok()?;
+            parse_resolved_android_activity(&output)
+        })
+        .ok_or_else(|| anyhow!("no launchable activity found for Android app '{package_name}'"))?;
+
+        let output = self.run_shell(
+            serial,
+            &format!("am start -W -n {}", shell_escape(&component)),
+        )?;
+        if output.lines().any(|line| line.starts_with("Error:")) {
+            return Err(anyhow!(
+                "failed to launch Android app '{package_name}': {}",
+                output.trim()
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn terminate_app(&self, serial: &str, package_name: &str) -> Result<()> {
+        validate_android_package_name(package_name)?;
+        self.run_shell(
+            serial,
+            &format!("am force-stop {}", shell_escape(package_name)),
+        )?;
+        Ok(())
+    }
+
+    pub fn open_url(&self, serial: &str, url: &str) -> Result<()> {
+        if url.is_empty() || url.contains(['\0', '\n', '\r']) {
+            return Err(anyhow!("URL must be a non-empty single-line value"));
+        }
+        self.run_shell(
+            serial,
+            &format!(
+                "am start -a android.intent.action.VIEW -d {}",
+                shell_escape(url)
+            ),
+        )?;
+        Ok(())
+    }
+
+    pub fn tap(&self, serial: &str, x: i32, y: i32) -> Result<()> {
+        self.run_shell(serial, &format!("input tap {x} {y}"))?;
+        Ok(())
+    }
+
+    pub fn type_text(&self, serial: &str, text: &str) -> Result<()> {
+        let text = encode_adb_input_text(text)?;
+        self.run_shell(serial, &format!("input text {}", shell_escape(&text)))?;
+        Ok(())
+    }
+
+    pub fn swipe(
+        &self,
+        serial: &str,
+        x1: i32,
+        y1: i32,
+        x2: i32,
+        y2: i32,
+        duration_ms: u32,
+    ) -> Result<()> {
+        if duration_ms > 10_000 {
+            return Err(anyhow!("swipe duration must not exceed 10000 milliseconds"));
+        }
+        self.run_shell(
+            serial,
+            &format!("input swipe {x1} {y1} {x2} {y2} {duration_ms}"),
+        )?;
+        Ok(())
+    }
+
+    pub fn press_button(&self, serial: &str, button: &str) -> Result<()> {
+        let keycode = match button {
+            "home" => 3,
+            "back" => 4,
+            "enter" => 66,
+            "recents" => 187,
+            _ => {
+                return Err(anyhow!(
+                    "button must be one of home, back, enter, or recents"
+                ))
+            }
+        };
+        self.run_shell(serial, &format!("input keyevent {keycode}"))?;
+        Ok(())
+    }
+
+    fn run_shell(&self, serial: &str, command: &str) -> Result<String> {
+        run_command(&self.adb_path, ["-s", serial, "shell", command])
+    }
+
+    fn run_for_device_bytes<I, S>(&self, serial: &str, args: I) -> Result<Vec<u8>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        let output = Command::new(&self.adb_path)
+            .arg("-s")
+            .arg(serial)
+            .args(args)
+            .output()
+            .with_context(|| format!("failed to run {}", self.adb_path.display()))?;
+        command_output_to_bytes(&self.adb_path, output)
+    }
+}
+
+fn discover_adb_path() -> PathBuf {
+    let executable = if cfg!(windows) { "adb.exe" } else { "adb" };
+    let mut candidates = ["ANDROID_SDK_ROOT", "ANDROID_HOME"]
+        .into_iter()
+        .filter_map(env::var_os)
+        .map(PathBuf::from)
+        .map(|path| path.join("platform-tools").join(executable))
+        .collect::<Vec<_>>();
+
+    if let Some(home) = env::var_os("HOME").map(PathBuf::from) {
+        candidates.push(
+            home.join("Library")
+                .join("Android")
+                .join("sdk")
+                .join("platform-tools")
+                .join(executable),
+        );
+        candidates.push(
+            home.join("Android")
+                .join("Sdk")
+                .join("platform-tools")
+                .join(executable),
+        );
+    }
+    if let Some(local_app_data) = env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        candidates.push(
+            local_app_data
+                .join("Android")
+                .join("Sdk")
+                .join("platform-tools")
+                .join(executable),
+        );
+    }
+
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from(executable))
+}
+
+fn parse_adb_devices(output: &str) -> Result<Vec<AndroidDevice>> {
+    let mut devices = Vec::new();
+    for line in output.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with("List of devices attached") || line.starts_with('*')
+        {
+            continue;
+        }
+
+        let fields = line.split_whitespace().collect::<Vec<_>>();
+        let serial = fields
+            .first()
+            .ok_or_else(|| anyhow!("adb device row did not contain a serial: {line}"))?;
+        let state = fields
+            .get(1)
+            .ok_or_else(|| anyhow!("adb device row did not contain a state: {line}"))?;
+        let (state, property_start) = if *state == "no" && fields.get(2) == Some(&"permissions") {
+            ("no permissions", 3)
+        } else {
+            (*state, 2)
+        };
+        let properties = fields[property_start..]
+            .iter()
+            .filter_map(|field| field.split_once(':'))
+            .collect::<BTreeMap<_, _>>();
+
+        devices.push(AndroidDevice {
+            serial: (*serial).to_string(),
+            state: state.to_string(),
+            product: properties.get("product").map(|value| (*value).to_string()),
+            model: properties.get("model").map(|value| (*value).to_string()),
+            device: properties.get("device").map(|value| (*value).to_string()),
+            transport_id: properties
+                .get("transport_id")
+                .map(|value| (*value).to_string()),
+        });
+    }
+    Ok(devices)
+}
+
+fn validate_android_package_name(package_name: &str) -> Result<()> {
+    if package_name.is_empty()
+        || !package_name
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '.' | '_'))
+    {
+        return Err(anyhow!(
+            "Android package name must contain only ASCII letters, digits, dots, and underscores"
+        ));
+    }
+    Ok(())
+}
+
+fn encode_adb_input_text(text: &str) -> Result<String> {
+    if text.is_empty() || text.contains(['\0', '\n', '\r']) {
+        return Err(anyhow!("text must be a non-empty single-line value"));
+    }
+    if text.contains("%s") {
+        return Err(anyhow!(
+            "text containing the literal sequence '%s' is not supported by adb input"
+        ));
+    }
+    Ok(text.replace(' ', "%s"))
+}
+
+fn shell_escape(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
 #[derive(Debug, Clone)]
 pub enum XcodeProject {
     Project(PathBuf),
@@ -773,6 +1153,44 @@ fn command_output_to_result(program: &Path, output: Output) -> Result<String> {
     ))
 }
 
+fn command_output_to_bytes(program: &Path, output: Output) -> Result<Vec<u8>> {
+    if output.status.success() {
+        return Ok(output.stdout);
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let message = [stderr.trim(), stdout.trim()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    if message.is_empty() {
+        return Err(anyhow!(
+            "{} exited with status {}",
+            program.display(),
+            output.status
+        ));
+    }
+
+    Err(anyhow!(
+        "{} exited with status {}: {}",
+        program.display(),
+        output.status,
+        message
+    ))
+}
+
+fn parse_resolved_android_activity(output: &str) -> Option<String> {
+    output
+        .lines()
+        .map(str::trim)
+        .rev()
+        .find(|line| !line.is_empty() && line.contains('/') && !line.contains(char::is_whitespace))
+        .map(str::to_string)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -862,5 +1280,112 @@ mod tests {
             parse_device_tunnel_address(output).as_deref(),
             Some("fd55:33ce:ad87::1")
         );
+    }
+
+    #[test]
+    fn parses_adb_devices() {
+        let output = r#"List of devices attached
+emulator-5554          device product:sdk_gphone64_arm64 model:sdk_gphone64_arm64 device:emu64a transport_id:1
+SERIAL123              unauthorized usb:0-1 transport_id:2
+SERIAL456              no permissions (user denied) usb:0-2 transport_id:3
+"#;
+
+        let devices = parse_adb_devices(output).expect("devices should parse");
+
+        assert_eq!(devices.len(), 3);
+        assert_eq!(devices[0].serial, "emulator-5554");
+        assert_eq!(devices[0].state, "device");
+        assert_eq!(devices[0].model.as_deref(), Some("sdk_gphone64_arm64"));
+        assert_eq!(devices[1].serial, "SERIAL123");
+        assert_eq!(devices[1].state, "unauthorized");
+        assert_eq!(devices[2].serial, "SERIAL456");
+        assert_eq!(devices[2].state, "no permissions");
+    }
+
+    #[test]
+    fn encodes_adb_input_spaces() {
+        let text = encode_adb_input_text("hello android").expect("text should encode");
+        assert_eq!(text, "hello%sandroid");
+    }
+
+    #[test]
+    fn rejects_literal_adb_space_escape() {
+        let error = encode_adb_input_text("literal%svalue").expect_err("text should be rejected");
+        assert!(error.to_string().contains("literal sequence"));
+    }
+
+    #[test]
+    fn parses_resolved_android_activity() {
+        let output = "priority=0 preferredOrder=0 match=0x108000\n\
+                      ai.splitfire.KaroKowe/.MainActivity\n";
+
+        assert_eq!(
+            parse_resolved_android_activity(output).as_deref(),
+            Some("ai.splitfire.KaroKowe/.MainActivity")
+        );
+    }
+
+    #[test]
+    fn escapes_android_shell_arguments() {
+        assert_eq!(shell_escape("don't"), "'don'\\''t'");
+    }
+
+    #[test]
+    fn normalizes_apple_simulator_as_simulator_kind() {
+        let simulator = Simulator {
+            platform: ApplePlatform::Ios,
+            runtime_identifier: "com.apple.CoreSimulator.SimRuntime.iOS-26-0".to_string(),
+            name: "Test-iOS-26".to_string(),
+            udid: "00000000-0000-0000-0000-000000000000".to_string(),
+            state: "Booted".to_string(),
+            is_available: true,
+        };
+
+        let normalized = NormalizedDevice::from_simulator(&simulator);
+
+        assert_eq!(normalized.platform, DevicePlatform::Apple);
+        assert_eq!(normalized.kind, DeviceKind::Simulator);
+        assert_eq!(normalized.identifier, simulator.udid);
+        assert_eq!(normalized.name, "Test-iOS-26");
+        assert_eq!(normalized.state, "Booted");
+        assert_eq!(normalized.transport, "simctl");
+    }
+
+    #[test]
+    fn normalizes_android_emulator_serial_as_emulator_kind() {
+        let device = AndroidDevice {
+            serial: "emulator-5554".to_string(),
+            state: "device".to_string(),
+            product: Some("sdk_gphone64_arm64".to_string()),
+            model: Some("sdk_gphone64_arm64".to_string()),
+            device: Some("emu64a".to_string()),
+            transport_id: Some("1".to_string()),
+        };
+
+        let normalized = NormalizedDevice::from_android_device(&device);
+
+        assert_eq!(normalized.platform, DevicePlatform::Android);
+        assert_eq!(normalized.kind, DeviceKind::Emulator);
+        assert_eq!(normalized.identifier, "emulator-5554");
+        assert_eq!(normalized.name, "sdk_gphone64_arm64");
+        assert_eq!(normalized.transport, "adb");
+    }
+
+    #[test]
+    fn normalizes_android_physical_serial_as_physical_device_kind() {
+        let device = AndroidDevice {
+            serial: "R58N123ABCD".to_string(),
+            state: "device".to_string(),
+            product: None,
+            model: None,
+            device: None,
+            transport_id: None,
+        };
+
+        let normalized = NormalizedDevice::from_android_device(&device);
+
+        assert_eq!(normalized.kind, DeviceKind::PhysicalDevice);
+        // Falls back to the serial when no product/model/device property is reported.
+        assert_eq!(normalized.name, "R58N123ABCD");
     }
 }
