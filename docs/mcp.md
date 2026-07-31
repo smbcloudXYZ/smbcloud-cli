@@ -251,49 +251,50 @@ users; it belongs to a project.
 | `auth_app_update` | `id`, `name`/`support_email` (at least one) | The updated Auth app. |
 | `auth_app_delete` | `id` | Confirmation. **Destructive and irreversible.** |
 
-### ControlKit runners
+### Apple platform automation
 
-The `smb` MCP server also exposes local Xcode simulator and ControlKit runner
-tools. Simulator arguments accept either `simulator_name` or `simulator_udid`;
-ControlKit arguments default to `127.0.0.1:12004`. For a local macOS runner,
-omit the simulator fields and use the optional `host` and `controlkit_port`
-fields.
+The `smb` MCP server also exposes tools for driving Apple apps under test. Most
+of the action tools are **host-agnostic**: the same tool works against an Xcode
+simulator *or* a physical iOS/tvOS/watchOS/visionOS device *or* the local Mac,
+because they talk to an on-target [ControlKit runner](./controlkit.md).
 
-The same `host` field also targets a **physical** iOS/tvOS/watchOS/visionOS
-device running a ControlKit runner reachable over the network (see
-[ControlKit runners](./controlkit.md)) — omit `simulator_name`/`simulator_udid`
-and pass the device's host and the runner's listen port instead. This applies
-to `smb_simulator_tap`, `smb_simulator_type_text`, `smb_simulator_swipe`,
-`smb_simulator_press_button`, `smb_simulator_press_home`,
-`smb_simulator_orientation_get`/`set`, `smb_simulator_ui_dump`,
-`smb_simulator_list_elements`, and `smb_simulator_launch_app`/`terminate_app`
-(the latter two route through the runner's `device.apps.launch`/`terminate`
-RPC methods instead of `simctl` when `host` is given).
+**Recommended flow — select a target, then act:**
+
+1. `smb_list_simulators` (or `smb_find_simulator`) to pick a simulator, or note
+   a device's `host`.
+2. `smb_use_target` once with the chosen `simulator_name`/`simulator_udid` (a
+   simulator) or `host` + optional `controlkit_port` (a device/remote runner).
+   The server remembers it, so later action tools need **no** target arguments.
+3. `smb_describe_ui` / `smb_list_elements` to see the screen, then
+   `smb_tap` / `smb_type_text` / `smb_swipe` / `smb_button` and
+   `smb_screenshot` to drive and verify it.
+
+Any action tool can still override the selected target inline with its own
+`simulator_name`/`simulator_udid` or `host` fields. Simulator arguments accept
+either a name or a UDID; ControlKit arguments default to `127.0.0.1:12004`.
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
-| `smb_simulator_list` | _(none)_ | All Apple simulator devices known to Xcode. |
-| `smb_simulator_find` | `name` | A simulator's details. |
-| `smb_controlkit_capabilities` | simulator target or optional `host`, `controlkit_port` | Runner platform and capabilities. |
-| `smb_macos_click` | `x`, `y`, plus optional endpoint fields | A pointer click on a macOS runner. |
-| `smb_visionos_spatial_tap` | `x`, `y`, plus optional endpoint fields | A spatial tap on a visionOS runner. |
-| `smb_watchos_tap` | `x`, `y`, plus optional endpoint fields | A touch tap on a watchOS runner. |
-| `smb_simulator_tap` | simulator target or `host`, `x`, `y` | A touch tap through ControlKit. |
-| `smb_simulator_type_text` | simulator target or `host`, `text` | Text input through ControlKit. |
-| `smb_simulator_swipe` | simulator target or `host`, `x1`, `y1`, `x2`, `y2` | A swipe through ControlKit. |
-| `smb_simulator_press_button` | simulator target or `host`, `button` | A supported remote-button press. |
-| `smb_simulator_press_home` | simulator target or `host` | An iOS Home-button press. |
-| `smb_simulator_orientation_get`/`set` | simulator target or `host`; `orientation` for `set` | Current or updated iOS orientation. |
-| `smb_simulator_launch_app`/`terminate_app` | simulator target or `host`, `bundle_id` | App lifecycle confirmation. |
-| `smb_simulator_open_url` | simulator target, `url` | URL-open confirmation. |
-| `smb_simulator_ui_dump` | simulator target or `host` | Accessibility UI hierarchy. |
-| `smb_simulator_list_elements` | simulator target or `host` | Actionable accessibility elements. |
-| `smb_simulator_screenshot` | simulator target | A PNG image. |
-| `smb_device_screenshot` | `device` (UDID, ECID, serial number, name, or DNS name) | A PNG image captured from a physical device via `devicectl`. |
-| `smb_ios_app_test` | simulator target, `app_path`, `bundle_id` | Installed/launched app details. |
+| `smb_use_target` | `simulator_name`/`simulator_udid`, or `host` + optional `controlkit_port` | The remembered active target. |
+| `smb_list_simulators` | _(none)_ | All Apple simulator devices known to Xcode. |
+| `smb_find_simulator` | `name` | A simulator's details (resolve a UDID). |
+| `smb_capabilities` | optional target | Target platform and supported input capabilities. |
+| `smb_describe_ui` | optional target | Full accessibility hierarchy of the foreground app. |
+| `smb_list_elements` | optional target | Actionable accessibility elements with tap coordinates. |
+| `smb_tap` | optional target, `x`, `y` | A touch tap (iOS/tvOS/watchOS). |
+| `smb_click` | optional endpoint, `x`, `y` | A pointer click (macOS). |
+| `smb_gesture` | optional endpoint, `x`, `y` | A spatial tap (visionOS). |
+| `smb_type_text` | optional target, `text` | Text typed into the focused field. |
+| `smb_swipe` | optional target, `x1`, `y1`, `x2`, `y2` | A swipe. |
+| `smb_button` | optional target, `button` | A hardware/remote button press (e.g. `home`). |
+| `smb_orientation_get`/`set` | optional target; `orientation` for `set` | Current or updated screen orientation. |
+| `smb_launch_app`/`terminate_app` | optional target, `bundle_id` | App lifecycle confirmation (routes through the runner's `device.apps.launch`/`terminate` RPC on a device, `simctl` on a simulator). |
+| `smb_open_url` | simulator target, `url` | URL-open confirmation (simulator only). |
+| `smb_screenshot` | simulator target, or `device` (UDID/ECID/serial/name/DNS) | A PNG image (`simctl` for a simulator, `devicectl` for a physical device). |
+| `smb_boot_and_install` | simulator target, `app_path`, `bundle_id` | Boots a simulator, installs and launches an app (simulator only). |
 
-The standalone `xcrs --mcp` server exposes the same runner surface with the
-`xcrs_` prefix instead of `smb_`.
+The standalone `xcrs --mcp` server exposes the same surface with the `xcrs_`
+prefix instead of `smb_`.
 
 ## Safety: tools run without confirmation
 
