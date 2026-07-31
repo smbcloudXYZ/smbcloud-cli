@@ -3,6 +3,7 @@ use {
     clap::{Parser, Subcommand},
     smbcloud_network::environment::Environment,
     spinners::Spinner,
+    std::path::PathBuf,
 };
 
 pub struct CommandResult {
@@ -96,9 +97,59 @@ pub enum Commands {
         #[clap(subcommand)]
         command: cloud_auth::cli::Commands,
     },
+    #[clap(about = "Run and control XCRS ControlKit on Apple devices.")]
+    ControlKit {
+        #[clap(subcommand)]
+        command: ControlKitCommands,
+    },
     #[clap(
         about = "Migrate local .smb/config.toml deploy fields to the smbCloud server.",
         display_order = 4
     )]
     Migrate {},
+}
+
+#[derive(Subcommand)]
+pub enum ControlKitCommands {
+    #[clap(about = "Build a signed ControlKit XCTest runner for a physical device.")]
+    Build {
+        #[arg(long)]
+        project_path: PathBuf,
+        #[arg(long, default_value = "ControlKit")]
+        scheme: String,
+        #[arg(long, default_value = "Release")]
+        configuration: String,
+        #[arg(long)]
+        device_udid: String,
+        #[arg(long)]
+        derived_data_path: PathBuf,
+    },
+    #[clap(about = "Start a built ControlKit XCTest runner on a physical device.")]
+    Start {
+        #[arg(long)]
+        device_udid: String,
+        #[arg(long)]
+        xctestrun_path: PathBuf,
+        #[arg(long, default_value = "::")]
+        listen_host: String,
+        #[arg(long, default_value_t = 12004)]
+        listen_port: u16,
+        #[arg(long, default_value_t = 120)]
+        timeout_seconds: u64,
+        #[arg(long)]
+        log_path: Option<PathBuf>,
+    },
+    #[clap(about = "Call a running ControlKit JSON-RPC method.")]
+    Call {
+        #[arg(long, required_unless_present = "host", conflicts_with = "host")]
+        device_udid: Option<String>,
+        #[arg(long, conflicts_with = "device_udid")]
+        host: Option<String>,
+        #[arg(long, default_value_t = 12004)]
+        port: u16,
+        #[arg(long)]
+        method: String,
+        #[arg(long, default_value = "{}")]
+        params: String,
+    },
 }

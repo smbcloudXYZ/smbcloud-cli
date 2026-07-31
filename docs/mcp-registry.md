@@ -1,10 +1,13 @@
 # MCP Registry
 
-The smbCloud CLI's MCP server is listed in the [official MCP Registry](https://registry.modelcontextprotocol.io)
-as **`io.github.smbcloudXYZ/smbcloud-cli`**. The registry is a metadata index —
-it doesn't host binaries — so the listing points at packages we already publish
-to npm and NuGet, and clients that browse the registry can offer a one-click
-install of `smb --mcp`.
+The repository publishes two MCP servers to the [official MCP Registry](https://registry.modelcontextprotocol.io):
+
+- **`io.github.smbcloudXYZ/smbcloud-cli`** — the `smb --mcp` server for smbCloud resources, simulators, and ControlKit runners.
+- **`io.github.smbcloudXYZ/xcrs`** — the standalone Rust `xcrs --mcp` server for Xcode and Apple simulator tooling.
+
+The registry is a metadata index — it doesn't host binaries. The smbCloud
+listing points at packages published to npm and NuGet, while the standalone
+XCRS listing points at the `xcrs` crate on crates.io.
 
 For running and configuring the server itself, see [MCP Server](./mcp.md).
 
@@ -12,9 +15,11 @@ For running and configuring the server itself, see [MCP Server](./mcp.md).
 
 | Piece | Where |
 | --- | --- |
-| Server metadata | [`server.json`](../server.json) at the repo root |
+| smbCloud server metadata | [`server.json`](../server.json) at the repo root |
+| XCRS server metadata | [`server-xcrs.json`](../server-xcrs.json) at the repo root |
 | npm ownership proof | `mcpName` in the generated `@smbcloud/cli` `package.json` (`npm/scripts/render-main-package.cjs`) |
 | NuGet ownership proof | `<!-- mcp-name: ... -->` in `nuget/smbcloud-cli/README.md` |
+| Cargo ownership proof | Visible `mcp-name: ...` text in `crates/xcrs/README.md` |
 | Publishing | `.github/workflows/release-mcp-registry.yml` |
 
 The registry checks each listed package for a marker naming the server. If the
@@ -60,9 +65,9 @@ documented in [Install](./cli-install.md).
 
 ## Releasing a new version
 
-`server.json` carries the version twice — once for the server, once per package
-— and both are updated by `make patch | minor | major` along with the rest of
-the release metadata (`scripts/sync-release-version.mjs`).
+Each server metadata file carries its version twice — once for the server, once
+per package — and both are updated by `make patch | minor | major` along with
+the rest of the release metadata (`scripts/sync-release-version.mjs`).
 
 Publishing is chained off the release: pushing a `v*` tag runs the crates.io
 workflow, which fans out to the distribution workflows, and **NuGet CLI
@@ -83,10 +88,11 @@ the tag:
 gh workflow run release-mcp-registry.yml -f tag=v0.4.13
 ```
 
-Confirm the listing afterwards:
+Confirm both listings afterwards:
 
 ```sh
 curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.smbcloudXYZ/smbcloud-cli"
+curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.smbcloudXYZ/xcrs"
 ```
 
 ## Publishing by hand
@@ -99,5 +105,7 @@ mcp-publisher login github        # device flow, needs push access to smbcloudXY
 mcp-publisher publish             # reads ./server.json
 ```
 
-Versions are immutable — republishing the same version is rejected. Fixing a
-bad listing means shipping a new patch version.
+The release workflow publishes `server.json`, then temporarily swaps in
+`server-xcrs.json` and publishes the standalone entry as well. Versions are
+immutable — republishing the same version is rejected. Fixing a bad listing
+means shipping a new patch version.

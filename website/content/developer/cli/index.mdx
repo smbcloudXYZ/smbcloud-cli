@@ -7,8 +7,8 @@ description: Install the smbCloud CLI (smb), run it headless/--tui/--mcp, and co
 # CLI
 
 `smb` is the smbCloud command-line tool. You use it to log in and to manage and
-deploy your smbCloud resources — projects, tenants, Mail, and Auth — from the
-terminal, a script, or an MCP-connected AI agent.
+deploy your smbCloud resources — projects, tenants, Mail, Auth, simulators, and
+ControlKit runners — from the terminal, a script, or an MCP-connected AI agent.
 
 ```text
 Usage: smb [OPTIONS] [COMMAND]
@@ -62,7 +62,8 @@ You can also download a binary for any release directly from the
 | Guide | What it covers |
 | --- | --- |
 | [Interfaces](/developer/cli/interfaces) | The three ways `smb` runs — headless, `--tui`, and `--mcp` — and when to use each. |
-| [MCP Server](/developer/cli/mcp) | Connect Claude Desktop, Claude Code, Cursor, or any MCP client to `smb --mcp`; the full 30-tool reference. |
+| [MCP Server](/developer/cli/mcp) | Connect Claude Desktop, Claude Code, Cursor, or any MCP client to `smb --mcp`; the full tool reference. |
+| [ControlKit runners](/developer/cli/controlkit) | Build native iOS, tvOS, visionOS, watchOS, and macOS runners and expose them through the MCP servers. |
 | [CI](/developer/cli/ci) | Run `smb` non-interactively with `--ci` and deploy from GitHub Actions. |
 
 import { Callout } from 'nextra/components'

@@ -2,17 +2,27 @@
 
 The smbCloud CLI can run as a **Model Context Protocol (MCP) server**, so an AI
 assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
+<<<<<<< HEAD
+MCP-capable client — can manage your smbCloud projects, tenants, Mail apps, and
+Auth apps directly, without you leaving the chat to run `smb` commands by hand.
+Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 50
+tools covering the account, project, tenant, Mail, Auth, simulator, and
+ControlKit runner surfaces.
+=======
 MCP-capable client — can send transactional email and manage your smbCloud
 projects, tenants, Mail apps, and Auth apps directly, without you leaving the
 chat to run `smb` commands by hand.
 Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 31
 tools covering the account, project, tenant, Mail, and Auth surfaces.
+>>>>>>> development
 
 This page is the setup guide and the full tool reference. For how `--mcp`
 compares to the CLI's other two interfaces (headless and `--tui`), see
 [Interfaces](./interfaces.md). The server is also listed in the official MCP
 Registry as `io.github.smbcloudXYZ/smbcloud-cli`, so clients that browse the
 registry can install it for you — see [MCP Registry](./mcp-registry.md).
+For building and starting the native runners, see
+[ControlKit runners](./controlkit.md).
 
 ## Prerequisites
 
@@ -240,6 +250,50 @@ users; it belongs to a project.
 | `auth_app_new` | `name`, `project_id` (optional), `support_email` (optional) | The created Auth app. |
 | `auth_app_update` | `id`, `name`/`support_email` (at least one) | The updated Auth app. |
 | `auth_app_delete` | `id` | Confirmation. **Destructive and irreversible.** |
+
+### ControlKit runners
+
+The `smb` MCP server also exposes local Xcode simulator and ControlKit runner
+tools. Simulator arguments accept either `simulator_name` or `simulator_udid`;
+ControlKit arguments default to `127.0.0.1:12004`. For a local macOS runner,
+omit the simulator fields and use the optional `host` and `controlkit_port`
+fields.
+
+The same `host` field also targets a **physical** iOS/tvOS/watchOS/visionOS
+device running a ControlKit runner reachable over the network (see
+[ControlKit runners](./controlkit.md)) — omit `simulator_name`/`simulator_udid`
+and pass the device's host and the runner's listen port instead. This applies
+to `smb_simulator_tap`, `smb_simulator_type_text`, `smb_simulator_swipe`,
+`smb_simulator_press_button`, `smb_simulator_press_home`,
+`smb_simulator_orientation_get`/`set`, `smb_simulator_ui_dump`,
+`smb_simulator_list_elements`, and `smb_simulator_launch_app`/`terminate_app`
+(the latter two route through the runner's `device.apps.launch`/`terminate`
+RPC methods instead of `simctl` when `host` is given).
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `smb_simulator_list` | _(none)_ | All Apple simulator devices known to Xcode. |
+| `smb_simulator_find` | `name` | A simulator's details. |
+| `smb_controlkit_capabilities` | simulator target or optional `host`, `controlkit_port` | Runner platform and capabilities. |
+| `smb_macos_click` | `x`, `y`, plus optional endpoint fields | A pointer click on a macOS runner. |
+| `smb_visionos_spatial_tap` | `x`, `y`, plus optional endpoint fields | A spatial tap on a visionOS runner. |
+| `smb_watchos_tap` | `x`, `y`, plus optional endpoint fields | A touch tap on a watchOS runner. |
+| `smb_simulator_tap` | simulator target or `host`, `x`, `y` | A touch tap through ControlKit. |
+| `smb_simulator_type_text` | simulator target or `host`, `text` | Text input through ControlKit. |
+| `smb_simulator_swipe` | simulator target or `host`, `x1`, `y1`, `x2`, `y2` | A swipe through ControlKit. |
+| `smb_simulator_press_button` | simulator target or `host`, `button` | A supported remote-button press. |
+| `smb_simulator_press_home` | simulator target or `host` | An iOS Home-button press. |
+| `smb_simulator_orientation_get`/`set` | simulator target or `host`; `orientation` for `set` | Current or updated iOS orientation. |
+| `smb_simulator_launch_app`/`terminate_app` | simulator target or `host`, `bundle_id` | App lifecycle confirmation. |
+| `smb_simulator_open_url` | simulator target, `url` | URL-open confirmation. |
+| `smb_simulator_ui_dump` | simulator target or `host` | Accessibility UI hierarchy. |
+| `smb_simulator_list_elements` | simulator target or `host` | Actionable accessibility elements. |
+| `smb_simulator_screenshot` | simulator target | A PNG image. |
+| `smb_device_screenshot` | `device` (UDID, ECID, serial number, name, or DNS name) | A PNG image captured from a physical device via `devicectl`. |
+| `smb_ios_app_test` | simulator target, `app_path`, `bundle_id` | Installed/launched app details. |
+
+The standalone `xcrs --mcp` server exposes the same runner surface with the
+`xcrs_` prefix instead of `smb_`.
 
 ## Safety: tools run without confirmation
 

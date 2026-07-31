@@ -1,0 +1,30 @@
+[package]
+name = "xcrs"
+version = "0.4.13"
+edition = "2021"
+authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
+description = "Rust abstraction for Xcode command line tools."
+license = "Apache-2.0"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://smbcloud.xyz/posts"
+keywords = ["xcode", "ios", "simulator", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+
+[lib]
+path = "src/xcrs.rs"
+
+[[bin]]
+name = "xcrs"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+base64 = { workspace = true }
+clap = { workspace = true, features = ["derive", "env"] }
+rmcp = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+reqwest = { workspace = true, features = ["json", "rustls-tls-native-roots"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["full"] }

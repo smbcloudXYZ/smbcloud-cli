@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish server.json to the MCP Registry
+    name: Publish MCP servers to the MCP Registry
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -44,14 +44,28 @@ jobs:
           # NuGet proves ownership through an `mcp-name:` marker in the package README.
           grep -q "mcp-name: ${server_name}" nuget/smbcloud-cli/README.md
 
-      - name: Set the version in server.json
+          xcrs_server_name="$(jq -r '.name' server-xcrs.json)"
+          grep -q "mcp-name: ${xcrs_server_name}" crates/xcrs/README.md
+
+      - name: Set release versions in server metadata
         shell: bash
         run: |
           jq --arg v "${RELEASE_VERSION}" \
             '.version = $v | .packages |= map(.version = $v)' \
             server.json > server.tmp
           mv server.tmp server.json
+
+          xcrs_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/xcrs/Cargo.toml | head -n 1)"
+          if [ "${xcrs_version}" != "${RELEASE_VERSION}" ]; then
+            echo "xcrs version ${xcrs_version} does not match release version ${RELEASE_VERSION}." >&2
+            exit 1
+          fi
+          jq --arg v "${xcrs_version}" \
+            '.version = $v | .packages |= map(.version = $v)' \
+            server-xcrs.json > server-xcrs.tmp
+          mv server-xcrs.tmp server-xcrs.json
           cat server.json
+          cat server-xcrs.json
 
       - name: Verify the published packages carry the ownership marker
         shell: bash
@@ -109,6 +123,29 @@ jobs:
           fi
           rm package.nupkg
 
+          xcrs_server_name="$(jq -r '.name' server-xcrs.json)"
+          xcrs_version="$(jq -r '.version' server-xcrs.json)"
+          for attempt in $(seq 1 20); do
+            if curl -fsSL "https://crates.io/api/v1/crates/xcrs/${xcrs_version}" >/dev/null; then
+              echo "xcrs ${xcrs_version} is indexed on crates.io."
+              break
+            fi
+            if [ "${attempt}" -eq 20 ]; then
+              echo "xcrs ${xcrs_version} is still not indexed on crates.io after 10 minutes." >&2
+              exit 1
+            fi
+            echo "Waiting for crates.io to index xcrs ${xcrs_version} (attempt ${attempt}/20)..."
+            sleep 30
+          done
+
+          curl -fsSL -o xcrs.crate \
+            "https://crates.io/api/v1/crates/xcrs/${xcrs_version}/download"
+          if ! tar -xOf xcrs.crate "xcrs-${xcrs_version}/README.md" | grep -q "mcp-name: ${xcrs_server_name}"; then
+            echo "xcrs ${xcrs_version} README is missing the 'mcp-name: ${xcrs_server_name}' marker." >&2
+            exit 1
+          fi
+          rm xcrs.crate
+
       - name: Install mcp-publisher
         shell: bash
         run: |
@@ -120,10 +157,15 @@ jobs:
 
       - name: Publish
         shell: bash
-        run: ./mcp-publisher publish
+        run: |
+          ./mcp-publisher publish
+          cp server-xcrs.json server.json
+          ./mcp-publisher publish
 
       - name: Verify the server is listed
         shell: bash
         run: |
           server_name="$(jq -r '.name' server.json)"
           curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=${server_name}" | jq .
+          xcrs_server_name="$(jq -r '.name' server-xcrs.json)"
+          curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=${xcrs_server_name}" | jq .

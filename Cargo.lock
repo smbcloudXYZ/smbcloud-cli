@@ -2628,6 +2628,7 @@ dependencies = [
  "tracing-bunyan-formatter",
  "tracing-subscriber",
  "url-builder",
+ "xcrs",
 ]
 
 [[package]]
@@ -3993,6 +3994,22 @@ name = "writeable"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
+
+[[package]]
+name = "xcrs"
+version = "0.4.13"
+dependencies = [
+ "anyhow",
+ "base64",
+ "clap 4.6.2",
+ "reqwest",
+ "rmcp",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
 
 [[package]]
 name = "yoke"
