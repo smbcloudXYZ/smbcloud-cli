@@ -13,6 +13,7 @@ export default {
     title: 'Developer'
   },
   developer: 'Developer',
+  'xcrs-end-to-end-testing': 'XCRS Testing',
   _more: {
     type: 'separator',
     title: 'More'

@@ -1,0 +1,146 @@
+---
+title: End-to-End Testing for iOS, tvOS, watchOS, visionOS & macOS
+description: xcrs is an open-source Rust MCP server that lets Claude Code, Cursor, and other AI coding agents drive real Xcode simulators and physical Apple devices for end-to-end testing — tap, type, swipe, screenshot, and read the accessibility tree, no cloud required.
+---
+
+# End-to-end testing for Apple platforms
+
+**xcrs** is an open-source Rust [MCP](https://modelcontextprotocol.io) server that
+gives AI coding agents direct control over Xcode simulators and real Apple
+hardware. An agent working in Claude Code, Cursor, or any MCP client can boot a
+simulator, install a build, tap through your app, type into fields, read the
+accessibility tree, and capture screenshots — the same steps a human QA
+engineer would take — to write and run end-to-end tests for **iOS, iPadOS,
+tvOS, watchOS, visionOS, and macOS** apps.
+
+It ships as a standalone binary (`xcrs --mcp`) and as part of the [smbCloud
+CLI](/developer/cli) (`smb --mcp`), and it's free: `cargo install xcrs`.
+
+## Why agent-driven UI testing needs real device control
+
+Coding agents can now write and refactor an app faster than a human can
+click through it by hand. The gap is verification: most AI-assisted testing
+either stops at unit tests, or hands UI verification to a separate cloud
+service the agent has to context-switch into. xcrs closes that gap for Apple
+platforms specifically — it's a tool call away, in the same MCP session the
+agent is already using to write code.
+
+## What you can do
+
+- Boot a simulator, install an `.app`, launch it by bundle ID, and confirm it
+  started — `smb_ios_app_test` does the whole install-and-launch cycle in
+  one call
+- Drive the UI: tap, type text, swipe, press Home or a tvOS remote button,
+  and set device orientation
+- Read the live accessibility hierarchy or list actionable elements with
+  their coordinates, so an agent can decide what to tap without guessing
+  from a screenshot
+- Capture PNG screenshots from a simulator or a physical device
+- Run the same automation against **real, physical hardware** — iPhone,
+  iPad, Apple TV, Apple Watch, Apple Vision Pro — not just simulators
+- Query what a runner supports before acting, with
+  `smb_controlkit_capabilities`
+
+## How it fits together
+
+xcrs is two pieces working together:
+
+| Piece | What it is |
+| --- | --- |
+| **xcrs** | The Rust CLI and MCP server. Exposes tools like `smb_simulator_tap` and `smb_ios_app_test` to any MCP client, and talks `simctl`/`xcodebuild` directly for simulator lifecycle and app installs. |
+| **[ControlKit](https://swiftpackageindex.com/ondeinference/xcrs-controlkit)** | A native XCTest-based Swift runner that runs *on* the simulator or device. It exposes taps, text input, screenshots, and the accessibility tree over a local JSON-RPC server. |
+
+Because ControlKit drives the UI through Apple's own accessibility and
+XCTest APIs — not by inferring taps from a screenshot — the same element the
+agent reads back is the one it taps. There's no separate vision model in the
+loop translating pixels into coordinates.
+
+xcrs runs entirely on your Mac. Nothing about the app under test, its
+screenshots, or its UI hierarchy leaves your machine unless you choose to
+send it somewhere.
+
+## Tool reference
+
+A representative slice of the MCP tools xcrs exposes (`xcrs_` prefix
+standalone, `smb_` prefix through the smbCloud CLI):
+
+| Tool | Purpose |
+| --- | --- |
+| `smb_ios_app_test` | Install and launch an `.app` on a simulator, and confirm it's running. |
+| `smb_simulator_list` / `smb_simulator_find` | Enumerate or locate Apple simulators known to Xcode. |
+| `smb_simulator_tap` / `smb_simulator_swipe` / `smb_simulator_type_text` | Drive touch and text input through ControlKit. |
+| `smb_simulator_ui_dump` / `smb_simulator_list_elements` | Read the accessibility hierarchy or actionable elements. |
+| `smb_simulator_screenshot` / `smb_device_screenshot` | Capture a PNG from a simulator or a physical device. |
+| `smb_simulator_press_button` / `smb_simulator_press_home` | Press a Home or tvOS remote button. |
+| `smb_simulator_orientation_get` / `smb_simulator_orientation_set` | Read or set device orientation. |
+| `smb_macos_click` / `smb_visionos_spatial_tap` / `smb_watchos_tap` | Platform-specific input for macOS, visionOS, and watchOS runners. |
+| `smb_controlkit_capabilities` | Read what a runner (simulator, device, or local Mac) supports. |
+
+The full reference, including physical-device setup, lives in
+[Developer → CLI → MCP](/developer/cli/mcp) and
+[Developer → CLI → ControlKit](/developer/cli/controlkit).
+
+## xcrs compared to cloud-based AI QA platforms
+
+Most AI-driven testing tools on the market today, such as QA.tech, are
+cloud SaaS products: a vision model watches screenshots of your app running
+on a hosted device farm, and you connect to it over MCP from your coding
+agent. That works, and it isn't limited to Apple platforms. xcrs takes a
+narrower, different approach:
+
+| | xcrs | Typical cloud AI QA platform |
+| --- | --- | --- |
+| Where it runs | Locally, on your Mac | Hosted device farm |
+| How it "sees" the UI | Apple's accessibility tree via XCTest | Vision model reading screenshots |
+| Apple platform coverage | iOS, iPadOS, tvOS, watchOS, visionOS, macOS | Usually web and mobile web, sometimes iOS/Android |
+| Physical device support | Yes, over the local network | Varies by vendor |
+| Pricing | Open source, free | Seat-based / demo-gated |
+| Setup | `cargo install xcrs` | Account, hosted environment, demo call |
+
+If you're already testing across web, Android, and iOS from one dashboard,
+a cloud platform's breadth may be the better fit. If you're building for
+Apple platforms and want your coding agent to drive a real simulator or
+device without leaving your terminal or paying per seat, that's what xcrs
+is for.
+
+## Frequently asked questions
+
+**Is xcrs free and open source?**
+Yes. xcrs is Apache-2.0 licensed, published on
+[crates.io](https://crates.io/crates/xcrs), and its source lives in the
+[smbcloud-cli repository](https://github.com/smbcloudXYZ/smbcloud-cli/tree/main/crates/xcrs).
+
+**Which Apple platforms does it support?**
+iOS, iPadOS, tvOS, watchOS, visionOS, and macOS — on simulators and on
+physical hardware paired with your Mac.
+
+**Does it work with Claude Code and Cursor?**
+Yes. xcrs is a standard MCP server (`xcrs --mcp`, or `smb --mcp` if you're
+using the smbCloud CLI), so it works with any MCP-compatible client, including
+Claude Code and Cursor.
+
+**Can it test on a real iPhone or Apple TV, not just a simulator?**
+Yes. The [ControlKit](https://swiftpackageindex.com/ondeinference/xcrs-controlkit)
+runner builds and runs on physical devices; `smb_device_screenshot` and the
+device-targeted tool calls work over your local network. See
+[Developer → CLI → ControlKit](/developer/cli/controlkit) for the setup steps.
+
+**How is xcrs different from vision-based, cloud-hosted testing tools?**
+xcrs drives the UI through Apple's own accessibility APIs and XCTest, run
+locally, instead of a hosted vision model inferring taps from screenshots.
+That means no screen recordings leave your machine, no per-seat pricing, and
+native support for the Apple-only platforms (tvOS, watchOS, visionOS) that
+general-purpose web/mobile QA platforms typically don't reach.
+
+## Getting started
+
+1. Install xcrs — `cargo install xcrs`, or use `smb --mcp` if you already
+   have the [smbCloud CLI](/developer/cli).
+2. Build and start a [ControlKit](https://swiftpackageindex.com/ondeinference/xcrs-controlkit)
+   runner for the platform you're testing — see
+   [Developer → CLI → ControlKit](/developer/cli/controlkit).
+3. Point your MCP client at `xcrs --mcp` (or `smb --mcp`) and start driving
+   the simulator or device from your agent's normal tool calls.
+
+Full tool schemas and CLI flags are in
+[Developer → CLI → MCP](/developer/cli/mcp).
