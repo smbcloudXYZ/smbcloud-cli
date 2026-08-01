@@ -28,7 +28,9 @@ pub(crate) fn print_auth_apps(auth_apps: &[AuthApp]) {
             "#{} {} project={}",
             auth_app.id,
             style(&auth_app.name).bold(),
-            auth_app.project_id.as_deref().unwrap_or("-")
+            auth_app
+                .project_id
+                .map_or_else(|| "-".to_string(), |id| id.to_string())
         );
     }
 }
@@ -37,7 +39,9 @@ pub(crate) fn print_auth_app_detail(auth_app: &AuthApp) {
     print_heading("Auth app");
     print_field("ID", &auth_app.id);
     print_field("Name", &auth_app.name);
-    print_optional_field("Project ID", auth_app.project_id.as_deref());
+    if let Some(project_id) = auth_app.project_id {
+        print_field("Project ID", project_id.to_string());
+    }
     print_optional_field("Support email", auth_app.support_email.as_deref());
     print_optional_field("Secret", auth_app.secret.as_deref());
     print_field("Created at", auth_app.created_at.to_rfc3339());
