@@ -3,11 +3,11 @@ name = "xcrs"
 version = "0.4.13"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
-description = "Rust abstraction for Xcode command line tools."
+description = "Cross-platform mobile and TV app automation over MCP."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 documentation = "https://smbcloud.xyz/posts"
-keywords = ["xcode", "ios", "simulator", "cli"]
+keywords = ["mcp", "mobile", "android", "ios", "automation"]
 categories = ["command-line-utilities", "development-tools"]
 
 [lib]
