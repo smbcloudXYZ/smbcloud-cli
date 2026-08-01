@@ -8,7 +8,10 @@ pub struct AuthApp {
     pub id: String,
     pub secret: Option<String>,
     pub name: String,
-    pub project_id: Option<String>,
+    // Serialized as a number by the API, like `Deployment`/`MailApp`. The
+    // create/update payloads take it as a String because it comes from a CLI
+    // arg — the two are intentionally different types.
+    pub project_id: Option<i32>,
     pub support_email: Option<String>,
     #[serde(with = "ar_date_format")]
     pub created_at: DateTime<Utc>,
