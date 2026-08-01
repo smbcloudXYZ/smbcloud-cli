@@ -180,11 +180,59 @@ Prerequisites (one-time per app, done out-of-band before the first
 
 1. Enable linger for the app-owner so its units run without an active login and
    start at boot: `sudo loginctl enable-linger git`.
-2. Create the `~/.config/systemd/user/<pm2_app>.service` (+ a mode-600
-   `<pm2_app>.env`) and cut over off PM2. Use the migration generator
-   `pm2-to-systemd.sh <app> --apply`, which reads the live `pm2 jlist`,
-   reconstructs `ExecStart`/env faithfully, enables the unit, and `pm2 delete`s
-   the app.
+2. Create the unit and env file, then cut over off PM2 (all as the `git` user).
+   Capture the app's current settings first — `pm2 describe <app>` shows the
+   interpreter, script, cwd, and env PM2 is running with, which is what the unit
+   has to reproduce:
+
+   ```sh
+   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+   APP=my-app                      # == pm2_app == the unit name
+   APP_PATH=~/apps/web/my-app      # == `path` in .smb/config.toml
+   mkdir -p ~/.config/systemd/user
+
+   # Env file (mode 600 — it holds per-app secrets).
+   # Port/hostname must match .smb/config.toml and the Nginx upstream.
+   install -m 600 /dev/null ~/.config/systemd/user/$APP.env
+   cat >> ~/.config/systemd/user/$APP.env <<'EOF'
+   NODE_ENV=production
+   PORT=3031
+   HOSTNAME=127.0.0.1
+   EOF
+
+   cat > ~/.config/systemd/user/$APP.service <<EOF
+   [Unit]
+   Description=$APP (Next.js standalone)
+   After=network-online.target
+
+   [Service]
+   Type=simple
+   WorkingDirectory=$APP_PATH
+   EnvironmentFile=%h/.config/systemd/user/$APP.env
+   ExecStart=/usr/bin/env node server.js
+   Restart=always
+   RestartSec=2
+
+   [Install]
+   WantedBy=default.target
+   EOF
+   ```
+
+   Then cut over, stopping PM2 first so both supervisors never hold the port at
+   once:
+
+   ```sh
+   pm2 delete "$APP" || true
+   pm2 save                                    # forget it across pm2 resurrect
+   systemctl --user daemon-reload
+   systemctl --user enable --now "$APP.service"
+   systemctl --user is-active "$APP.service"   # expect: active
+   curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3031
+   ```
+
+   If `ExecStart` needs to differ (a custom server entrypoint, a pinned Node
+   version via `~/.nvm/versions/node/<v>/bin/node`), match whatever
+   `pm2 describe` reported rather than the defaults above.
 3. Set `process_manager = "systemd"` in the app's `.smb/config.toml`.
 
 After that, every `smb deploy` restarts via `systemctl --user` and the deploy

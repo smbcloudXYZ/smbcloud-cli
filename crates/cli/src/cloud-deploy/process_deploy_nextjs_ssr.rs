@@ -88,30 +88,46 @@ fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
 /// Build the shell snippet that (re)starts the app after the standalone bundle
 /// is on the server.
 ///
-/// Two supervisors are supported, selected by `process_manager`:
-/// - `None` / anything but `"systemd"` → **pm2** (default): delete + start
-///   fresh, preferring an operator-managed `ecosystem.config.cjs`/`.js`, else
-///   `pm2 start node -- server.js` with `PORT`/`HOSTNAME` inline.
+/// Two supervisors are supported, selected by `process_manager` (matched
+/// case-insensitively):
+/// - `None` / `"pm2"` → **pm2** (default): delete + start fresh, preferring an
+///   operator-managed `ecosystem.config.cjs`/`.js`, else `pm2 start node --
+///   server.js` with `PORT`/`HOSTNAME` inline.
 /// - `"systemd"` → a **git-owned `systemctl --user` service** named
-///   `<pm2_app>.service` (created out-of-band by the pm2-to-systemd migration).
-///   Restarted with no sudo — the deploy SSHes as the git app-owner, and
-///   `systemctl --user` (with `XDG_RUNTIME_DIR` set) drives that user's own
+///   `<pm2_app>.service` (created out-of-band; see the smbcloud-deploy-nextjs
+///   skill). Restarted with no sudo — the deploy SSHes as the git app-owner,
+///   and `systemctl --user` (with `XDG_RUNTIME_DIR` set) drives that user's own
 ///   manager. Fails loudly if the unit does not exist.
 ///
+/// Any other value is a hard error rather than a silent fall back to pm2: on an
+/// app already migrated to systemd, a typo like `system` would otherwise start
+/// a second pm2 process that collides with the systemd-owned port — the exact
+/// double-supervisor outage this option exists to prevent.
+///
 /// The returned snippet references the shell var `$PM2_APP` (set earlier in the
-/// deploy script). `port` is only used by the pm2 fallback path.
-fn restart_stanza(process_manager: Option<&str>, port: u16) -> String {
-    let use_systemd = process_manager
-        .map(|m| m.eq_ignore_ascii_case("systemd"))
-        .unwrap_or(false);
+/// deploy script). `port` is only used by the pm2 path.
+fn restart_stanza(process_manager: Option<&str>, port: u16) -> Result<String> {
+    let use_systemd = match process_manager.map(str::trim) {
+        None | Some("") => false,
+        Some(m) if m.eq_ignore_ascii_case("pm2") => false,
+        Some(m) if m.eq_ignore_ascii_case("systemd") => true,
+        Some(other) => {
+            return Err(anyhow!(fail_message(&format!(
+                "Unknown process_manager '{other}' in .smb/config.toml. \
+                 Expected \"pm2\" (default) or \"systemd\"."
+            ))))
+        }
+    };
 
-    if use_systemd {
+    Ok(if use_systemd {
         r#"    echo "Restarting $PM2_APP via systemd --user…"
     export XDG_RUNTIME_DIR="/run/user/$(id -u)"
     UNIT="$PM2_APP.service"
     if ! systemctl --user cat "$UNIT" >/dev/null 2>&1; then
         echo "Error: systemd --user unit $UNIT not found on the server."
-        echo "Create it first with the pm2-to-systemd migration, then re-deploy."
+        echo "Create ~/.config/systemd/user/$UNIT and enable it (see the"
+        echo "smbcloud-deploy-nextjs skill, 'Process manager: systemd --user'),"
+        echo "or unset process_manager to stay on pm2. Then re-deploy."
         exit 1
     fi
     systemctl --user restart "$UNIT"
@@ -143,7 +159,7 @@ fn restart_stanza(process_manager: Option<&str>, port: u16) -> String {
     echo "Done."
 "#
         )
-    }
+    })
 }
 
 /// Deploys a Next.js SSR app using standalone output mode.
@@ -593,7 +609,7 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     };
 
     // Runtime supervisor: pm2 (default) or a git-owned systemd --user service.
-    let restart_stanza = restart_stanza(config.project.process_manager.as_deref(), port);
+    let restart_stanza = restart_stanza(config.project.process_manager.as_deref(), port)?;
 
     let deploy_script = format!(
         r#"set -e
@@ -972,17 +988,30 @@ mod tests {
 
     #[test]
     fn restart_stanza_defaults_to_pm2() {
-        for pm in [None, Some("pm2"), Some("PM2"), Some("other")] {
-            let s = restart_stanza(pm, 3025);
+        for pm in [None, Some(""), Some("pm2"), Some("PM2"), Some(" pm2 ")] {
+            let s = restart_stanza(pm, 3025).expect("pm2 selector is valid");
             assert!(s.contains("pm2 start"), "pm={pm:?} should use pm2");
             assert!(s.contains("PORT=3025"), "pm={pm:?} injects the port");
             assert!(!s.contains("systemctl"), "pm={pm:?} must not touch systemd");
         }
     }
 
+    /// An unrecognized supervisor must abort the deploy, not quietly run pm2
+    /// alongside a systemd-owned process and fight over the port.
+    #[test]
+    fn restart_stanza_rejects_unknown_process_manager() {
+        for pm in ["system", "systemctl", "supervisord", "PM3"] {
+            let err = restart_stanza(Some(pm), 3025)
+                .expect_err("unknown process_manager must be rejected");
+            let msg = err.to_string();
+            assert!(msg.contains(pm), "error names the offending value: {msg}");
+            assert!(msg.contains("systemd"), "error lists valid options: {msg}");
+        }
+    }
+
     #[test]
     fn restart_stanza_systemd_uses_user_unit_no_sudo() {
-        let s = restart_stanza(Some("systemd"), 3025);
+        let s = restart_stanza(Some("systemd"), 3025).expect("systemd selector is valid");
         assert!(s.contains("systemctl --user restart \"$UNIT\""));
         assert!(s.contains("UNIT=\"$PM2_APP.service\""));
         assert!(s.contains("XDG_RUNTIME_DIR=\"/run/user/$(id -u)\""));
@@ -990,6 +1019,6 @@ mod tests {
         assert!(!s.contains("sudo"), "must not require sudo");
         assert!(!s.contains("pm2 "), "systemd path must not call pm2");
         // Case-insensitive selector.
-        assert_eq!(s, restart_stanza(Some("SystemD"), 3025));
+        assert_eq!(s, restart_stanza(Some("SystemD"), 3025).unwrap());
     }
 }
