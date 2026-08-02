@@ -124,6 +124,9 @@ pub(crate) async fn overlay_server_config(
             if let Some(remote_pm2_env) = deploy_config.pm2_env {
                 config.project.pm2_env = Some(remote_pm2_env);
             }
+            if let Some(remote_process_manager) = deploy_config.process_manager {
+                config.project.process_manager = Some(remote_process_manager);
+            }
             if let Some(remote_port) = deploy_config.port {
                 config.project.port = Some(remote_port);
             }
