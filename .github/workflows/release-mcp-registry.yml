@@ -126,7 +126,7 @@ jobs:
           xcrs_server_name="$(jq -r '.name' server-xcrs.json)"
           xcrs_version="$(jq -r '.version' server-xcrs.json)"
           for attempt in $(seq 1 20); do
-            if curl -fsSL "https://crates.io/api/v1/crates/xcrs/${xcrs_version}" >/dev/null; then
+            if curl -fsSL -H "User-Agent: smbcloudXYZ/smbcloud-cli release-workflow" "https://crates.io/api/v1/crates/xcrs/${xcrs_version}" >/dev/null; then
               echo "xcrs ${xcrs_version} is indexed on crates.io."
               break
             fi
@@ -138,7 +138,7 @@ jobs:
             sleep 30
           done
 
-          curl -fsSL -o xcrs.crate \
+          curl -fsSL -H "User-Agent: smbcloudXYZ/smbcloud-cli release-workflow" -o xcrs.crate \
             "https://crates.io/api/v1/crates/xcrs/${xcrs_version}/download"
           if ! tar -xOf xcrs.crate "xcrs-${xcrs_version}/README.md" | grep -q "mcp-name: ${xcrs_server_name}"; then
             echo "xcrs ${xcrs_version} README is missing the 'mcp-name: ${xcrs_server_name}' marker." >&2
