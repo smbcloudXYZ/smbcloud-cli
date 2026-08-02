@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.smbcloudXYZ/xcrs",
   "title": "XCRS Mobile & TV Automation",
-  "description": "Test mobile and TV apps through MCP on iOS simulators, physical Apple devices, Android phones, and Android TV using Xcode, ControlKit, and adb.",
+  "description": "MCP tools for testing mobile and TV apps on iOS simulators, Android phones, and Apple/Android TV.",
   "version": "0.5.0",
   "websiteUrl": "https://github.com/smbcloudXYZ/smbcloud-cli/tree/main/crates/xcrs",
   "repository": {
