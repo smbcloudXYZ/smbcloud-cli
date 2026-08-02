@@ -224,6 +224,22 @@ jobs:
           key: check-ruby-gem
           workspaces: sdk/gems/auth
 
+      # CI validates the unreleased workspace version. Derive the local crate
+      # patches from the extension manifest; release builds deliberately
+      # resolve published crates after the release workflow has run.
+      - name: Use workspace Rust crates for the gem check
+        shell: bash
+        run: |
+          mkdir -p sdk/gems/auth/.cargo
+          {
+            echo "[patch.crates-io]"
+            awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
+              name = $1
+              gsub(/[[:space:]]/, "", name)
+              print name " = { path = \"../../../crates/" name "\" }"
+            }' sdk/gems/auth/ext/auth/Cargo.toml
+          } > sdk/gems/auth/.cargo/config.toml
+
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
