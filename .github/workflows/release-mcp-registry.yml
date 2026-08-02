@@ -158,9 +158,19 @@ jobs:
       - name: Publish
         shell: bash
         run: |
-          ./mcp-publisher publish
+          publish_or_skip() {
+            local out
+            out="$(./mcp-publisher publish 2>&1)" && { echo "${out}"; return 0; }
+            echo "${out}"
+            if echo "${out}" | grep -q "duplicate version"; then
+              echo "Version already published — skipping."
+              return 0
+            fi
+            return 1
+          }
+          publish_or_skip
           cp server-xcrs.json server.json
-          ./mcp-publisher publish
+          publish_or_skip
 
       - name: Verify the server is listed
         shell: bash
