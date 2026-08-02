@@ -61,7 +61,7 @@ jobs:
             exit 1
           fi
           jq --arg v "${xcrs_version}" \
-            '.version = $v | .packages |= map(.version = $v)' \
+            '.version = $v | .packages |= map(.version = $v) | .description |= if length > 100 then .[0:97] + "..." else . end' \
             server-xcrs.json > server-xcrs.tmp
           mv server-xcrs.tmp server-xcrs.json
           cat server.json
