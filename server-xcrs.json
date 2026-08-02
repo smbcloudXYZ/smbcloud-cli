@@ -3,7 +3,7 @@
   "name": "io.github.smbcloudXYZ/xcrs",
   "title": "XCRS Mobile & TV Automation",
   "description": "Test mobile and TV apps through MCP on iOS simulators, physical Apple devices, Android phones, and Android TV using Xcode, ControlKit, and adb.",
-  "version": "0.4.13",
+  "version": "0.5.0",
   "websiteUrl": "https://github.com/smbcloudXYZ/smbcloud-cli/tree/main/crates/xcrs",
   "repository": {
     "url": "https://github.com/smbcloudXYZ/smbcloud-cli",
@@ -16,7 +16,7 @@
       "registryType": "cargo",
       "registryBaseUrl": "https://crates.io",
       "identifier": "xcrs",
-      "version": "0.4.13",
+      "version": "0.5.0",
       "transport": {
         "type": "stdio"
       },

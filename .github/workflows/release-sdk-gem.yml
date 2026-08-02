@@ -102,6 +102,10 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      - name: Resolve the published Rust crate dependencies
+        shell: bash
+        run: cargo generate-lockfile --manifest-path sdk/gems/auth/Cargo.toml
+
       # Scope the Rust cache to the gem's own Cargo workspace so its registry
       # deps are cached independently from the main workspace.
       - name: Setup Rust cache

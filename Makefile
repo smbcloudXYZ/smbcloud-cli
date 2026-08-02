@@ -32,9 +32,10 @@ sync-release-metadata:
 	@node ./scripts/sync-release-version.mjs
 
 regenerate-release-lockfiles:
-	@cargo generate-lockfile --manifest-path sdk/gems/auth/Cargo.toml
-	@cargo generate-lockfile --manifest-path sdk/gems/email/Cargo.toml
-	@cargo generate-lockfile --manifest-path sdk/gems/model/Cargo.toml
+	@# Ruby extension Cargo.lock files resolve crates.io dependencies that are
+	@# published only after this release tag is pushed. The SDK gem workflow waits
+	@# for those crates and resolves them during its build, so do not attempt to
+	@# regenerate the locks while preparing the tag locally.
 	@BUNDLE_GEMFILE=sdk/gems/auth/Gemfile bundle lock
 	@BUNDLE_GEMFILE=sdk/gems/email/Gemfile bundle lock
 	@BUNDLE_GEMFILE=sdk/gems/model/Gemfile bundle lock
