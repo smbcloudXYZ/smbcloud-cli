@@ -99,6 +99,13 @@ pub struct Project {
     /// Populated from the server-side App record; not written to `.smb/config.toml`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pm2_env: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// Runtime supervisor for `nextjs-ssr` apps: `"pm2"` (default) or `"systemd"`.
+    /// When `"systemd"`, the deploy restart step drives a git-owned
+    /// `systemctl --user restart <pm2_app>.service` (created by the
+    /// pm2-to-systemd migration) instead of `pm2 delete`/`pm2 start`.
+    /// `pm2_app` is still used as the unit name.
+    #[serde(default)]
+    pub process_manager: Option<String>,
     /// Port the standalone server binds to (default: 3000). Must match nginx upstream configuration.
     #[serde(default)]
     pub port: Option<u16>,
