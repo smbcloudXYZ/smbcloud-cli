@@ -1,0 +1,38 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "xcrs"
+description = "Cross-platform mobile and TV app automation over MCP."
+readme = "README.md"
+requires-python = ">=3.8"
+dynamic = ["version"]
+license = { text = "Apache-2.0" }
+authors = [{ name = "Seto Elkahfi", email = "seto@smbcloud.xyz" }]
+keywords = ["mcp", "mobile", "ios", "android", "tv", "automation", "adb", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://smbcloud.xyz/"
+Documentation = "https://smbcloud.xyz/posts"
+Repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+Issues = "https://github.com/smbcloudXYZ/smbcloud-cli/issues"
+
+[tool.maturin]
+manifest-path = "../crates/xcrs/Cargo.toml"
+bindings = "bin"
+strip = true

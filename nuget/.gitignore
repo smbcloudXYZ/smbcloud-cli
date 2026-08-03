@@ -2,3 +2,6 @@ dist/
 smbcloud-cli/bin/
 smbcloud-cli/obj/
 smbcloud-cli/native/
+xcrs/bin/
+xcrs/obj/
+xcrs/native/

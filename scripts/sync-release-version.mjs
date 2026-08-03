@@ -6,6 +6,9 @@ const cliCargoTomlPath = resolve(repoRoot, "crates/cli/Cargo.toml");
 const npmCliPackageJsonPath = resolve(repoRoot, "npm/smbcloud-cli/package.json");
 const npmCliPackageLockPath = resolve(repoRoot, "npm/smbcloud-cli/package-lock.json");
 const nugetCliProjectPath = resolve(repoRoot, "nuget/smbcloud-cli/SmbCloud.Cli.csproj");
+const npmXcrsPackageJsonPath = resolve(repoRoot, "npm/xcrs/package.json");
+const npmXcrsPackageLockPath = resolve(repoRoot, "npm/xcrs/package-lock.json");
+const nugetXcrsProjectPath = resolve(repoRoot, "nuget/xcrs/Xcrs.csproj");
 const sdkNpmPackageJsonPath = resolve(repoRoot, "sdk/npm/smbcloud-auth/package.json");
 const authGemVersionPath = resolve(repoRoot, "sdk/gems/auth/lib/auth/version.rb");
 const authGemCargoTomlPath = resolve(repoRoot, "sdk/gems/auth/ext/auth/Cargo.toml");
@@ -102,6 +105,50 @@ if (
   )
 ) {
   updatedPaths.push(nugetCliProjectPath);
+}
+
+if (
+  updateFile(npmXcrsPackageJsonPath, (content) => {
+    const parsed = JSON.parse(content);
+    parsed.version = releaseVersion;
+
+    for (const packageName of Object.keys(parsed.optionalDependencies ?? {})) {
+      parsed.optionalDependencies[packageName] = releaseVersion;
+    }
+
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  })
+) {
+  updatedPaths.push(npmXcrsPackageJsonPath);
+}
+
+if (
+  updateFile(npmXcrsPackageLockPath, (content) => {
+    const parsed = JSON.parse(content);
+    parsed.version = releaseVersion;
+    parsed.packages[""].version = releaseVersion;
+
+    for (const packageName of Object.keys(parsed.packages[""].optionalDependencies ?? {})) {
+      parsed.packages[""].optionalDependencies[packageName] = releaseVersion;
+    }
+
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  })
+) {
+  updatedPaths.push(npmXcrsPackageLockPath);
+}
+
+if (
+  updateFile(nugetXcrsProjectPath, (content) =>
+    replaceOrThrow(
+      content,
+      /<PackageVersion>[^<]+<\/PackageVersion>/,
+      `<PackageVersion>${releaseVersion}</PackageVersion>`,
+      `${nugetXcrsProjectPath} package version`,
+    ),
+  )
+) {
+  updatedPaths.push(nugetXcrsProjectPath);
 }
 
 if (
