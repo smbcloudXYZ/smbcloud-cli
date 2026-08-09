@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const cliCargoTomlPath = resolve(repoRoot, "crates/cli/Cargo.toml");
+const workspaceCargoTomlPath = resolve(repoRoot, "Cargo.toml");
 const npmCliPackageJsonPath = resolve(repoRoot, "npm/smbcloud-cli/package.json");
 const npmCliPackageLockPath = resolve(repoRoot, "npm/smbcloud-cli/package-lock.json");
 const nugetCliProjectPath = resolve(repoRoot, "nuget/smbcloud-cli/SmbCloud.Cli.csproj");
@@ -62,6 +63,17 @@ const releaseVersion = readCargoPackageVersion(cliCargoTomlPath);
 const [major = "0", minor = "0"] = releaseVersion.split(".");
 const rubySdkRequirement = `${major}.${minor}`;
 const updatedPaths = [];
+
+if (
+  updateFile(workspaceCargoTomlPath, (content) =>
+    content.replace(
+      /^([\w-]+\s*=\s*\{\s*version\s*=\s*")[^"]+("\s*,\s*path\s*=\s*"crates\/[^"]+"\s*\})/gm,
+      `$1${releaseVersion}$2`,
+    ),
+  )
+) {
+  updatedPaths.push(workspaceCargoTomlPath);
+}
 
 if (
   updateFile(npmCliPackageJsonPath, (content) => {

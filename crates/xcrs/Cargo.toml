@@ -1,6 +1,6 @@
 [package]
 name = "xcrs"
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "Cross-platform mobile and TV app automation over MCP."

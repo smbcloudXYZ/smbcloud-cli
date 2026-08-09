@@ -7,7 +7,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>smb</ToolCommandName>
     <PackageId>SmbCloud.Cli</PackageId>
-    <PackageVersion>0.5.0</PackageVersion>
+    <PackageVersion>0.5.1</PackageVersion>
     <Version>$(PackageVersion)</Version>
     <Authors>Seto Elkahfi</Authors>
     <Description>smbCloud command line interface.</Description>
