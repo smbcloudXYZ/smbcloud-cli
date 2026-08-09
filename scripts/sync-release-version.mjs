@@ -96,7 +96,7 @@ function updateWorkspaceDependencyVersions(content, version) {
       lines.splice(
         index,
         entryLines.length,
-        ...entry.replace(/version\s*=\s*"[^"]+"/, `version = "${version}"`).split("\n"),
+        ...entry.replace(/version\s*=\s*"[^"]+"/g, `version = "${version}"`).split("\n"),
       );
       endIndex = index + entryLines.length;
     }
