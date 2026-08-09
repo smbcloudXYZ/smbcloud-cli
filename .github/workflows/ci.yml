@@ -243,7 +243,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4.2"
+          ruby-version: .ruby-version
           bundler-cache: true
           working-directory: sdk/gems/auth
 
