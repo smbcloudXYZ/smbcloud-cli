@@ -59,6 +59,42 @@ function updateFile(path, updater) {
   return false;
 }
 
+function updateWorkspaceDependencyVersions(content, version) {
+  const lines = content.split("\n");
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^[\w-]+\s*=\s*\{/.test(lines[index])) {
+      continue;
+    }
+
+    let endIndex = index;
+    let braceDepth = 0;
+
+    do {
+      const line = lines[endIndex];
+      braceDepth += [...line].filter((character) => character === "{").length;
+      braceDepth -= [...line].filter((character) => character === "}").length;
+      endIndex += 1;
+    } while (braceDepth > 0 && endIndex < lines.length);
+
+    const entryLines = lines.slice(index, endIndex);
+    const entry = entryLines.join("\n");
+
+    if (entry.includes('path = "crates/') && entry.includes("version = ")) {
+      lines.splice(
+        index,
+        entryLines.length,
+        ...entry.replace(/version\s*=\s*"[^"]+"/, `version = "${version}"`).split("\n"),
+      );
+      endIndex = index + entryLines.length;
+    }
+
+    index = endIndex - 1;
+  }
+
+  return lines.join("\n");
+}
+
 const releaseVersion = readCargoPackageVersion(cliCargoTomlPath);
 const [major = "0", minor = "0"] = releaseVersion.split(".");
 const rubySdkRequirement = `${major}.${minor}`;
@@ -66,11 +102,7 @@ const updatedPaths = [];
 
 if (
   updateFile(workspaceCargoTomlPath, (content) =>
-    content.replace(/^[\w-]+\s*=\s*\{[\s\S]*?\}/gm, (entry) =>
-      entry.includes('path = "crates/') && entry.includes("version = ")
-        ? entry.replace(/version\s*=\s*"[^"]+"/, `version = "${releaseVersion}"`)
-        : entry,
-    ),
+    updateWorkspaceDependencyVersions(content, releaseVersion),
   )
 ) {
   updatedPaths.push(workspaceCargoTomlPath);
