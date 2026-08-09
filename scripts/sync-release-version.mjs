@@ -61,9 +61,17 @@ function updateFile(path, updater) {
 
 function updateWorkspaceDependencyVersions(content, version) {
   const lines = content.split("\n");
+  let inWorkspaceDependencies = false;
 
   for (let index = 0; index < lines.length; index += 1) {
-    if (!/^[\w-]+\s*=\s*\{/.test(lines[index])) {
+    const trimmedLine = lines[index].trim();
+
+    if (/^\[.*\]$/.test(trimmedLine)) {
+      inWorkspaceDependencies = trimmedLine === "[workspace.dependencies]";
+      continue;
+    }
+
+    if (!inWorkspaceDependencies || !/^[\w-]+\s*=\s*\{/.test(lines[index])) {
       continue;
     }
 
