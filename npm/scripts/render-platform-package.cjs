@@ -3,11 +3,11 @@
 const fs = require("fs");
 const path = require("path");
 
-const [packageName, version, operatingSystem, architecture] = process.argv.slice(2);
+const [packageName, version, operatingSystem, architecture, description] = process.argv.slice(2);
 
 if (!packageName || !version || !operatingSystem || !architecture) {
     throw new Error(
-        "Usage: render-platform-package.cjs <package-name> <version> <os> <arch>"
+        "Usage: render-platform-package.cjs <package-name> <version> <os> <arch> [description]"
     );
 }
 
@@ -18,7 +18,7 @@ fs.mkdirSync(packageDirectory, { recursive: true });
 const packageJson = {
     name: `@smbcloud/${packageName}`,
     version,
-    description: "Platform binary for the smbCloud CLI.",
+    description: description || "Platform binary for the smbCloud CLI.",
     license: "Apache-2.0",
     repository: {
         type: "git",

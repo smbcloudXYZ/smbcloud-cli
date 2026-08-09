@@ -1,0 +1,55 @@
+{
+  "name": "@smbcloud/xcrs",
+  "version": "0.5.0",
+  "keywords": [
+    "xcrs",
+    "mcp",
+    "model-context-protocol",
+    "mobile",
+    "ios",
+    "android",
+    "tv",
+    "apple-tv",
+    "android-tv",
+    "automation",
+    "app-testing",
+    "device",
+    "simulator",
+    "adb",
+    "cli"
+  ],
+  "bin": {
+    "xcrs": "lib/index.js"
+  },
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "description": "Cross-platform mobile and TV app automation over MCP.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smbcloudXYZ/smbcloud-cli.git"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "build": "tsc",
+    "dev": "npm run build && node lib/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^18.15.11",
+    "@typescript-eslint/eslint-plugin": "^5.48.0",
+    "@typescript-eslint/parser": "^5.48.0",
+    "eslint": "^8.31.0",
+    "typescript": "^5.0.0"
+  },
+  "optionalDependencies": {
+    "@smbcloud/xcrs-darwin-arm64": "0.5.0",
+    "@smbcloud/xcrs-darwin-x64": "0.5.0",
+    "@smbcloud/xcrs-linux-x64": "0.5.0",
+    "@smbcloud/xcrs-windows-arm64": "0.5.0",
+    "@smbcloud/xcrs-windows-x64": "0.5.0"
+  }
+}
