@@ -66,14 +66,11 @@ const updatedPaths = [];
 
 if (
   updateFile(workspaceCargoTomlPath, (content) =>
-    content
-      .split("\n")
-      .map((line) =>
-        line.includes('path = "crates/') && line.includes("version = ")
-          ? line.replace(/version\s*=\s*"[^"]+"/, `version = "${releaseVersion}"`)
-          : line,
-      )
-      .join("\n"),
+    content.replace(/^[\w-]+\s*=\s*\{[\s\S]*?\}/gm, (entry) =>
+      entry.includes('path = "crates/') && entry.includes("version = ")
+        ? entry.replace(/version\s*=\s*"[^"]+"/, `version = "${releaseVersion}"`)
+        : entry,
+    ),
   )
 ) {
   updatedPaths.push(workspaceCargoTomlPath);
