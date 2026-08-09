@@ -259,6 +259,12 @@ smb --mcp --scope automation
 xcrs --mcp
 ```
 
+> **Installing `xcrs`:** the standalone binary is published to
+> [crates.io](https://crates.io/crates/xcrs) — install it with
+> `cargo install xcrs`. It is **not** distributed through Homebrew; `brew
+> install smbcloud-cli` only provides the `smb` binary (use `smb --mcp --scope
+> automation` for the same tools without a separate install).
+
 Both commands expose the same target-aware tools with the same names. Tool
 names do not repeat the server brand because MCP clients already namespace
 them by server.
