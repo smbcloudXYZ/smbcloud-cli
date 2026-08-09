@@ -85,6 +85,10 @@ function updateWorkspaceDependencyVersions(content, version) {
       endIndex += 1;
     } while (braceDepth > 0 && endIndex < lines.length);
 
+    if (braceDepth > 0) {
+      throw new Error(`Unterminated workspace dependency entry starting at line ${index + 1}`);
+    }
+
     const entryLines = lines.slice(index, endIndex);
     const entry = entryLines.join("\n");
 
