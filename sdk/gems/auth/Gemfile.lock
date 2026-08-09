@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    smbcloud-auth (0.5.0)
+    smbcloud-auth (0.5.1)
       json
       rb_sys (~> 0.9.91)
 
@@ -26,4 +26,4 @@ DEPENDENCIES
   smbcloud-auth!
 
 BUNDLED WITH
-   2.7.2
+  4.0.17
