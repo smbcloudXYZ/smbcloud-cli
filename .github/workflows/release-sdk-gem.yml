@@ -117,7 +117,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4.2"
+          ruby-version: .ruby-version
           bundler-cache: true
           working-directory: sdk/gems/auth
 
@@ -169,7 +169,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4.2"
+          ruby-version: .ruby-version
           bundler-cache: true
           working-directory: sdk/gems/auth
 
@@ -231,7 +231,7 @@ jobs:
         if: steps.rubygems-check.outputs.exists != 'true'
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.4.2"
+          ruby-version: .ruby-version
 
       - name: Configure RubyGems credentials
         if: steps.rubygems-check.outputs.exists != 'true'
