@@ -62,13 +62,11 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
     .await
     .ok();
 
-    // ── Step 3: rsync <project_path>/<output_dir>/ to api.smbcloud.xyz ───────
+    // ── Step 3: rsync <project_path>/<output_dir>/ to the configured host ───
     //
     // config.project.path holds the remote destination on the server
-    // (e.g. "apps/web/myapp"). rsync_deploy appends a
-    // trailing slash and targets git@api.smbcloud.xyz:<path>/ using the
-    // pinned known-hosts and the user's smbCloud SSH key — exactly the same
-    // transport used for static site deployments.
+    // (e.g. "apps/web/myapp"). The transport appends a trailing slash and
+    // uses the selected host's pinned SSH key and the user's smbCloud identity.
 
     let runner = config.project.runner;
     let transport = crate::deploy::rsync_transport(&config, &runner, user.id)?;
