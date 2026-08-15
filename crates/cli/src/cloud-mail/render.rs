@@ -41,7 +41,7 @@ pub(crate) fn print_mail_apps(mail_apps: &[MailApp]) {
 
     for mail_app in mail_apps {
         println!(
-            "#{} {} ({}) [{}] project={} inboxes={}",
+            "{} {} ({}) [{}] project={} inboxes={}",
             mail_app.id,
             style(&mail_app.name).bold(),
             mail_app.domain,
@@ -54,7 +54,7 @@ pub(crate) fn print_mail_apps(mail_apps: &[MailApp]) {
 
 pub(crate) fn print_mail_app_detail(mail_app: &MailApp) {
     print_heading("Mail app");
-    print_field("ID", mail_app.id.to_string());
+    print_field("ID", &mail_app.id);
     print_field("Name", &mail_app.name);
     print_field("Domain", &mail_app.domain);
     print_field("Status", mail_app.status.to_string());
@@ -76,7 +76,7 @@ pub(crate) fn print_mail_app_detail(mail_app: &MailApp) {
 
     for inbox in &mail_app.inboxes {
         println!(
-            "#{} {} -> {} [{}]",
+            "{} {} -> {} [{}]",
             inbox.id,
             style(&inbox.full_address).bold(),
             inbox.forward_to_email,
@@ -87,8 +87,8 @@ pub(crate) fn print_mail_app_detail(mail_app: &MailApp) {
 
 pub(crate) fn print_mail_inbox_detail(mail_inbox: &MailInbox) {
     print_heading("Mail inbox");
-    print_field("ID", mail_inbox.id.to_string());
-    print_field("Mail app ID", mail_inbox.mail_app_id.to_string());
+    print_field("ID", &mail_inbox.id);
+    print_field("Mail app ID", &mail_inbox.mail_app_id);
     print_field("Project ID", mail_inbox.project_id.to_string());
     print_field("Tenant ID", mail_inbox.tenant_id.to_string());
     print_field("Local part", &mail_inbox.local_part);
@@ -139,7 +139,7 @@ pub(crate) fn print_mail_messages(messages: &[MailMessage]) {
 
     for message in messages {
         println!(
-            "#{} {} from {} [{}]",
+            "{} {} from {} [{}]",
             message.id,
             message
                 .subject
@@ -156,8 +156,8 @@ pub(crate) fn print_mail_messages(messages: &[MailMessage]) {
 
 pub(crate) fn print_mail_message_detail(message: &MailMessage) {
     print_heading("Mail message");
-    print_field("ID", message.id.to_string());
-    print_field("Inbox ID", message.mail_inbox_id.to_string());
+    print_field("ID", &message.id);
+    print_field("Inbox ID", &message.mail_inbox_id);
     print_field("Status", message.status.to_string());
     print_field("Provider message ID", &message.provider_message_id);
     print_field("Original recipient", &message.original_recipient_email);
