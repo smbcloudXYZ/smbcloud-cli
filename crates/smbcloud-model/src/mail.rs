@@ -45,7 +45,12 @@ impl Display for MailMessageStatus {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MailApp {
-    pub id: i32,
+    // UUIDs, not sequence numbers. The API moved mail_apps, mail_inboxes and
+    // mail_messages onto UUID primary keys; leaving these as i32 made every
+    // `smb mail *` command and every mail MCP tool fail to deserialize with
+    // "invalid type: string ..., expected i32". tenant_id and project_id are
+    // still integers.
+    pub id: String,
     pub name: String,
     pub domain: String,
     pub aws_region: String,
@@ -65,13 +70,13 @@ pub struct MailApp {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MailInbox {
-    pub id: i32,
+    pub id: String,
     pub local_part: String,
     pub full_address: String,
     pub inbox_email: String,
     pub sender_email: String,
     pub forward_to_email: String,
-    pub mail_app_id: i32,
+    pub mail_app_id: String,
     pub project_id: i32,
     pub tenant_id: i32,
     pub last_test_email_sent_at: Option<DateTime<Utc>>,
@@ -85,8 +90,8 @@ pub struct MailInbox {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MailMessage {
-    pub id: i32,
-    pub mail_inbox_id: i32,
+    pub id: String,
+    pub mail_inbox_id: String,
     pub provider_message_id: String,
     pub original_recipient_email: String,
     pub from_email: String,
