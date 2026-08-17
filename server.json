@@ -3,7 +3,7 @@
   "name": "io.github.smbcloudXYZ/smbcloud-cli",
   "title": "smbCloud Mail & Auth",
   "description": "Email infrastructure and authentication for developers: domains, inbox routes, auth apps, deploys.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "websiteUrl": "https://docs.smbcloud.xyz/developer/cli",
   "icons": [
     {
@@ -24,7 +24,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "@smbcloud/cli",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
@@ -51,7 +51,7 @@
       "registryType": "nuget",
       "registryBaseUrl": "https://api.nuget.org/v3/index.json",
       "identifier": "SmbCloud.Cli",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "runtimeHint": "dnx",
       "transport": {
         "type": "stdio"
