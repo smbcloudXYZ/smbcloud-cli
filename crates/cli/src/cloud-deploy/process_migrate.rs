@@ -188,6 +188,7 @@ fn strip_project(project: &Project) -> Project {
         path: None,
         repository: None,
         deploy_repo_id: None,
+        rsync_host: None,
         source_path: None,
         created_at: project.created_at,
         updated_at: project.updated_at,

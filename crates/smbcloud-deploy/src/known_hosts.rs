@@ -49,6 +49,11 @@ pub fn for_host(rsync_host: &str) -> &'static str {
     }
 }
 
+/// Returns whether `host` has a host key pinned by this crate.
+pub fn is_pinned_host(host: &str) -> bool {
+    matches!(host, "api.smbcloud.xyz" | "api-1.smbcloud.xyz")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,5 +81,12 @@ mod tests {
         // ed25519 public keys always begin with this base64 prefix
         assert!(API_SMBCLOUD_XYZ.contains("AAAA"));
         assert!(API_1_SMBCLOUD_XYZ.contains("AAAA"));
+    }
+
+    #[test]
+    fn rejects_unpinned_hosts() {
+        assert!(is_pinned_host("api.smbcloud.xyz"));
+        assert!(is_pinned_host("api-1.smbcloud.xyz"));
+        assert!(!is_pinned_host("example.com"));
     }
 }

@@ -75,6 +75,10 @@ pub struct Project {
     /// Repo ID backing this deploy target. Optional until the API exposes it
     /// consistently to the CLI.
     pub deploy_repo_id: Option<i64>,
+    /// Approved rsync host override for deployments that do not use the
+    /// runner's default static tier.
+    #[serde(default)]
+    pub rsync_host: Option<String>,
     /// Repo-relative app path for monorepo targets, e.g. "apps/web/console".
     pub source_path: Option<String>,
     #[serde(default = "default_datetime")]
