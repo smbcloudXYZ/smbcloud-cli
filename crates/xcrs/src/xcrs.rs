@@ -10,6 +10,7 @@ use std::time::Duration;
 pub mod mcp;
 
 const IOS_SIMULATOR_DESTINATION_PREFIX: &str = "platform=iOS Simulator,id=";
+const CONTROLKIT_METHOD_NOT_FOUND: i64 = -32601;
 
 pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -46,7 +47,7 @@ fn collect_controlkit_elements(element: &serde_json::Value, elements: &mut Vec<s
             object
                 .get(*key)
                 .and_then(serde_json::Value::as_str)
-                .is_some()
+                .is_some_and(|value| !value.is_empty())
         });
 
     if has_visible_rect && has_identity {
@@ -58,6 +59,10 @@ fn collect_controlkit_elements(element: &serde_json::Value, elements: &mut Vec<s
             "placeholderValue",
             "rawIdentifier",
             "rect",
+            "depth",
+            "enabled",
+            "selected",
+            "hittable",
         ];
         let element = keys
             .iter()
@@ -126,6 +131,33 @@ impl ControlKit {
     }
 
     pub async fn call(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
+        let body = self.send(method, params).await?;
+
+        if let Some(error) = body.get("error") {
+            let runner_info = if error.get("code").and_then(serde_json::Value::as_i64)
+                == Some(CONTROLKIT_METHOD_NOT_FOUND)
+                && method != "device.info"
+            {
+                self.send("device.info", serde_json::json!({}))
+                    .await
+                    .ok()
+                    .and_then(|body| body.get("result").cloned())
+            } else {
+                None
+            };
+            return Err(anyhow!(controlkit_rpc_error(
+                method,
+                error,
+                runner_info.as_ref()
+            )));
+        }
+
+        body.get("result")
+            .cloned()
+            .ok_or_else(|| anyhow!("ControlKit response for '{method}' did not contain a result"))
+    }
+
+    async fn send(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
         let response = self
             .client
             .post(format!("{}/rpc", self.base_url))
@@ -150,14 +182,41 @@ impl ControlKit {
             return Err(anyhow!("ControlKit returned HTTP {}: {}", status, body));
         }
 
-        if let Some(error) = body.get("error") {
-            return Err(anyhow!("ControlKit method '{method}' failed: {error}"));
-        }
-
-        body.get("result")
-            .cloned()
-            .ok_or_else(|| anyhow!("ControlKit response for '{method}' did not contain a result"))
+        Ok(body)
     }
+}
+
+fn controlkit_rpc_error(
+    method: &str,
+    error: &serde_json::Value,
+    runner_info: Option<&serde_json::Value>,
+) -> String {
+    let code = error
+        .get("code")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or_default();
+    let message = error
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown JSON-RPC error");
+
+    if code != CONTROLKIT_METHOD_NOT_FOUND {
+        return format!("ControlKit method '{method}' failed ({code}): {message}");
+    }
+
+    let runner = runner_info
+        .and_then(|info| info.get("runner"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown ControlKit runner");
+    let protocol = runner_info
+        .and_then(|info| info.get("protocolVersion"))
+        .and_then(serde_json::Value::as_u64)
+        .map(|version| format!(" protocol {version}"))
+        .unwrap_or_default();
+
+    format!(
+        "{runner}{protocol} does not implement ControlKit method '{method}'. Rebuild or upgrade xcrs-controlkit, restart its runner, and retry."
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -297,14 +356,14 @@ impl Simctl<'_> {
         self.list_simulators()?
             .into_iter()
             .find(|simulator| simulator.name == name)
-            .ok_or_else(|| anyhow!("iOS simulator named '{name}' was not found"))
+            .ok_or_else(|| anyhow!("Apple simulator named '{name}' was not found"))
     }
 
     pub fn find_simulator_by_udid(&self, udid: &str) -> Result<Simulator> {
         self.list_simulators()?
             .into_iter()
             .find(|simulator| simulator.udid == udid)
-            .ok_or_else(|| anyhow!("iOS simulator with UDID '{udid}' was not found"))
+            .ok_or_else(|| anyhow!("Apple simulator with UDID '{udid}' was not found"))
     }
 
     pub fn boot(&self, udid: &str) -> Result<()> {
@@ -1271,6 +1330,56 @@ mod tests {
     fn formats_ipv6_controlkit_url() {
         let controlkit = ControlKit::with_host("fdb4:e020:7377::1", 12006);
         assert_eq!(controlkit.base_url, "http://[fdb4:e020:7377::1]:12006");
+    }
+
+    #[test]
+    fn reports_actionable_controlkit_method_mismatch() {
+        let error = serde_json::json!({
+            "code": -32601,
+            "message": "Method not found"
+        });
+        let runner_info = serde_json::json!({
+            "runner": "XCRSControlKit",
+            "protocolVersion": 1
+        });
+
+        let message = controlkit_rpc_error("device.dump.ui", &error, Some(&runner_info));
+
+        assert!(message.contains("XCRSControlKit protocol 1"));
+        assert!(message.contains("device.dump.ui"));
+        assert!(message.contains("Rebuild or upgrade"));
+    }
+
+    #[test]
+    fn extracts_identified_visible_controlkit_elements() {
+        let hierarchy = serde_json::json!({
+            "type": "Application",
+            "rect": { "x": 0, "y": 0, "width": 1920, "height": 1080 },
+            "children": [
+                {
+                    "type": "Button",
+                    "label": "Play",
+                    "rawIdentifier": "play-button",
+                    "rect": { "x": 100, "y": 200, "width": 80, "height": 40 },
+                    "enabled": true,
+                    "selected": false,
+                    "hittable": true,
+                    "children": []
+                },
+                {
+                    "type": "Image",
+                    "label": "",
+                    "rect": { "x": 0, "y": 0, "width": 40, "height": 40 },
+                    "children": []
+                }
+            ]
+        });
+
+        let elements = extract_controlkit_elements(&hierarchy);
+
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0]["label"], serde_json::json!("Play"));
+        assert_eq!(elements[0]["hittable"], serde_json::json!(true));
     }
 
     #[test]
