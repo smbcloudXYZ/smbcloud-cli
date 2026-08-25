@@ -135,41 +135,40 @@ impl ControlKit {
         let body = self.send(method, params).await?;
 
         if let Some(error) = body.get("error") {
-            let (runner_info, runner_info_error) =
-                if error.get("code").and_then(serde_json::Value::as_i64)
-                    == Some(CONTROLKIT_METHOD_NOT_FOUND)
-                    && method != "device.info"
+            // `send` cannot recurse; this guard only avoids repeating an unsupported probe.
+            let should_probe_runner =
+                is_controlkit_method_not_found(error) && method != "device.info";
+            let (runner_info, runner_info_error) = if should_probe_runner {
+                match tokio::time::timeout(
+                    CONTROLKIT_RUNNER_INFO_TIMEOUT,
+                    self.send("device.info", serde_json::json!({})),
+                )
+                .await
                 {
-                    match tokio::time::timeout(
-                        CONTROLKIT_RUNNER_INFO_TIMEOUT,
-                        self.send("device.info", serde_json::json!({})),
-                    )
-                    .await
-                    {
-                        Ok(Ok(body)) => match body.get("result") {
-                            Some(result) => (Some(result.clone()), None),
-                            None => {
-                                let reason = body
-                                    .get("error")
-                                    .map(|error| format!("device.info returned {error}"))
-                                    .unwrap_or_else(|| {
-                                        "device.info response did not contain a result".to_string()
-                                    });
-                                (None, Some(reason))
-                            }
-                        },
-                        Ok(Err(error)) => (None, Some(error.to_string())),
-                        Err(_) => (
-                            None,
-                            Some(format!(
-                                "device.info timed out after {} seconds",
-                                CONTROLKIT_RUNNER_INFO_TIMEOUT.as_secs()
-                            )),
-                        ),
-                    }
-                } else {
-                    (None, None)
-                };
+                    Ok(Ok(body)) => match body.get("result") {
+                        Some(result) => (Some(result.clone()), None),
+                        None => {
+                            let reason = body
+                                .get("error")
+                                .map(|error| format!("device.info returned {error}"))
+                                .unwrap_or_else(|| {
+                                    "device.info response did not contain a result".to_string()
+                                });
+                            (None, Some(reason))
+                        }
+                    },
+                    Ok(Err(error)) => (None, Some(error.to_string())),
+                    Err(_) => (
+                        None,
+                        Some(format!(
+                            "device.info timed out after {} seconds",
+                            CONTROLKIT_RUNNER_INFO_TIMEOUT.as_secs()
+                        )),
+                    ),
+                }
+            } else {
+                (None, None)
+            };
             return Err(anyhow!(controlkit_rpc_error(
                 method,
                 error,
@@ -212,6 +211,15 @@ impl ControlKit {
     }
 }
 
+fn is_controlkit_method_not_found(error: &serde_json::Value) -> bool {
+    let Some(code) = error.get("code") else {
+        return false;
+    };
+
+    code.as_i64() == Some(CONTROLKIT_METHOD_NOT_FOUND)
+        || code.as_f64() == Some(CONTROLKIT_METHOD_NOT_FOUND as f64)
+}
+
 fn controlkit_rpc_error(
     method: &str,
     error: &serde_json::Value,
@@ -227,7 +235,7 @@ fn controlkit_rpc_error(
         .and_then(serde_json::Value::as_str)
         .unwrap_or("unknown JSON-RPC error");
 
-    if code != CONTROLKIT_METHOD_NOT_FOUND {
+    if !is_controlkit_method_not_found(error) {
         return format!("ControlKit method '{method}' failed ({code}): {message}");
     }
 
@@ -1379,6 +1387,18 @@ mod tests {
         assert!(message.contains("XCRSControlKit protocol 1"));
         assert!(message.contains("device.dump.ui"));
         assert!(message.contains("Rebuild or upgrade"));
+    }
+
+    #[test]
+    fn recognizes_integral_float_controlkit_method_not_found_code() {
+        let error = serde_json::json!({
+            "code": -32601.0,
+            "message": "Method not found"
+        });
+
+        assert!(is_controlkit_method_not_found(&error));
+        let message = controlkit_rpc_error("device.dump.ui", &error, None, None);
+        assert!(message.contains("does not implement ControlKit method 'device.dump.ui'"));
     }
 
     #[test]
