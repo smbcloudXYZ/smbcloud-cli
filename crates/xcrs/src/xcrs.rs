@@ -216,6 +216,8 @@ fn is_controlkit_method_not_found(error: &serde_json::Value) -> bool {
         return false;
     };
 
+    // Some runners serialise the JSON-RPC code as an integral float (e.g. `-32601.0`),
+    // which `as_i64` rejects, so fall back to an exact `as_f64` comparison for that case.
     code.as_i64() == Some(CONTROLKIT_METHOD_NOT_FOUND)
         || code.as_f64() == Some(CONTROLKIT_METHOD_NOT_FOUND as f64)
 }
