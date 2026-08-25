@@ -569,6 +569,24 @@ pub struct ButtonArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct AppleTargetArgs {
+    /// Exact Apple simulator name. Omit to use the target selected with
+    /// `device_select`.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Apple simulator UDID. Omit to use the target selected with `device_select`.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// ControlKit host of a physical device or remote runner. Omit for a local
+    /// simulator.
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Local ControlKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub controlkit_port: Option<u16>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct UiTargetArgs {
     /// Exact Apple simulator name. Omit to use the target selected with
     /// `device_select`.
@@ -585,7 +603,8 @@ pub struct UiTargetArgs {
     #[serde(default)]
     pub controlkit_port: Option<u16>,
     /// Bundle identifier of the app whose accessibility hierarchy should be read.
-    pub bundle_id: String,
+    #[serde(default)]
+    pub bundle_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -676,6 +695,25 @@ macro_rules! xcrs_mcp_tools {
                     .lock()
                     .ok()
                     .and_then(|slot| slot.clone())
+            }
+
+            fn require_bundle_id(
+                tool_name: &str,
+                bundle_id: Option<String>,
+            ) -> ::std::result::Result<String, ::rmcp::model::ErrorData> {
+                let bundle_id = bundle_id
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|bundle_id| !bundle_id.is_empty())
+                    .ok_or_else(|| {
+                        ::rmcp::model::ErrorData::invalid_request(
+                            format!(
+                                "{tool_name} requires bundle_id. Pass the bundle identifier of the foreground Apple app."
+                            ),
+                            None,
+                        )
+                    })?;
+                Ok(bundle_id.to_string())
             }
 
             /// Validate and tag a target from per-call fields, falling back to the
@@ -1332,6 +1370,7 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                let bundle_id = Self::require_bundle_id($ui_describe_name, args.bundle_id)?;
                 let target = Self::dispatch_apple_target(
                     $ui_describe_name,
                     args.simulator_name,
@@ -1345,7 +1384,7 @@ macro_rules! xcrs_mcp_tools {
                         "device.dump.ui",
                         ::serde_json::json!({
                             "format": "json",
-                            "bundleId": args.bundle_id,
+                            "bundleId": bundle_id,
                         }),
                     )
                     .await
@@ -1377,6 +1416,7 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                let bundle_id = Self::require_bundle_id($ui_element_list_name, args.bundle_id)?;
                 let target = Self::dispatch_apple_target(
                     $ui_element_list_name,
                     args.simulator_name,
@@ -1390,7 +1430,7 @@ macro_rules! xcrs_mcp_tools {
                         "device.dump.ui",
                         ::serde_json::json!({
                             "format": "json",
-                            "bundleId": args.bundle_id,
+                            "bundleId": bundle_id,
                         }),
                     )
                     .await
@@ -1774,7 +1814,7 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::handler::server::wrapper::Parameters(
                     args,
                 ): ::rmcp::handler::server::wrapper::Parameters<
-                    $crate::mcp::UiTargetArgs,
+                    $crate::mcp::AppleTargetArgs,
                 >,
             ) -> ::std::result::Result<
                 ::rmcp::model::CallToolResult,
@@ -2149,6 +2189,56 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn ui_tools_keep_bundle_id_optional_in_the_input_schema() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        for tool_name in ["ui_describe", "ui_element_list"] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool.name.as_ref() == tool_name)
+                .unwrap_or_else(|| panic!("{tool_name} should be registered"));
+            let required = tool
+                .input_schema
+                .get("required")
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+
+            assert!(tool.input_schema["properties"].get("bundle_id").is_some());
+            assert!(!required.contains(&serde_json::json!("bundle_id")));
+        }
+    }
+
+    #[test]
+    fn orientation_get_does_not_advertise_bundle_id() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        let tool = tools
+            .iter()
+            .find(|tool| tool.name.as_ref() == "orientation_get")
+            .expect("orientation_get should be registered");
+
+        assert!(tool.input_schema["properties"].get("bundle_id").is_none());
+    }
+
+    #[test]
+    fn ui_target_args_accept_omitted_bundle_id_and_validate_it_explicitly() {
+        let args: UiTargetArgs =
+            serde_json::from_value(serde_json::json!({})).expect("arguments should deserialize");
+
+        assert!(args.bundle_id.is_none());
+        let error = XcrsMcpServer::require_bundle_id("ui_describe", args.bundle_id)
+            .expect_err("missing bundle_id should fail validation");
+        assert!(error.to_string().contains("ui_describe requires bundle_id"));
+        assert_eq!(
+            XcrsMcpServer::require_bundle_id(
+                "ui_describe",
+                Some("  com.example.app  ".to_string())
+            )
+            .expect("non-empty bundle_id should pass validation"),
+            "com.example.app"
+        );
     }
 
     #[test]
