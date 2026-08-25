@@ -11,6 +11,7 @@ pub mod mcp;
 
 const IOS_SIMULATOR_DESTINATION_PREFIX: &str = "platform=iOS Simulator,id=";
 const CONTROLKIT_METHOD_NOT_FOUND: i64 = -32601;
+const CONTROLKIT_RUNNER_INFO_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -139,8 +140,13 @@ impl ControlKit {
                     == Some(CONTROLKIT_METHOD_NOT_FOUND)
                     && method != "device.info"
                 {
-                    match self.send("device.info", serde_json::json!({})).await {
-                        Ok(body) => match body.get("result") {
+                    match tokio::time::timeout(
+                        CONTROLKIT_RUNNER_INFO_TIMEOUT,
+                        self.send("device.info", serde_json::json!({})),
+                    )
+                    .await
+                    {
+                        Ok(Ok(body)) => match body.get("result") {
                             Some(result) => (Some(result.clone()), None),
                             None => {
                                 let reason = body
@@ -152,7 +158,14 @@ impl ControlKit {
                                 (None, Some(reason))
                             }
                         },
-                        Err(error) => (None, Some(error.to_string())),
+                        Ok(Err(error)) => (None, Some(error.to_string())),
+                        Err(_) => (
+                            None,
+                            Some(format!(
+                                "device.info timed out after {} seconds",
+                                CONTROLKIT_RUNNER_INFO_TIMEOUT.as_secs()
+                            )),
+                        ),
                     }
                 } else {
                     (None, None)

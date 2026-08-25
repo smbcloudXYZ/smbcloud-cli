@@ -2218,8 +2218,22 @@ mod tests {
             .iter()
             .find(|tool| tool.name.as_ref() == "orientation_get")
             .expect("orientation_get should be registered");
+        let properties = tool.input_schema["properties"]
+            .as_object()
+            .expect("orientation_get properties should be an object");
 
-        assert!(tool.input_schema["properties"].get("bundle_id").is_none());
+        for property in [
+            "simulator_name",
+            "simulator_udid",
+            "host",
+            "controlkit_port",
+        ] {
+            assert!(
+                properties.contains_key(property),
+                "orientation_get should advertise {property}"
+            );
+        }
+        assert!(!properties.contains_key("bundle_id"));
     }
 
     #[test]
