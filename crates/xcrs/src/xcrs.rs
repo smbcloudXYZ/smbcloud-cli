@@ -134,21 +134,34 @@ impl ControlKit {
         let body = self.send(method, params).await?;
 
         if let Some(error) = body.get("error") {
-            let runner_info = if error.get("code").and_then(serde_json::Value::as_i64)
-                == Some(CONTROLKIT_METHOD_NOT_FOUND)
-                && method != "device.info"
-            {
-                self.send("device.info", serde_json::json!({}))
-                    .await
-                    .ok()
-                    .and_then(|body| body.get("result").cloned())
-            } else {
-                None
-            };
+            let (runner_info, runner_info_error) =
+                if error.get("code").and_then(serde_json::Value::as_i64)
+                    == Some(CONTROLKIT_METHOD_NOT_FOUND)
+                    && method != "device.info"
+                {
+                    match self.send("device.info", serde_json::json!({})).await {
+                        Ok(body) => match body.get("result") {
+                            Some(result) => (Some(result.clone()), None),
+                            None => {
+                                let reason = body
+                                    .get("error")
+                                    .map(|error| format!("device.info returned {error}"))
+                                    .unwrap_or_else(|| {
+                                        "device.info response did not contain a result".to_string()
+                                    });
+                                (None, Some(reason))
+                            }
+                        },
+                        Err(error) => (None, Some(error.to_string())),
+                    }
+                } else {
+                    (None, None)
+                };
             return Err(anyhow!(controlkit_rpc_error(
                 method,
                 error,
-                runner_info.as_ref()
+                runner_info.as_ref(),
+                runner_info_error.as_deref()
             )));
         }
 
@@ -190,6 +203,7 @@ fn controlkit_rpc_error(
     method: &str,
     error: &serde_json::Value,
     runner_info: Option<&serde_json::Value>,
+    runner_info_error: Option<&str>,
 ) -> String {
     let code = error
         .get("code")
@@ -207,15 +221,19 @@ fn controlkit_rpc_error(
     let runner = runner_info
         .and_then(|info| info.get("runner"))
         .and_then(serde_json::Value::as_str)
-        .unwrap_or("unknown ControlKit runner");
+        .unwrap_or("The connected ControlKit runner");
     let protocol = runner_info
         .and_then(|info| info.get("protocolVersion"))
         .and_then(serde_json::Value::as_u64)
         .map(|version| format!(" protocol {version}"))
         .unwrap_or_default();
 
+    let runner_info_note = runner_info_error
+        .map(|error| format!(" Runner metadata could not be read: {error}."))
+        .unwrap_or_default();
+
     format!(
-        "{runner}{protocol} does not implement ControlKit method '{method}'. Rebuild or upgrade xcrs-controlkit, restart its runner, and retry."
+        "{runner}{protocol} does not implement ControlKit method '{method}'.{runner_info_note} Rebuild or upgrade xcrs-controlkit, restart its runner, and retry."
     )
 }
 
@@ -1343,11 +1361,31 @@ mod tests {
             "protocolVersion": 1
         });
 
-        let message = controlkit_rpc_error("device.dump.ui", &error, Some(&runner_info));
+        let message = controlkit_rpc_error("device.dump.ui", &error, Some(&runner_info), None);
 
         assert!(message.contains("XCRSControlKit protocol 1"));
         assert!(message.contains("device.dump.ui"));
         assert!(message.contains("Rebuild or upgrade"));
+    }
+
+    #[test]
+    fn reports_when_controlkit_runner_metadata_is_unavailable() {
+        let error = serde_json::json!({
+            "code": -32601,
+            "message": "Method not found"
+        });
+
+        let message = controlkit_rpc_error(
+            "device.dump.ui",
+            &error,
+            None,
+            Some("device.info returned a JSON-RPC error"),
+        );
+
+        assert!(message.contains("The connected ControlKit runner"));
+        assert!(message.contains("Runner metadata could not be read"));
+        assert!(message.contains("device.info returned a JSON-RPC error"));
+        assert!(!message.contains("unknown ControlKit runner"));
     }
 
     #[test]
