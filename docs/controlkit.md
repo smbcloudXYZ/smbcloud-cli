@@ -117,8 +117,13 @@ expose the same unprefixed tool names.
 | `input_button` | iOS / tvOS, simulator or physical | Press a Home or tvOS remote button. |
 | `app_launch`/`app_terminate` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. |
 | `screen_capture` | Simulator or physical | Capture a PNG screenshot. Uses `simctl` for a simulator, or `devicectl device capture screenshot` when a `device` identifier is given. |
-| `ui_describe` | All UI-test runners | Read the accessibility hierarchy. |
-| `ui_element_list` | All UI-test runners | Read only actionable elements with tap coordinates. |
+| `ui_describe` | All UI-test runners | Read the accessibility hierarchy for the supplied `bundle_id`. |
+| `ui_element_list` | All UI-test runners | Read actionable elements with tap coordinates for the supplied `bundle_id`. |
+
+UI introspection requires a recent ControlKit runner that implements
+`device.dump.ui`. Both UI tools require the target app's `bundle_id`; this
+lets XCTest attach to an already-running app instead of accidentally reading
+the ControlKit host app.
 
 For a local macOS runner, omit simulator fields and pass `host` and
 `controlkit_port` when needed:

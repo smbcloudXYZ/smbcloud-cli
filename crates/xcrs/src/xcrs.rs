@@ -10,6 +10,8 @@ use std::time::Duration;
 pub mod mcp;
 
 const IOS_SIMULATOR_DESTINATION_PREFIX: &str = "platform=iOS Simulator,id=";
+const CONTROLKIT_METHOD_NOT_FOUND: i64 = -32601;
+const CONTROLKIT_RUNNER_INFO_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -46,7 +48,7 @@ fn collect_controlkit_elements(element: &serde_json::Value, elements: &mut Vec<s
             object
                 .get(*key)
                 .and_then(serde_json::Value::as_str)
-                .is_some()
+                .is_some_and(|value| !value.is_empty())
         });
 
     if has_visible_rect && has_identity {
@@ -58,6 +60,10 @@ fn collect_controlkit_elements(element: &serde_json::Value, elements: &mut Vec<s
             "placeholderValue",
             "rawIdentifier",
             "rect",
+            "depth",
+            "enabled",
+            "selected",
+            "hittable",
         ];
         let element = keys
             .iter()
@@ -126,6 +132,57 @@ impl ControlKit {
     }
 
     pub async fn call(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
+        let body = self.send(method, params).await?;
+
+        if let Some(error) = body.get("error") {
+            // `send` cannot recurse; this guard only avoids repeating an unsupported probe.
+            let should_probe_runner =
+                is_controlkit_method_not_found(error) && method != "device.info";
+            let (runner_info, runner_info_error) = if should_probe_runner {
+                match tokio::time::timeout(
+                    CONTROLKIT_RUNNER_INFO_TIMEOUT,
+                    self.send("device.info", serde_json::json!({})),
+                )
+                .await
+                {
+                    Ok(Ok(body)) => match body.get("result") {
+                        Some(result) => (Some(result.clone()), None),
+                        None => {
+                            let reason = body
+                                .get("error")
+                                .map(|error| format!("device.info returned {error}"))
+                                .unwrap_or_else(|| {
+                                    "device.info response did not contain a result".to_string()
+                                });
+                            (None, Some(reason))
+                        }
+                    },
+                    Ok(Err(error)) => (None, Some(error.to_string())),
+                    Err(_) => (
+                        None,
+                        Some(format!(
+                            "device.info timed out after {} seconds",
+                            CONTROLKIT_RUNNER_INFO_TIMEOUT.as_secs()
+                        )),
+                    ),
+                }
+            } else {
+                (None, None)
+            };
+            return Err(anyhow!(controlkit_rpc_error(
+                method,
+                error,
+                runner_info.as_ref(),
+                runner_info_error.as_deref()
+            )));
+        }
+
+        body.get("result")
+            .cloned()
+            .ok_or_else(|| anyhow!("ControlKit response for '{method}' did not contain a result"))
+    }
+
+    async fn send(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value> {
         let response = self
             .client
             .post(format!("{}/rpc", self.base_url))
@@ -150,14 +207,57 @@ impl ControlKit {
             return Err(anyhow!("ControlKit returned HTTP {}: {}", status, body));
         }
 
-        if let Some(error) = body.get("error") {
-            return Err(anyhow!("ControlKit method '{method}' failed: {error}"));
-        }
-
-        body.get("result")
-            .cloned()
-            .ok_or_else(|| anyhow!("ControlKit response for '{method}' did not contain a result"))
+        Ok(body)
     }
+}
+
+fn is_controlkit_method_not_found(error: &serde_json::Value) -> bool {
+    let Some(code) = error.get("code") else {
+        return false;
+    };
+
+    // Some runners serialise the JSON-RPC code as an integral float (e.g. `-32601.0`),
+    // which `as_i64` rejects, so fall back to an exact `as_f64` comparison for that case.
+    code.as_i64() == Some(CONTROLKIT_METHOD_NOT_FOUND)
+        || code.as_f64() == Some(CONTROLKIT_METHOD_NOT_FOUND as f64)
+}
+
+fn controlkit_rpc_error(
+    method: &str,
+    error: &serde_json::Value,
+    runner_info: Option<&serde_json::Value>,
+    runner_info_error: Option<&str>,
+) -> String {
+    let code = error
+        .get("code")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or_default();
+    let message = error
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("unknown JSON-RPC error");
+
+    if !is_controlkit_method_not_found(error) {
+        return format!("ControlKit method '{method}' failed ({code}): {message}");
+    }
+
+    let runner = runner_info
+        .and_then(|info| info.get("runner"))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("The connected ControlKit runner");
+    let protocol = runner_info
+        .and_then(|info| info.get("protocolVersion"))
+        .and_then(serde_json::Value::as_u64)
+        .map(|version| format!(" protocol {version}"))
+        .unwrap_or_default();
+
+    let runner_info_note = runner_info_error
+        .map(|error| format!(" Runner metadata could not be read: {error}."))
+        .unwrap_or_default();
+
+    format!(
+        "{runner}{protocol} does not implement ControlKit method '{method}'.{runner_info_note} Rebuild or upgrade xcrs-controlkit, restart its runner, and retry."
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -297,14 +397,14 @@ impl Simctl<'_> {
         self.list_simulators()?
             .into_iter()
             .find(|simulator| simulator.name == name)
-            .ok_or_else(|| anyhow!("iOS simulator named '{name}' was not found"))
+            .ok_or_else(|| anyhow!("Apple simulator named '{name}' was not found"))
     }
 
     pub fn find_simulator_by_udid(&self, udid: &str) -> Result<Simulator> {
         self.list_simulators()?
             .into_iter()
             .find(|simulator| simulator.udid == udid)
-            .ok_or_else(|| anyhow!("iOS simulator with UDID '{udid}' was not found"))
+            .ok_or_else(|| anyhow!("Apple simulator with UDID '{udid}' was not found"))
     }
 
     pub fn boot(&self, udid: &str) -> Result<()> {
@@ -1271,6 +1371,88 @@ mod tests {
     fn formats_ipv6_controlkit_url() {
         let controlkit = ControlKit::with_host("fdb4:e020:7377::1", 12006);
         assert_eq!(controlkit.base_url, "http://[fdb4:e020:7377::1]:12006");
+    }
+
+    #[test]
+    fn reports_actionable_controlkit_method_mismatch() {
+        let error = serde_json::json!({
+            "code": -32601,
+            "message": "Method not found"
+        });
+        let runner_info = serde_json::json!({
+            "runner": "XCRSControlKit",
+            "protocolVersion": 1
+        });
+
+        let message = controlkit_rpc_error("device.dump.ui", &error, Some(&runner_info), None);
+
+        assert!(message.contains("XCRSControlKit protocol 1"));
+        assert!(message.contains("device.dump.ui"));
+        assert!(message.contains("Rebuild or upgrade"));
+    }
+
+    #[test]
+    fn recognizes_integral_float_controlkit_method_not_found_code() {
+        let error = serde_json::json!({
+            "code": -32601.0,
+            "message": "Method not found"
+        });
+
+        assert!(is_controlkit_method_not_found(&error));
+        let message = controlkit_rpc_error("device.dump.ui", &error, None, None);
+        assert!(message.contains("does not implement ControlKit method 'device.dump.ui'"));
+    }
+
+    #[test]
+    fn reports_when_controlkit_runner_metadata_is_unavailable() {
+        let error = serde_json::json!({
+            "code": -32601,
+            "message": "Method not found"
+        });
+
+        let message = controlkit_rpc_error(
+            "device.dump.ui",
+            &error,
+            None,
+            Some("device.info returned a JSON-RPC error"),
+        );
+
+        assert!(message.contains("The connected ControlKit runner"));
+        assert!(message.contains("Runner metadata could not be read"));
+        assert!(message.contains("device.info returned a JSON-RPC error"));
+        assert!(!message.contains("unknown ControlKit runner"));
+    }
+
+    #[test]
+    fn extracts_identified_visible_controlkit_elements() {
+        let hierarchy = serde_json::json!({
+            "type": "Application",
+            "rect": { "x": 0, "y": 0, "width": 1920, "height": 1080 },
+            "children": [
+                {
+                    "type": "Button",
+                    "label": "Play",
+                    "rawIdentifier": "play-button",
+                    "rect": { "x": 100, "y": 200, "width": 80, "height": 40 },
+                    "enabled": true,
+                    "selected": false,
+                    "hittable": true,
+                    "children": []
+                },
+                {
+                    "type": "Image",
+                    "label": "",
+                    "rect": { "x": 0, "y": 0, "width": 40, "height": 40 },
+                    "children": []
+                }
+            ]
+        });
+
+        let elements = extract_controlkit_elements(&hierarchy);
+
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0]["label"], serde_json::json!("Play"));
+        assert_eq!(elements[0]["hittable"], serde_json::json!(true));
     }
 
     #[test]
