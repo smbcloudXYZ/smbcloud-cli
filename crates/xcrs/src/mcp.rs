@@ -569,6 +569,24 @@ pub struct ButtonArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct AppleTargetArgs {
+    /// Exact Apple simulator name. Omit to use the target selected with
+    /// `device_select`.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Apple simulator UDID. Omit to use the target selected with `device_select`.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// ControlKit host of a physical device or remote runner. Omit for a local
+    /// simulator.
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Local ControlKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub controlkit_port: Option<u16>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct UiTargetArgs {
     /// Exact Apple simulator name. Omit to use the target selected with
     /// `device_select`.
@@ -584,6 +602,9 @@ pub struct UiTargetArgs {
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
+    /// Bundle identifier of the app whose accessibility hierarchy should be read.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -674,6 +695,25 @@ macro_rules! xcrs_mcp_tools {
                     .lock()
                     .ok()
                     .and_then(|slot| slot.clone())
+            }
+
+            fn require_bundle_id(
+                tool_name: &str,
+                bundle_id: Option<String>,
+            ) -> ::std::result::Result<String, ::rmcp::model::ErrorData> {
+                let bundle_id = bundle_id
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|bundle_id| !bundle_id.is_empty())
+                    .ok_or_else(|| {
+                        ::rmcp::model::ErrorData::invalid_request(
+                            format!(
+                                "{tool_name} requires bundle_id. Pass the bundle identifier of the foreground Apple app."
+                            ),
+                            None,
+                        )
+                    })?;
+                Ok(bundle_id.to_string())
             }
 
             /// Validate and tag a target from per-call fields, falling back to the
@@ -957,9 +997,9 @@ macro_rules! xcrs_mcp_tools {
 
             #[::rmcp::tool(
                 name = $app_install_launch_name,
-                title = "Install and launch iOS app",
-                annotations(title = "Install and launch iOS app", read_only_hint = false, destructive_hint = true, idempotent_hint = false),
-                description = "Purpose: one-shot end-to-end setup for a freshly built iOS app: boot the simulator, install the .app bundle, optionally terminate a previous instance, launch it, and return its app container path. When to use vs siblings: use this once to get a build under test onto a simulator; use app_launch/app_terminate afterwards for an already-installed app, and screen_capture/ui_describe to inspect it. Behavior: boots the target simulator if it is not already booted, installs app_path, optionally force-terminates bundle_id first, launches bundle_id, then reads back the app's container directory. Prerequisites: Xcode command line tools installed; app_path must point to an existing .app bundle built for the simulator (not a device) architecture. Failure modes: errors if neither simulator_name nor simulator_udid is given, if the simulator cannot be found, or if any underlying `simctl` step fails. Limitations: iOS-simulator-only; there is no Android or physical-device equivalent in this tool."
+                title = "Install and launch Apple simulator app",
+                annotations(title = "Install and launch Apple simulator app", read_only_hint = false, destructive_hint = true, idempotent_hint = false),
+                description = "Purpose: one-shot end-to-end setup for a freshly built Apple-platform app: boot an iOS, tvOS, watchOS, or visionOS simulator, install the .app bundle, optionally terminate a previous instance, launch it, and return its app container path. When to use vs siblings: use this once to get a build under test onto a simulator; use app_launch/app_terminate afterwards for an already-installed app, and screen_capture/ui_describe to inspect it. Behavior: boots the target simulator if it is not already booted, installs app_path, optionally force-terminates bundle_id first, launches bundle_id, then reads back the app's container directory. Prerequisites: Xcode command line tools installed; app_path must point to an existing .app bundle built for the selected simulator platform and architecture. Failure modes: errors if neither simulator_name nor simulator_udid is given, if the simulator cannot be found, if the app bundle targets a different platform, or if any underlying `simctl` step fails. Limitations: simulator-only; there is no Android or physical-device equivalent in this tool."
             )]
             async fn app_install_launch(
                 &self,
@@ -1317,7 +1357,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $ui_describe_name,
                 title = "Describe UI",
                 annotations(title = "Describe UI", read_only_hint = true, idempotent_hint = true),
-                description = "Purpose: return the full accessibility hierarchy of the foreground app as JSON. When to use vs siblings: use this to see everything on screen before tapping or typing; prefer ui_element_list when you only need actionable elements and their tap coordinates, since it is smaller and already filtered. Behavior: calls the resolved target's ControlKit `device.dump.ui` method and returns the raw hierarchy alongside the resolved simulator (if any). Prerequisites: a reachable ControlKit endpoint. Failure modes: errors if no target can be resolved, or if the resolved target is Android (Apple-only tool; ControlKit UI introspection has no Android equivalent), or if the ControlKit call fails."
+                description = "Purpose: return the full accessibility hierarchy of an Apple app as JSON. When to use vs siblings: use this to see everything on screen before tapping or typing; prefer ui_element_list when you only need actionable elements and their tap coordinates, since it is smaller and already filtered. Behavior: attaches to bundle_id through the resolved target's ControlKit `device.dump.ui` method and returns the raw hierarchy alongside the resolved simulator (if any). Prerequisites: a reachable ControlKit endpoint built from a version that implements `device.dump.ui`; bundle_id must identify an installed app. Failure modes: errors if no target can be resolved, if the resolved target is Android (Apple-only tool; ControlKit UI introspection has no Android equivalent), if bundle_id is invalid, or if the ControlKit runner is outdated or unavailable."
             )]
             async fn ui_describe(
                 &self,
@@ -1330,6 +1370,7 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                let bundle_id = Self::require_bundle_id($ui_describe_name, args.bundle_id)?;
                 let target = Self::dispatch_apple_target(
                     $ui_describe_name,
                     args.simulator_name,
@@ -1339,7 +1380,13 @@ macro_rules! xcrs_mcp_tools {
                 )?;
                 let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
                 let result = controlkit
-                    .call("device.dump.ui", ::serde_json::json!({ "format": "json" }))
+                    .call(
+                        "device.dump.ui",
+                        ::serde_json::json!({
+                            "format": "json",
+                            "bundleId": bundle_id,
+                        }),
+                    )
                     .await
                     .map_err(|error| {
                         ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
@@ -1356,7 +1403,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $ui_element_list_name,
                 title = "List UI elements",
                 annotations(title = "List UI elements", read_only_hint = true, idempotent_hint = true),
-                description = "Purpose: list just the actionable accessibility elements of the foreground app with their labels and tap coordinates. When to use vs siblings: use this to decide where to tap; use ui_describe when you need the full hierarchy instead of a filtered, flatter list. Behavior: calls the resolved target's ControlKit `device.dump.ui` method, then filters to elements that have both a visible rect and an identifying label/name/value/rawIdentifier. Prerequisites: a reachable ControlKit endpoint. Failure modes: errors if no target can be resolved, or if the resolved target is Android (Apple-only tool), or if the ControlKit call fails."
+                description = "Purpose: list just the actionable accessibility elements of an Apple app with their labels and tap coordinates. When to use vs siblings: use this to decide where to tap; use ui_describe when you need the full hierarchy instead of a filtered, flatter list. Behavior: attaches to bundle_id through the resolved target's ControlKit `device.dump.ui` method, then filters to elements that have both a visible rect and an identifying label/name/value/rawIdentifier. Prerequisites: a reachable ControlKit endpoint built from a version that implements `device.dump.ui`; bundle_id must identify an installed app. Failure modes: errors if no target can be resolved, if the resolved target is Android (Apple-only tool), if bundle_id is invalid, or if the ControlKit runner is outdated or unavailable."
             )]
             async fn ui_element_list(
                 &self,
@@ -1369,6 +1416,7 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                let bundle_id = Self::require_bundle_id($ui_element_list_name, args.bundle_id)?;
                 let target = Self::dispatch_apple_target(
                     $ui_element_list_name,
                     args.simulator_name,
@@ -1378,7 +1426,13 @@ macro_rules! xcrs_mcp_tools {
                 )?;
                 let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
                 let ui = controlkit
-                    .call("device.dump.ui", ::serde_json::json!({ "format": "json" }))
+                    .call(
+                        "device.dump.ui",
+                        ::serde_json::json!({
+                            "format": "json",
+                            "bundleId": bundle_id,
+                        }),
+                    )
                     .await
                     .map_err(|error| {
                         ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
@@ -1760,7 +1814,7 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::handler::server::wrapper::Parameters(
                     args,
                 ): ::rmcp::handler::server::wrapper::Parameters<
-                    $crate::mcp::UiTargetArgs,
+                    $crate::mcp::AppleTargetArgs,
                 >,
             ) -> ::std::result::Result<
                 ::rmcp::model::CallToolResult,
@@ -2135,6 +2189,70 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn ui_tools_keep_bundle_id_optional_in_the_input_schema() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        for tool_name in ["ui_describe", "ui_element_list"] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool.name.as_ref() == tool_name)
+                .unwrap_or_else(|| panic!("{tool_name} should be registered"));
+            let required = tool
+                .input_schema
+                .get("required")
+                .and_then(serde_json::Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+
+            assert!(tool.input_schema["properties"].get("bundle_id").is_some());
+            assert!(!required.contains(&serde_json::json!("bundle_id")));
+        }
+    }
+
+    #[test]
+    fn orientation_get_does_not_advertise_bundle_id() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        let tool = tools
+            .iter()
+            .find(|tool| tool.name.as_ref() == "orientation_get")
+            .expect("orientation_get should be registered");
+        let properties = tool.input_schema["properties"]
+            .as_object()
+            .expect("orientation_get properties should be an object");
+
+        for property in [
+            "simulator_name",
+            "simulator_udid",
+            "host",
+            "controlkit_port",
+        ] {
+            assert!(
+                properties.contains_key(property),
+                "orientation_get should advertise {property}"
+            );
+        }
+        assert!(!properties.contains_key("bundle_id"));
+    }
+
+    #[test]
+    fn ui_target_args_accept_omitted_bundle_id_and_validate_it_explicitly() {
+        let args: UiTargetArgs =
+            serde_json::from_value(serde_json::json!({})).expect("arguments should deserialize");
+
+        assert!(args.bundle_id.is_none());
+        let error = XcrsMcpServer::require_bundle_id("ui_describe", args.bundle_id)
+            .expect_err("missing bundle_id should fail validation");
+        assert!(error.to_string().contains("ui_describe requires bundle_id"));
+        assert_eq!(
+            XcrsMcpServer::require_bundle_id(
+                "ui_describe",
+                Some("  com.example.app  ".to_string())
+            )
+            .expect("non-empty bundle_id should pass validation"),
+            "com.example.app"
+        );
     }
 
     #[test]
