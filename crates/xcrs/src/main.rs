@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use xcrs::{IosAppTest, XcodeCommandLineTools};
+use xcrs::{AndroidDebugBridge, AndroidKit, IosAppTest, XcodeCommandLineTools};
 
 #[derive(Debug, Parser)]
 #[command(name = "xcrs")]
@@ -19,6 +19,8 @@ struct Cli {
 enum Commands {
     #[command(subcommand)]
     Simulator(SimulatorCommand),
+    #[command(subcommand)]
+    AndroidKit(AndroidKitCommand),
     IosAppTest {
         #[arg(long, conflicts_with = "simulator_udid")]
         simulator_name: Option<String>,
@@ -32,6 +34,30 @@ enum Commands {
         terminate_before_launch: bool,
         #[arg(long)]
         json: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AndroidKitCommand {
+    Install {
+        #[arg(long)]
+        serial: String,
+        #[arg(long)]
+        apk: PathBuf,
+    },
+    Start {
+        #[arg(long)]
+        serial: String,
+    },
+    Status {
+        #[arg(long)]
+        serial: String,
+        #[arg(long)]
+        json: bool,
+    },
+    Stop {
+        #[arg(long)]
+        serial: String,
     },
 }
 
@@ -63,6 +89,28 @@ async fn main() -> Result<()> {
     let tools = XcodeCommandLineTools::new();
 
     match command {
+        Commands::AndroidKit(AndroidKitCommand::Install { serial, apk }) => {
+            AndroidDebugBridge::new().install_androidkit(&serial, &apk)?;
+            println!("Installed XCRS AndroidKit on {serial}");
+        }
+        Commands::AndroidKit(AndroidKitCommand::Start { serial }) => {
+            AndroidDebugBridge::new().start_androidkit(&serial)?;
+            println!("Started XCRS AndroidKit on {serial}");
+        }
+        Commands::AndroidKit(AndroidKitCommand::Status { serial, json }) => {
+            let info = AndroidKit::new()
+                .call(serial.clone(), "device.info", serde_json::json!({}))
+                .await?;
+            if json {
+                println!("{}", serde_json::to_string_pretty(&info)?);
+            } else {
+                println!("XCRS AndroidKit is ready on {serial}");
+            }
+        }
+        Commands::AndroidKit(AndroidKitCommand::Stop { serial }) => {
+            AndroidDebugBridge::new().stop_androidkit(&serial)?;
+            println!("Stopped XCRS AndroidKit on {serial}");
+        }
         Commands::Simulator(SimulatorCommand::Find { name, json }) => {
             let simulator = tools.simctl().find_simulator_by_name(&name)?;
             if json {

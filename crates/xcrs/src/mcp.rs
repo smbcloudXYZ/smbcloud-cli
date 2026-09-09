@@ -314,6 +314,7 @@ pub fn android_capabilities() -> serde_json::Value {
         "app_install_launch": false,
         "ui_describe": false,
         "ui_element_list": false,
+        "ui_tap": false,
         "orientation_get": false,
         "orientation_set": false,
         "input_click": false,
@@ -602,9 +603,23 @@ pub struct UiTargetArgs {
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
-    /// Bundle identifier of the app whose accessibility hierarchy should be read.
+    /// Android device serial from `adb devices -l`.
+    #[serde(default)]
+    pub android_serial: Option<String>,
+    /// Target-neutral app identifier: an Apple bundle identifier or Android package name.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Backward-compatible alias for `app_id` on Apple targets.
     #[serde(default)]
     pub bundle_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct UiTapArgs {
+    #[serde(flatten)]
+    pub target: UiTargetArgs,
+    /// Exact accessible text, description, identifier, value, or hint to activate.
+    pub element: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -672,6 +687,7 @@ macro_rules! xcrs_mcp_tools {
         $url_open_name:literal,
         $ui_describe_name:literal,
         $ui_element_list_name:literal,
+        $ui_tap_name:literal,
         $input_tap_name:literal,
         $input_text_name:literal,
         $input_swipe_name:literal,
@@ -697,23 +713,29 @@ macro_rules! xcrs_mcp_tools {
                     .and_then(|slot| slot.clone())
             }
 
-            fn require_bundle_id(
+            fn require_app_id(
                 tool_name: &str,
+                app_id: Option<String>,
                 bundle_id: Option<String>,
             ) -> ::std::result::Result<String, ::rmcp::model::ErrorData> {
-                let bundle_id = bundle_id
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|bundle_id| !bundle_id.is_empty())
-                    .ok_or_else(|| {
+                let app_id = app_id.as_deref().map(str::trim).filter(|value| !value.is_empty());
+                let bundle_id = bundle_id.as_deref().map(str::trim).filter(|value| !value.is_empty());
+                if let (Some(app_id), Some(bundle_id)) = (app_id, bundle_id) {
+                    if app_id != bundle_id {
+                        return Err(::rmcp::model::ErrorData::invalid_request(
+                            format!("{tool_name} received conflicting app_id and bundle_id values."),
+                            None,
+                        ));
+                    }
+                }
+                app_id.or(bundle_id).map(str::to_string).ok_or_else(|| {
                         ::rmcp::model::ErrorData::invalid_request(
                             format!(
-                                "{tool_name} requires bundle_id. Pass the bundle identifier of the foreground Apple app."
+                                "{tool_name} requires app_id. Pass the Apple bundle identifier or Android package name of the foreground app."
                             ),
                             None,
                         )
-                    })?;
-                Ok(bundle_id.to_string())
+                    })
             }
 
             /// Validate and tag a target from per-call fields, falling back to the
@@ -947,7 +969,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $device_capabilities_name,
                 title = "Get device capabilities",
                 annotations(title = "Get device capabilities", read_only_hint = true, idempotent_hint = true),
-                description = "Purpose: report which automation actions the resolved target supports before driving it. When to use vs siblings: call this after device_select (or with explicit target fields) and before UI actions, to confirm e.g. that orientation control or UI introspection is available on this target. Behavior: for an Apple target, forwards to the target's ControlKit `device.capabilities` JSON-RPC method and returns its raw result alongside the resolved simulator (if any); for an Android target, returns a static capability description reflecting exactly the adb actions this crate implements (screen capture, app launch/terminate, URL open, tap/text/swipe/button), since adb has no capability-discovery RPC. Prerequisites: for Apple, a reachable ControlKit endpoint (local companion app for a simulator, or the given host) must be running; for Android, adb must be able to reach the resolved device. Failure modes: returns an error if no target can be resolved, or if the ControlKit call fails or times out."
+                description = "Purpose: report which automation actions the resolved target supports before driving it. When to use vs siblings: call this after device_select (or with explicit target fields) and before UI actions, to confirm e.g. that orientation control or UI introspection is available on this target. Behavior: for an Apple target, forwards to the target's ControlKit `device.capabilities` JSON-RPC method and returns its raw result alongside the resolved simulator (if any); for an Android target, starts from the adb actions this crate implements, then probes XCRS AndroidKit and enables semantic UI actions when its instrumentation runner is reachable. Prerequisites: for Apple, a reachable ControlKit endpoint (local companion app for a simulator, or the given host) must be running; for Android, adb must be able to reach the resolved device, and XCRS AndroidKit must be installed and started for semantic UI actions. Failure modes: returns an error if no target can be resolved, or if the ControlKit call fails or times out."
             )]
             async fn device_capabilities(
                 &self,
@@ -968,11 +990,34 @@ macro_rules! xcrs_mcp_tools {
                     args.android_serial,
                 )?;
                 match &target {
-                    $crate::mcp::SelectedTarget::Android { .. } => {
+                    $crate::mcp::SelectedTarget::Android { serial } => {
+                        let device = Self::android_device_for(serial.clone()).await?;
+                        let mut capabilities = $crate::mcp::android_capabilities();
+                        let androidkit = $crate::AndroidKit::new()
+                            .call(device.serial.clone(), "device.info", ::serde_json::json!({}))
+                            .await;
+                        if let Some(object) = capabilities.as_object_mut() {
+                            match androidkit {
+                                Ok(info) => {
+                                    object.insert("ui_describe".to_string(), ::serde_json::json!(true));
+                                    object.insert("ui_element_list".to_string(), ::serde_json::json!(true));
+                                    object.insert("ui_tap".to_string(), ::serde_json::json!(true));
+                                    object.insert("androidkit".to_string(), ::serde_json::json!({ "available": true, "info": info }));
+                                }
+                                Err(error) => {
+                                    object.insert("ui_tap".to_string(), ::serde_json::json!(false));
+                                    object.insert("androidkit".to_string(), ::serde_json::json!({
+                                        "available": false,
+                                        "setup": "Install and start XCRS AndroidKit with xcrs android-kit install/start.",
+                                        "error": error.to_string(),
+                                    }));
+                                }
+                            }
+                        }
                         Ok(::rmcp::model::CallToolResult::success(vec![
                             ::rmcp::model::ContentBlock::json(&::serde_json::json!({
                                 "platform": "android",
-                                "capabilities": $crate::mcp::android_capabilities(),
+                                "capabilities": capabilities,
                             }))?,
                         ]))
                     }
@@ -1357,7 +1402,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $ui_describe_name,
                 title = "Describe UI",
                 annotations(title = "Describe UI", read_only_hint = true, idempotent_hint = true),
-                description = "Purpose: return the full accessibility hierarchy of an Apple app as JSON. When to use vs siblings: use this to see everything on screen before tapping or typing; prefer ui_element_list when you only need actionable elements and their tap coordinates, since it is smaller and already filtered. Behavior: attaches to bundle_id through the resolved target's ControlKit `device.dump.ui` method and returns the raw hierarchy alongside the resolved simulator (if any). Prerequisites: a reachable ControlKit endpoint built from a version that implements `device.dump.ui`; bundle_id must identify an installed app. Failure modes: errors if no target can be resolved, if the resolved target is Android (Apple-only tool; ControlKit UI introspection has no Android equivalent), if bundle_id is invalid, or if the ControlKit runner is outdated or unavailable."
+                description = "Purpose: return the full accessibility hierarchy of the foreground app as JSON. When to use vs siblings: use this to see everything on screen before tapping or typing; prefer ui_element_list when you only need actionable elements and their tap coordinates, since it is smaller and already filtered. Behavior: for Apple targets, attaches to app_id (or bundle_id) through ControlKit `device.dump.ui`; for Android targets, attaches to app_id through XCRS AndroidKit. Prerequisites: Apple targets need a reachable ControlKit endpoint built from a version that implements `device.dump.ui`; Android targets need XCRS AndroidKit installed and started; app_id must identify the foreground app. Failure modes: errors if no target can be resolved, if app_id is invalid, if the platform runner is unavailable or outdated, or if the requested app is not foreground."
             )]
             async fn ui_describe(
                 &self,
@@ -1370,30 +1415,35 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
-                let bundle_id = Self::require_bundle_id($ui_describe_name, args.bundle_id)?;
-                let target = Self::dispatch_apple_target(
-                    $ui_describe_name,
+                let app_id = Self::require_app_id($ui_describe_name, args.app_id, args.bundle_id)?;
+                let target = Self::dispatch_target(
                     args.simulator_name,
                     args.simulator_udid,
                     args.host,
                     args.controlkit_port,
+                    args.android_serial,
                 )?;
-                let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
-                let result = controlkit
-                    .call(
-                        "device.dump.ui",
-                        ::serde_json::json!({
-                            "format": "json",
-                            "bundleId": bundle_id,
-                        }),
-                    )
-                    .await
-                    .map_err(|error| {
-                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
-                    })?;
+                let (simulator, result) = match &target {
+                    $crate::mcp::SelectedTarget::Android { serial } => {
+                        let device = Self::android_device_for(serial.clone()).await?;
+                        let ui = $crate::AndroidKit::new()
+                            .call(device.serial.clone(), "device.dump.ui", ::serde_json::json!({ "appId": app_id }))
+                            .await
+                            .map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        (None, ui)
+                    }
+                    _ => {
+                        let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
+                        let ui = controlkit.call("device.dump.ui", ::serde_json::json!({
+                            "format": "json", "bundleId": app_id,
+                        })).await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        (simulator, ui)
+                    }
+                };
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::json(&::serde_json::json!({
                         "simulator": simulator,
+                        "target": target,
                         "ui": result,
                     }))?,
                 ]))
@@ -1403,7 +1453,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $ui_element_list_name,
                 title = "List UI elements",
                 annotations(title = "List UI elements", read_only_hint = true, idempotent_hint = true),
-                description = "Purpose: list just the actionable accessibility elements of an Apple app with their labels and tap coordinates. When to use vs siblings: use this to decide where to tap; use ui_describe when you need the full hierarchy instead of a filtered, flatter list. Behavior: attaches to bundle_id through the resolved target's ControlKit `device.dump.ui` method, then filters to elements that have both a visible rect and an identifying label/name/value/rawIdentifier. Prerequisites: a reachable ControlKit endpoint built from a version that implements `device.dump.ui`; bundle_id must identify an installed app. Failure modes: errors if no target can be resolved, if the resolved target is Android (Apple-only tool), if bundle_id is invalid, or if the ControlKit runner is outdated or unavailable."
+                description = "Purpose: list just the actionable accessibility elements of the foreground app with labels and tap coordinates. When to use vs siblings: use this to decide where to tap; use ui_describe when you need the full hierarchy instead of a filtered, flatter list. Behavior: for Apple targets, attaches to app_id (or bundle_id) through ControlKit `device.dump.ui`; for Android targets, attaches to app_id through XCRS AndroidKit; then filters to elements that have both a visible rect and an identifying label/name/value/rawIdentifier. Prerequisites: Apple targets need a reachable ControlKit endpoint built from a version that implements `device.dump.ui`; Android targets need XCRS AndroidKit installed and started; app_id must identify the foreground app. Failure modes: errors if no target can be resolved, if app_id is invalid, if the platform runner is unavailable or outdated, or if the requested app is not foreground."
             )]
             async fn ui_element_list(
                 &self,
@@ -1416,33 +1466,73 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
-                let bundle_id = Self::require_bundle_id($ui_element_list_name, args.bundle_id)?;
-                let target = Self::dispatch_apple_target(
-                    $ui_element_list_name,
-                    args.simulator_name,
-                    args.simulator_udid,
-                    args.host,
-                    args.controlkit_port,
+                let app_id = Self::require_app_id($ui_element_list_name, args.app_id, args.bundle_id)?;
+                let target = Self::dispatch_target(
+                    args.simulator_name, args.simulator_udid, args.host, args.controlkit_port, args.android_serial,
                 )?;
-                let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
-                let ui = controlkit
-                    .call(
-                        "device.dump.ui",
-                        ::serde_json::json!({
-                            "format": "json",
-                            "bundleId": bundle_id,
-                        }),
-                    )
-                    .await
-                    .map_err(|error| {
-                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
-                    })?;
-                let elements = $crate::extract_controlkit_elements(&ui);
+                let (simulator, elements) = match &target {
+                    $crate::mcp::SelectedTarget::Android { serial } => {
+                        let device = Self::android_device_for(serial.clone()).await?;
+                        let ui = $crate::AndroidKit::new().call(
+                            device.serial.clone(), "device.dump.ui", ::serde_json::json!({ "appId": app_id }),
+                        ).await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        (None, $crate::extract_androidkit_elements(&ui))
+                    }
+                    _ => {
+                        let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
+                        let ui = controlkit.call("device.dump.ui", ::serde_json::json!({
+                            "format": "json", "bundleId": app_id,
+                        })).await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        (simulator, $crate::extract_controlkit_elements(&ui))
+                    }
+                };
                 Ok(::rmcp::model::CallToolResult::success(vec![
                     ::rmcp::model::ContentBlock::json(&::serde_json::json!({
                         "simulator": simulator,
+                        "target": target,
                         "elements": elements,
                     }))?,
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $ui_tap_name,
+                title = "Tap UI element",
+                annotations(title = "Tap UI element", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
+                description = "Purpose: activate one uniquely identified accessible element in the foreground app. When to use vs siblings: use this for semantic interaction by label or identifier; use input_tap only when you deliberately need raw screen coordinates. Behavior: accepts app_id (or Apple-compatible bundle_id) and an exact element value. Apple targets use ControlKit; Android targets use XCRS AndroidKit over adb forwarding. Prerequisites: the app is foreground and its platform runner is installed and reachable. Failure modes: returns an error when the app is not foreground, AndroidKit/ControlKit is unavailable, or zero or multiple elements match."
+            )]
+            async fn ui_tap(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(args): ::rmcp::handler::server::wrapper::Parameters<$crate::mcp::UiTapArgs>,
+            ) -> ::std::result::Result<::rmcp::model::CallToolResult, ::rmcp::model::ErrorData> {
+                let app_id = Self::require_app_id($ui_tap_name, args.target.app_id, args.target.bundle_id)?;
+                let element = args.element;
+                if element.trim().is_empty() {
+                    return Err(::rmcp::model::ErrorData::invalid_request("ui_tap requires a non-empty element.", None));
+                }
+                let target = Self::dispatch_target(
+                    args.target.simulator_name,
+                    args.target.simulator_udid,
+                    args.target.host,
+                    args.target.controlkit_port,
+                    args.target.android_serial,
+                )?;
+                match &target {
+                    $crate::mcp::SelectedTarget::Android { serial } => {
+                        let device = Self::android_device_for(serial.clone()).await?;
+                        $crate::AndroidKit::new().call(
+                            device.serial.clone(), "device.ui.tap", ::serde_json::json!({ "appId": app_id, "element": element }),
+                        ).await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                    }
+                    _ => {
+                        let (_, controlkit) = Self::controlkit_for_target(&target)?;
+                        controlkit.call("device.ui.tap", ::serde_json::json!({ "bundleId": app_id, "element": element }))
+                            .await
+                            .map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                    }
+                }
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!("Tapped '{}' on {}.", element, Self::target_label(&target, &None))),
                 ]))
             }
 
@@ -1900,6 +1990,7 @@ xcrs_mcp_tools!(
     "url_open",
     "ui_describe",
     "ui_element_list",
+    "ui_tap",
     "input_tap",
     "input_text",
     "input_swipe",
@@ -1922,7 +2013,7 @@ impl ServerHandler for XcrsMcpServer {
             .with_instructions(
                 "xcrs exposes a canonical cross-platform automation contract (device_list, \
                  device_select, device_capabilities, app_install_launch, screen_capture, \
-                 app_launch, app_terminate, url_open, ui_describe, ui_element_list, input_tap, \
+                 app_launch, app_terminate, url_open, ui_describe, ui_element_list, ui_tap, input_tap, \
                  input_text, input_swipe, input_button, input_click, input_spatial_tap, \
                  orientation_get, orientation_set) over Xcode/simctl/devicectl/ControlKit for \
                  Apple platforms and adb for Android.",
@@ -1946,9 +2037,9 @@ pub async fn serve() -> Result<()> {
 mod tests {
     use super::*;
 
-    /// The 18 canonical tool names shared by the standalone and embedded
+    /// The 19 canonical tool names shared by the standalone and embedded
     /// automation servers.
-    const CANONICAL_TOOL_NAMES: [&str; 18] = [
+    const CANONICAL_TOOL_NAMES: [&str; 19] = [
         "device_list",
         "device_select",
         "device_capabilities",
@@ -1959,6 +2050,7 @@ mod tests {
         "url_open",
         "ui_describe",
         "ui_element_list",
+        "ui_tap",
         "input_tap",
         "input_text",
         "input_swipe",
@@ -1969,7 +2061,7 @@ mod tests {
         "orientation_set",
     ];
 
-    /// Fully-qualified tool names this crate used before the 18-tool
+    /// Fully-qualified tool names this crate used before the canonical-tool
     /// consolidation (e.g. `xcrs_list_simulators`, `xcrs_use_target`,
     /// `xcrs_gesture`). None of these must reappear as a canonical name; a
     /// match here means a rename regressed back to pre-consolidation naming.
@@ -2005,7 +2097,7 @@ mod tests {
     /// types it does not own, so they intentionally advertise no
     /// `output_schema`. Only `device_select` returns structured content built
     /// entirely from types this module owns, so it is the only tool with one.
-    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 17] = [
+    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 18] = [
         "device_list",
         "device_capabilities",
         "app_install_launch",
@@ -2015,6 +2107,7 @@ mod tests {
         "url_open",
         "ui_describe",
         "ui_element_list",
+        "ui_tap",
         "input_tap",
         "input_text",
         "input_swipe",
@@ -2026,7 +2119,7 @@ mod tests {
     ];
 
     #[test]
-    fn tool_router_exposes_exactly_the_eighteen_canonical_tools() {
+    fn tool_router_exposes_exactly_the_nineteen_canonical_tools() {
         let tools = XcrsMcpServer::xcrs_tool_router().list_all();
 
         assert_eq!(
@@ -2192,9 +2285,9 @@ mod tests {
     }
 
     #[test]
-    fn ui_tools_keep_bundle_id_optional_in_the_input_schema() {
+    fn ui_tools_keep_app_identifiers_optional_in_the_input_schema() {
         let tools = XcrsMcpServer::xcrs_tool_router().list_all();
-        for tool_name in ["ui_describe", "ui_element_list"] {
+        for tool_name in ["ui_describe", "ui_element_list", "ui_tap"] {
             let tool = tools
                 .iter()
                 .find(|tool| tool.name.as_ref() == tool_name)
@@ -2207,7 +2300,9 @@ mod tests {
                 .unwrap_or_default();
 
             assert!(tool.input_schema["properties"].get("bundle_id").is_some());
+            assert!(tool.input_schema["properties"].get("app_id").is_some());
             assert!(!required.contains(&serde_json::json!("bundle_id")));
+            assert!(!required.contains(&serde_json::json!("app_id")));
         }
     }
 
@@ -2237,20 +2332,21 @@ mod tests {
     }
 
     #[test]
-    fn ui_target_args_accept_omitted_bundle_id_and_validate_it_explicitly() {
+    fn ui_target_args_accept_omitted_app_id_and_validate_it_explicitly() {
         let args: UiTargetArgs =
             serde_json::from_value(serde_json::json!({})).expect("arguments should deserialize");
 
         assert!(args.bundle_id.is_none());
-        let error = XcrsMcpServer::require_bundle_id("ui_describe", args.bundle_id)
-            .expect_err("missing bundle_id should fail validation");
-        assert!(error.to_string().contains("ui_describe requires bundle_id"));
+        let error = XcrsMcpServer::require_app_id("ui_describe", args.app_id, args.bundle_id)
+            .expect_err("missing app_id should fail validation");
+        assert!(error.to_string().contains("ui_describe requires app_id"));
         assert_eq!(
-            XcrsMcpServer::require_bundle_id(
+            XcrsMcpServer::require_app_id(
                 "ui_describe",
+                Some("  com.example.app  ".to_string()),
                 Some("  com.example.app  ".to_string())
             )
-            .expect("non-empty bundle_id should pass validation"),
+            .expect("matching app identifiers should pass validation"),
             "com.example.app"
         );
     }
