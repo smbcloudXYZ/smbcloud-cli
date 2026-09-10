@@ -22,11 +22,20 @@ release:
 	@$(MAKE) check-release-versions
 	@release_version=$$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1); \
 	if [ -z "$$release_version" ]; then echo "Unable to determine release version from crates/cli/Cargo.toml"; exit 1; fi; \
+	release_branch=$$(git branch --show-current); \
 	git add -A; \
 	git commit -m "Release $$release_version"; \
-	git tag "v$$release_version"; \
-	echo "Release $$release_version prepared locally."; \
-	echo "Next: git push origin development && git push origin v$$release_version"
+	if [ "$$release_branch" = "development" ]; then \
+		git tag "v$$release_version"; \
+		echo "Release $$release_version prepared locally."; \
+		echo "Next: git push origin development && git push origin v$$release_version"; \
+	else \
+		echo "Release $$release_version prepared on $$release_branch (not tagged)."; \
+		echo "The tag belongs on development, on the merge commit."; \
+		echo "Next: git push origin $$release_branch"; \
+		echo "  CI green: git checkout development && git merge --no-ff $$release_branch"; \
+		echo "  then:     git tag v$$release_version && git push origin development && git push origin v$$release_version"; \
+	fi
 
 sync-release-metadata:
 	@node ./scripts/sync-release-version.mjs
