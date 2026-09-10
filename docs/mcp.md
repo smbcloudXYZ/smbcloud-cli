@@ -276,8 +276,8 @@ them by server.
 2. Call `device_select` with the Apple simulator/runner details or Android adb
    serial. Later actions use that target by default.
 3. Call `device_capabilities` before choosing an input or inspection action.
-4. Use `screen_capture` or the Apple-only `ui_describe`/`ui_element_list` to
-   inspect the app, then drive it with the `input_*` tools.
+4. Use `screen_capture` or `ui_describe`/`ui_element_list` to
+   inspect the app, then use semantic `ui_tap` or the raw `input_*` tools.
 
 | Tool | Purpose |
 | --- | --- |
@@ -288,14 +288,15 @@ them by server.
 | `app_launch` / `app_terminate` | Start or stop an installed app on the selected target. |
 | `screen_capture` | Capture the selected target as a PNG image. |
 | `url_open` | Open an HTTP(S) URL or custom scheme where the target supports it. |
-| `ui_describe` / `ui_element_list` | Inspect the Apple ControlKit accessibility hierarchy. |
+| `ui_describe` / `ui_element_list` / `ui_tap` | Inspect or activate accessible elements through ControlKit (Apple) or AndroidKit (Android). |
 | `input_tap` / `input_text` / `input_swipe` / `input_button` | Drive shared touch, text, gesture, and button actions. |
 | `input_click` | Click a macOS target with pointer coordinates. |
 | `input_spatial_tap` | Perform a visionOS spatial tap. |
 | `orientation_get` / `orientation_set` | Read or update orientation where supported. |
 
-See [ControlKit runners](./controlkit.md) for Apple runner setup. Android tools
-require adb and an authorized device; Android TV app launches resolve the
+See [ControlKit runners](./controlkit.md) for Apple runner setup and
+[XCRS AndroidKit](./androidkit.md) for Android semantic UI automation. Android
+tools require adb and an authorized device; Android TV app launches resolve the
 device's Leanback launcher activity.
 
 #### Automation migration in 0.5.0

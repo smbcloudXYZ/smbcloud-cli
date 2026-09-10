@@ -12,6 +12,10 @@ pub mod mcp;
 const IOS_SIMULATOR_DESTINATION_PREFIX: &str = "platform=iOS Simulator,id=";
 const CONTROLKIT_METHOD_NOT_FOUND: i64 = -32601;
 const CONTROLKIT_RUNNER_INFO_TIMEOUT: Duration = Duration::from_secs(2);
+const ANDROIDKIT_CALL_TIMEOUT: Duration = Duration::from_secs(10);
+const ANDROIDKIT_START_TIMEOUT: Duration = Duration::from_secs(10);
+const ANDROIDKIT_START_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+const ANDROIDKIT_START_RETRY_DELAY: Duration = Duration::from_millis(100);
 
 pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -23,6 +27,82 @@ pub fn extract_controlkit_elements(root: &serde_json::Value) -> Vec<serde_json::
     let mut elements = Vec::new();
     collect_controlkit_elements(root, &mut elements);
     elements
+}
+
+/// Normalize actionable AndroidKit nodes into the public element-list shape.
+pub fn extract_androidkit_elements(root: &serde_json::Value) -> Vec<serde_json::Value> {
+    let mut elements = Vec::new();
+    if let Some(hierarchy) = root.get("hierarchy").and_then(serde_json::Value::as_array) {
+        for element in hierarchy {
+            collect_androidkit_elements(element, &mut elements);
+        }
+    } else {
+        collect_androidkit_elements(root, &mut elements);
+    }
+    elements
+}
+
+fn collect_androidkit_elements(element: &serde_json::Value, elements: &mut Vec<serde_json::Value>) {
+    let Some(object) = element.as_object() else {
+        return;
+    };
+
+    let rect = object.get("rect").and_then(serde_json::Value::as_object);
+    let has_visible_rect = object
+        .get("visible")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+        && rect
+            .and_then(|rect| {
+                Some((
+                    rect.get("x")?.as_f64()?,
+                    rect.get("y")?.as_f64()?,
+                    rect.get("width")?.as_f64()?,
+                    rect.get("height")?.as_f64()?,
+                ))
+            })
+            .is_some_and(|(_, _, width, height)| width > 0.0 && height > 0.0);
+    let text = object
+        .get("text")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let description = object
+        .get("contentDescription")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let resource_id = object
+        .get("resourceId")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let hint = object
+        .get("hint")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+
+    if has_visible_rect
+        && [text, description, resource_id, hint]
+            .iter()
+            .any(|value| !value.is_empty())
+    {
+        elements.push(serde_json::json!({
+            "type": object.get("role").cloned().unwrap_or(serde_json::Value::Null),
+            "label": if !text.is_empty() { text } else { description },
+            "name": resource_id,
+            "value": text,
+            "placeholderValue": hint,
+            "rawIdentifier": resource_id,
+            "rect": object.get("rect").cloned().unwrap_or(serde_json::Value::Null),
+            "enabled": object.get("enabled").cloned().unwrap_or(serde_json::Value::Bool(false)),
+            "selected": object.get("selected").cloned().unwrap_or(serde_json::Value::Bool(false)),
+            "hittable": object.get("clickable").cloned().unwrap_or(serde_json::Value::Bool(false)),
+        }));
+    }
+
+    if let Some(children) = object.get("children").and_then(serde_json::Value::as_array) {
+        for child in children {
+            collect_androidkit_elements(child, elements);
+        }
+    }
 }
 
 fn collect_controlkit_elements(element: &serde_json::Value, elements: &mut Vec<serde_json::Value>) {
@@ -609,6 +689,138 @@ pub struct AndroidDebugBridge {
     adb_path: PathBuf,
 }
 
+/// Client for an XCRS AndroidKit instrumentation runner forwarded over adb.
+#[derive(Debug, Clone)]
+pub struct AndroidKit {
+    client: reqwest::Client,
+    adb_path: PathBuf,
+}
+
+impl Default for AndroidKit {
+    fn default() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            adb_path: discover_adb_path(),
+        }
+    }
+}
+
+impl AndroidKit {
+    pub const PACKAGE_NAME: &'static str = "xyz.smbcloud.xcrs.androidkit";
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub async fn call(
+        &self,
+        serial: String,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.call_with_timeout(serial, method, params, ANDROIDKIT_CALL_TIMEOUT)
+            .await
+    }
+
+    fn with_adb_path(adb_path: impl Into<PathBuf>) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            adb_path: adb_path.into(),
+        }
+    }
+
+    async fn call_with_timeout(
+        &self,
+        serial: String,
+        method: &str,
+        params: serde_json::Value,
+        timeout: Duration,
+    ) -> Result<serde_json::Value> {
+        let bridge = AndroidDebugBridge::with_path(self.adb_path.clone());
+        let local_port = tokio::task::spawn_blocking({
+            let serial = serial.clone();
+            move || bridge.forward_androidkit(&serial)
+        })
+        .await
+        .context("AndroidKit forwarding task failed")??;
+
+        let response = self
+            .client
+            .post(format!("http://127.0.0.1:{local_port}/rpc"))
+            .timeout(timeout)
+            .json(&serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": method,
+                "params": params,
+            }))
+            .send()
+            .await
+            .with_context(|| format!("failed to connect to XCRS AndroidKit for {serial}"));
+
+        let cleanup_bridge = AndroidDebugBridge::with_path(self.adb_path.clone());
+        let cleanup_serial = serial.clone();
+        let cleanup = tokio::task::spawn_blocking(move || {
+            cleanup_bridge.remove_forward(&cleanup_serial, local_port)
+        })
+        .await
+        .context("AndroidKit forwarding cleanup task failed")?;
+        cleanup.context("failed to remove AndroidKit adb forward")?;
+
+        let response = response?;
+        let status = response.status();
+        let body: serde_json::Value = response
+            .json()
+            .await
+            .context("failed to decode AndroidKit JSON-RPC response")?;
+        if !status.is_success() {
+            return Err(anyhow!("AndroidKit returned HTTP {status}: {body}"));
+        }
+        if let Some(error) = body.get("error") {
+            let code = error
+                .get("code")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or_default();
+            let message = error
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("unknown JSON-RPC error");
+            return Err(anyhow!(
+                "AndroidKit method '{method}' failed ({code}): {message}"
+            ));
+        }
+        body.get("result")
+            .cloned()
+            .ok_or_else(|| anyhow!("AndroidKit response for '{method}' did not contain a result"))
+    }
+
+    async fn wait_until_ready(&self, serial: &str) -> Result<()> {
+        let deadline = tokio::time::Instant::now() + ANDROIDKIT_START_TIMEOUT;
+        loop {
+            match self
+                .call_with_timeout(
+                    serial.to_string(),
+                    "device.info",
+                    serde_json::json!({}),
+                    ANDROIDKIT_START_PROBE_TIMEOUT,
+                )
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(error) if tokio::time::Instant::now() >= deadline => {
+                    return Err(error).with_context(|| {
+                        format!(
+                            "AndroidKit did not become ready on {serial} within {} seconds",
+                            ANDROIDKIT_START_TIMEOUT.as_secs()
+                        )
+                    });
+                }
+                Err(_) => tokio::time::sleep(ANDROIDKIT_START_RETRY_DELAY).await,
+            }
+        }
+    }
+}
+
 impl Default for AndroidDebugBridge {
     fn default() -> Self {
         Self {
@@ -769,6 +981,79 @@ impl AndroidDebugBridge {
             }
         };
         self.run_shell(serial, &format!("input keyevent {keycode}"))?;
+        Ok(())
+    }
+
+    pub fn install_androidkit(&self, serial: &str, apk_path: &Path) -> Result<()> {
+        if !apk_path.is_file() {
+            return Err(anyhow!(
+                "AndroidKit APK does not exist: {}",
+                apk_path.display()
+            ));
+        }
+        run_command(
+            &self.adb_path,
+            [
+                "-s",
+                serial,
+                "install",
+                "-r",
+                apk_path
+                    .to_str()
+                    .ok_or_else(|| anyhow!("AndroidKit APK path is not valid UTF-8"))?,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub async fn start_androidkit(&self, serial: &str) -> Result<()> {
+        self.run_shell(
+            serial,
+            "nohup am instrument -w -r xyz.smbcloud.xcrs.androidkit/.AndroidKitInstrumentation >/dev/null 2>&1 &",
+        )
+        .with_context(|| format!("failed to start AndroidKit on {serial}"))?;
+        AndroidKit::with_adb_path(self.adb_path.clone())
+            .wait_until_ready(serial)
+            .await
+            .with_context(|| format!("failed to start AndroidKit on {serial}"))
+    }
+
+    pub fn stop_androidkit(&self, serial: &str) -> Result<()> {
+        self.run_shell(
+            serial,
+            &format!("am force-stop {}", AndroidKit::PACKAGE_NAME),
+        )?;
+        Ok(())
+    }
+
+    fn forward_androidkit(&self, serial: &str) -> Result<u16> {
+        let output = run_command(
+            &self.adb_path,
+            [
+                "-s",
+                serial,
+                "forward",
+                "tcp:0",
+                "localabstract:xcrs-androidkit",
+            ],
+        )?;
+        output
+            .trim()
+            .parse::<u16>()
+            .with_context(|| format!("adb returned an invalid AndroidKit forward port: {output:?}"))
+    }
+
+    fn remove_forward(&self, serial: &str, local_port: u16) -> Result<()> {
+        run_command(
+            &self.adb_path,
+            [
+                "-s",
+                serial,
+                "forward",
+                "--remove",
+                &format!("tcp:{local_port}"),
+            ],
+        )?;
         Ok(())
     }
 
@@ -1453,6 +1738,33 @@ mod tests {
         assert_eq!(elements.len(), 1);
         assert_eq!(elements[0]["label"], serde_json::json!("Play"));
         assert_eq!(elements[0]["hittable"], serde_json::json!(true));
+    }
+
+    #[test]
+    fn normalizes_visible_androidkit_elements() {
+        let hierarchy = serde_json::json!({
+            "hierarchy": [{
+                "role": "android.widget.Button",
+                "text": "Continue",
+                "hint": "",
+                "contentDescription": "",
+                "resourceId": "com.example:id/continue",
+                "enabled": true,
+                "clickable": true,
+                "selected": false,
+                "visible": true,
+                "rect": { "x": 10, "y": 20, "width": 100, "height": 40 }
+            }]
+        });
+
+        let elements = extract_androidkit_elements(&hierarchy);
+
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0]["label"], serde_json::json!("Continue"));
+        assert_eq!(
+            elements[0]["rawIdentifier"],
+            serde_json::json!("com.example:id/continue")
+        );
     }
 
     #[test]
