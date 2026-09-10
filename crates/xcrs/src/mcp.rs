@@ -608,6 +608,29 @@ pub struct UiTargetArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct UiTapArgs {
+    /// Exact Apple simulator name. Omit to use the target selected with
+    /// `device_select`.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Apple simulator UDID. Omit to use the target selected with `device_select`.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// ControlKit host of a physical device or remote runner. Omit for a local
+    /// simulator.
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Local ControlKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub controlkit_port: Option<u16>,
+    /// Bundle identifier of the foreground app that owns the element.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
+    /// Accessibility label, identifier, or value of the element to activate.
+    pub element: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct OrientationSetArgs {
     /// Exact Apple simulator name. Omit to use the target selected with
     /// `device_select`.
@@ -672,6 +695,7 @@ macro_rules! xcrs_mcp_tools {
         $url_open_name:literal,
         $ui_describe_name:literal,
         $ui_element_list_name:literal,
+        $ui_tap_name:literal,
         $input_tap_name:literal,
         $input_text_name:literal,
         $input_swipe_name:literal,
@@ -1447,6 +1471,60 @@ macro_rules! xcrs_mcp_tools {
             }
 
             #[::rmcp::tool(
+                name = $ui_tap_name,
+                title = "Tap UI element",
+                annotations(title = "Tap UI element", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
+                description = "Purpose: activate a named accessibility element in an Apple app as one action. When to use vs siblings: prefer this for a known button, link, or control; use ui_describe or ui_element_list when you first need to inspect the screen, and input_tap when you specifically need coordinate input. Behavior: forwards bundle_id and element to ControlKit `device.ui.tap`; the runner attaches to the foreground app, requires exactly one element matching its accessibility label, identifier, or value, and activates it with the platform interaction API. On tvOS, the matching element must already have focus and the runner presses Select. Prerequisites: a reachable ControlKit endpoint built from a version that implements `device.ui.tap`; bundle_id must identify the foreground app. Failure modes: errors if no Apple target can be resolved, the app is not foreground, no unique matching element is available, the tvOS element is not focused, or the runner is outdated or unavailable."
+            )]
+            async fn ui_tap(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::UiTapArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let bundle_id = Self::require_bundle_id($ui_tap_name, args.bundle_id)?;
+                let element = args.element.trim();
+                if element.is_empty() {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        format!("{} requires a non-empty element", $ui_tap_name),
+                        None,
+                    ));
+                }
+                let target = Self::dispatch_apple_target(
+                    $ui_tap_name,
+                    args.simulator_name,
+                    args.simulator_udid,
+                    args.host,
+                    args.controlkit_port,
+                )?;
+                let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
+                controlkit
+                    .call(
+                        "device.ui.tap",
+                        ::serde_json::json!({
+                            "bundleId": bundle_id,
+                            "element": element,
+                        }),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Activated {} on {}.",
+                        element,
+                        Self::target_label(&target, &simulator)
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
                 name = $input_tap_name,
                 title = "Tap (iOS/tvOS/Android)",
                 annotations(title = "Tap (iOS/tvOS/Android)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
@@ -1900,6 +1978,7 @@ xcrs_mcp_tools!(
     "url_open",
     "ui_describe",
     "ui_element_list",
+    "ui_tap",
     "input_tap",
     "input_text",
     "input_swipe",
@@ -1946,9 +2025,9 @@ pub async fn serve() -> Result<()> {
 mod tests {
     use super::*;
 
-    /// The 18 canonical tool names shared by the standalone and embedded
+    /// The 19 canonical tool names shared by the standalone and embedded
     /// automation servers.
-    const CANONICAL_TOOL_NAMES: [&str; 18] = [
+    const CANONICAL_TOOL_NAMES: [&str; 19] = [
         "device_list",
         "device_select",
         "device_capabilities",
@@ -1959,6 +2038,7 @@ mod tests {
         "url_open",
         "ui_describe",
         "ui_element_list",
+        "ui_tap",
         "input_tap",
         "input_text",
         "input_swipe",
@@ -2005,7 +2085,7 @@ mod tests {
     /// types it does not own, so they intentionally advertise no
     /// `output_schema`. Only `device_select` returns structured content built
     /// entirely from types this module owns, so it is the only tool with one.
-    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 17] = [
+    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 18] = [
         "device_list",
         "device_capabilities",
         "app_install_launch",
@@ -2015,6 +2095,7 @@ mod tests {
         "url_open",
         "ui_describe",
         "ui_element_list",
+        "ui_tap",
         "input_tap",
         "input_text",
         "input_swipe",
@@ -2026,7 +2107,7 @@ mod tests {
     ];
 
     #[test]
-    fn tool_router_exposes_exactly_the_eighteen_canonical_tools() {
+    fn tool_router_exposes_exactly_the_nineteen_canonical_tools() {
         let tools = XcrsMcpServer::xcrs_tool_router().list_all();
 
         assert_eq!(
