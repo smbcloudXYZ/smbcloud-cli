@@ -5,8 +5,6 @@ physical Apple devices, Android phones, and Android TV devices. XCRS combines
 Xcode, ControlKit, CoreDevice, and adb behind one target-aware automation
 workflow.
 
-https://mobilenext.ai/docs/architecture#how-a-single-action-flows
-
 MCP Registry name: `mcp-name: io.github.smbcloudXYZ/xcrs`
 
 ## Run the MCP server
