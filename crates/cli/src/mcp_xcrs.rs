@@ -39,6 +39,7 @@ xcrs::xcrs_mcp_tools!(
     "url_open",
     "ui_describe",
     "ui_element_list",
+    "ui_tap",
     "input_tap",
     "input_text",
     "input_swipe",
@@ -89,7 +90,7 @@ pub async fn serve() -> Result<()> {
 mod tests {
     use super::*;
 
-    const CANONICAL_TOOL_NAMES: [&str; 18] = [
+    const CANONICAL_TOOL_NAMES: [&str; 19] = [
         "device_list",
         "device_select",
         "device_capabilities",
@@ -100,6 +101,7 @@ mod tests {
         "url_open",
         "ui_describe",
         "ui_element_list",
+        "ui_tap",
         "input_tap",
         "input_text",
         "input_swipe",
@@ -111,7 +113,7 @@ mod tests {
     ];
 
     #[test]
-    fn automation_router_exposes_exactly_the_canonical_eighteen_tools() {
+    fn automation_router_exposes_exactly_the_canonical_nineteen_tools() {
         let tools = AutomationMcpServer::xcrs_tool_router().list_all();
         let mut names: Vec<&str> = tools.iter().map(|tool| tool.name.as_ref()).collect();
         names.sort_unstable();

@@ -119,11 +119,17 @@ expose the same unprefixed tool names.
 | `screen_capture` | Simulator or physical | Capture a PNG screenshot. Uses `simctl` for a simulator, or `devicectl device capture screenshot` when a `device` identifier is given. |
 | `ui_describe` | All UI-test runners | Read the accessibility hierarchy for the supplied `bundle_id`. |
 | `ui_element_list` | All UI-test runners | Read actionable elements with tap coordinates for the supplied `bundle_id`. |
+| `ui_tap` | All UI-test runners | Resolve and activate an accessibility element by label, identifier, or value. |
 
 UI introspection requires a recent ControlKit runner that implements
-`device.dump.ui`. Both UI tools require the target app's `bundle_id`; this
-lets XCTest attach to an already-running app instead of accidentally reading
-the ControlKit host app.
+`device.dump.ui`. The `ui_tap` action requires a runner that implements
+`device.ui.tap`; it resolves and activates the requested element inside the
+target app, so an MCP client does not need to turn accessibility coordinates
+into a second action. The label, identifier, or value must match exactly one
+element. On tvOS, that element must already have focus; use `input_button` to
+navigate focus before calling `ui_tap`. All three UI tools require the target
+app's `bundle_id`; this lets XCTest attach to an already-running app instead of
+accidentally reading the ControlKit host app.
 
 For a local macOS runner, omit simulator fields and pass `host` and
 `controlkit_port` when needed:
