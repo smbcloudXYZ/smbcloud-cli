@@ -957,21 +957,11 @@ impl AndroidDebugBridge {
     }
 
     pub fn start_androidkit(&self, serial: &str) -> Result<()> {
-        Command::new(&self.adb_path)
-            .args([
-                "-s",
-                serial,
-                "shell",
-                "am",
-                "instrument",
-                "-w",
-                "-r",
-                "xyz.smbcloud.xcrs.androidkit/.AndroidKitInstrumentation",
-            ])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .with_context(|| format!("failed to start AndroidKit on {serial}"))?;
+        self.run_shell(
+            serial,
+            "nohup am instrument -w -r xyz.smbcloud.xcrs.androidkit/.AndroidKitInstrumentation >/dev/null 2>&1 &",
+        )
+        .with_context(|| format!("failed to start AndroidKit on {serial}"))?;
         Ok(())
     }
 
