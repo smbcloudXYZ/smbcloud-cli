@@ -1499,16 +1499,19 @@ macro_rules! xcrs_mcp_tools {
                 name = $ui_tap_name,
                 title = "Tap UI element",
                 annotations(title = "Tap UI element", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
-                description = "Purpose: activate one uniquely identified accessible element in the foreground app. When to use vs siblings: use this for semantic interaction by label or identifier; use input_tap only when you deliberately need raw screen coordinates. Behavior: accepts app_id (or Apple-compatible bundle_id) and an exact element value. Apple targets use ControlKit; Android targets use XCRS AndroidKit over adb forwarding. Prerequisites: the app is foreground and its platform runner is installed and reachable. Failure modes: returns an error when the app is not foreground, AndroidKit/ControlKit is unavailable, or zero or multiple elements match."
+                description = "Purpose: activate one uniquely identified accessible element in the foreground app. When to use vs siblings: use this for semantic interaction by label or identifier; use ui_describe or ui_element_list when you first need to inspect the screen, and input_tap only when you deliberately need raw screen coordinates. Behavior: accepts app_id (or Apple-compatible bundle_id) and an exact element value, and requires exactly one match. Apple targets go through ControlKit `device.ui.tap`, which attaches to the foreground app and activates the match with the platform interaction API; on tvOS the match must already have focus and the runner presses Select. Android targets use XCRS AndroidKit over adb forwarding. Prerequisites: the app is foreground and its platform runner is installed and reachable. Failure modes: returns an error when the app is not foreground, AndroidKit/ControlKit is unavailable or outdated, zero or multiple elements match, or a tvOS element is not focused."
             )]
             async fn ui_tap(
                 &self,
                 ::rmcp::handler::server::wrapper::Parameters(args): ::rmcp::handler::server::wrapper::Parameters<$crate::mcp::UiTapArgs>,
             ) -> ::std::result::Result<::rmcp::model::CallToolResult, ::rmcp::model::ErrorData> {
                 let app_id = Self::require_app_id($ui_tap_name, args.target.app_id, args.target.bundle_id)?;
-                let element = args.element;
-                if element.trim().is_empty() {
-                    return Err(::rmcp::model::ErrorData::invalid_request("ui_tap requires a non-empty element.", None));
+                let element = args.element.trim().to_string();
+                if element.is_empty() {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        format!("{} requires a non-empty element.", $ui_tap_name),
+                        None,
+                    ));
                 }
                 let target = Self::dispatch_target(
                     args.target.simulator_name,
@@ -1517,22 +1520,24 @@ macro_rules! xcrs_mcp_tools {
                     args.target.controlkit_port,
                     args.target.android_serial,
                 )?;
-                match &target {
+                let label = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
                         $crate::AndroidKit::new().call(
                             device.serial.clone(), "device.ui.tap", ::serde_json::json!({ "appId": app_id, "element": element }),
                         ).await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        device.serial
                     }
                     _ => {
-                        let (_, controlkit) = Self::controlkit_for_target(&target)?;
+                        let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
                         controlkit.call("device.ui.tap", ::serde_json::json!({ "bundleId": app_id, "element": element }))
                             .await
                             .map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        Self::target_label(&target, &simulator)
                     }
-                }
+                };
                 Ok(::rmcp::model::CallToolResult::success(vec![
-                    ::rmcp::model::ContentBlock::text(format!("Tapped '{}' on {}.", element, Self::target_label(&target, &None))),
+                    ::rmcp::model::ContentBlock::text(format!("Tapped '{}' on {}.", element, label)),
                 ]))
             }
 
