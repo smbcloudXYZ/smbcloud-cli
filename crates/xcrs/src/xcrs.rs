@@ -12,6 +12,10 @@ pub mod mcp;
 const IOS_SIMULATOR_DESTINATION_PREFIX: &str = "platform=iOS Simulator,id=";
 const CONTROLKIT_METHOD_NOT_FOUND: i64 = -32601;
 const CONTROLKIT_RUNNER_INFO_TIMEOUT: Duration = Duration::from_secs(2);
+const ANDROIDKIT_CALL_TIMEOUT: Duration = Duration::from_secs(10);
+const ANDROIDKIT_START_TIMEOUT: Duration = Duration::from_secs(10);
+const ANDROIDKIT_START_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
+const ANDROIDKIT_START_RETRY_DELAY: Duration = Duration::from_millis(100);
 
 pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
@@ -689,12 +693,14 @@ pub struct AndroidDebugBridge {
 #[derive(Debug, Clone)]
 pub struct AndroidKit {
     client: reqwest::Client,
+    adb_path: PathBuf,
 }
 
 impl Default for AndroidKit {
     fn default() -> Self {
         Self {
             client: reqwest::Client::new(),
+            adb_path: discover_adb_path(),
         }
     }
 }
@@ -712,7 +718,25 @@ impl AndroidKit {
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value> {
-        let bridge = AndroidDebugBridge::new();
+        self.call_with_timeout(serial, method, params, ANDROIDKIT_CALL_TIMEOUT)
+            .await
+    }
+
+    fn with_adb_path(adb_path: impl Into<PathBuf>) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            adb_path: adb_path.into(),
+        }
+    }
+
+    async fn call_with_timeout(
+        &self,
+        serial: String,
+        method: &str,
+        params: serde_json::Value,
+        timeout: Duration,
+    ) -> Result<serde_json::Value> {
+        let bridge = AndroidDebugBridge::with_path(self.adb_path.clone());
         let local_port = tokio::task::spawn_blocking({
             let serial = serial.clone();
             move || bridge.forward_androidkit(&serial)
@@ -723,7 +747,7 @@ impl AndroidKit {
         let response = self
             .client
             .post(format!("http://127.0.0.1:{local_port}/rpc"))
-            .timeout(Duration::from_secs(10))
+            .timeout(timeout)
             .json(&serde_json::json!({
                 "jsonrpc": "2.0",
                 "id": 1,
@@ -734,7 +758,7 @@ impl AndroidKit {
             .await
             .with_context(|| format!("failed to connect to XCRS AndroidKit for {serial}"));
 
-        let cleanup_bridge = AndroidDebugBridge::new();
+        let cleanup_bridge = AndroidDebugBridge::with_path(self.adb_path.clone());
         let cleanup_serial = serial.clone();
         let cleanup = tokio::task::spawn_blocking(move || {
             cleanup_bridge.remove_forward(&cleanup_serial, local_port)
@@ -768,6 +792,32 @@ impl AndroidKit {
         body.get("result")
             .cloned()
             .ok_or_else(|| anyhow!("AndroidKit response for '{method}' did not contain a result"))
+    }
+
+    async fn wait_until_ready(&self, serial: &str) -> Result<()> {
+        let deadline = tokio::time::Instant::now() + ANDROIDKIT_START_TIMEOUT;
+        loop {
+            match self
+                .call_with_timeout(
+                    serial.to_string(),
+                    "device.info",
+                    serde_json::json!({}),
+                    ANDROIDKIT_START_PROBE_TIMEOUT,
+                )
+                .await
+            {
+                Ok(_) => return Ok(()),
+                Err(error) if tokio::time::Instant::now() >= deadline => {
+                    return Err(error).with_context(|| {
+                        format!(
+                            "AndroidKit did not become ready on {serial} within {} seconds",
+                            ANDROIDKIT_START_TIMEOUT.as_secs()
+                        )
+                    });
+                }
+                Err(_) => tokio::time::sleep(ANDROIDKIT_START_RETRY_DELAY).await,
+            }
+        }
     }
 }
 
@@ -956,13 +1006,16 @@ impl AndroidDebugBridge {
         Ok(())
     }
 
-    pub fn start_androidkit(&self, serial: &str) -> Result<()> {
+    pub async fn start_androidkit(&self, serial: &str) -> Result<()> {
         self.run_shell(
             serial,
             "nohup am instrument -w -r xyz.smbcloud.xcrs.androidkit/.AndroidKitInstrumentation >/dev/null 2>&1 &",
         )
         .with_context(|| format!("failed to start AndroidKit on {serial}"))?;
-        Ok(())
+        AndroidKit::with_adb_path(self.adb_path.clone())
+            .wait_until_ready(serial)
+            .await
+            .with_context(|| format!("failed to start AndroidKit on {serial}"))
     }
 
     pub fn stop_androidkit(&self, serial: &str) -> Result<()> {

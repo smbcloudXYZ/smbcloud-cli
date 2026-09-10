@@ -94,7 +94,7 @@ async fn main() -> Result<()> {
             println!("Installed XCRS AndroidKit on {serial}");
         }
         Commands::AndroidKit(AndroidKitCommand::Start { serial }) => {
-            AndroidDebugBridge::new().start_androidkit(&serial)?;
+            AndroidDebugBridge::new().start_androidkit(&serial).await?;
             println!("Started XCRS AndroidKit on {serial}");
         }
         Commands::AndroidKit(AndroidKitCommand::Status { serial, json }) => {
