@@ -1,6 +1,6 @@
 {
   "name": "@smbcloud/xcrs",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "keywords": [
     "xcrs",
     "mcp",
@@ -46,10 +46,10 @@
     "typescript": "^5.0.0"
   },
   "optionalDependencies": {
-    "@smbcloud/xcrs-darwin-arm64": "0.5.3",
-    "@smbcloud/xcrs-darwin-x64": "0.5.3",
-    "@smbcloud/xcrs-linux-x64": "0.5.3",
-    "@smbcloud/xcrs-windows-arm64": "0.5.3",
-    "@smbcloud/xcrs-windows-x64": "0.5.3"
+    "@smbcloud/xcrs-darwin-arm64": "0.5.4",
+    "@smbcloud/xcrs-darwin-x64": "0.5.4",
+    "@smbcloud/xcrs-linux-x64": "0.5.4",
+    "@smbcloud/xcrs-windows-arm64": "0.5.4",
+    "@smbcloud/xcrs-windows-x64": "0.5.4"
   }
 }
