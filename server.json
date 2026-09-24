@@ -19,6 +19,12 @@
     "source": "github",
     "id": "597171611"
   },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.smbcloud.xyz/v1/mcp"
+    }
+  ],
   "packages": [
     {
       "registryType": "npm",

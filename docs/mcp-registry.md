@@ -6,8 +6,9 @@ The repository publishes two MCP servers to the [official MCP Registry](https://
 - **`io.github.smbcloudXYZ/xcrs`** — **XCRS Mobile & TV Automation**, available through `xcrs --mcp` or `smb --mcp --scope automation` for Xcode, ControlKit, CoreDevice, and adb workflows.
 
 The registry is a metadata index — it doesn't host binaries. The smbCloud
-listing points at packages published to npm and NuGet, while the standalone
-XCRS listing points at the `xcrs` crate on crates.io.
+listing offers the hosted Streamable HTTP server as well as packages published
+to npm and NuGet, while the standalone XCRS listing points at the `xcrs` crate
+on crates.io.
 
 For running and configuring the server itself, see [MCP Server](./mcp.md).
 
@@ -48,7 +49,9 @@ Publishing under
 `smbcloud.xyz` plus an Ed25519 private key stored as a repo secret. OIDC needs
 no secret at all, so that's what we use.
 
-### Which packages are listed
+### Available connections
+
+- **Hosted** — Streamable HTTP at `https://api.smbcloud.xyz/v1/mcp`.
 
 - **npm** — `@smbcloud/cli`, launched as `npx @smbcloud/cli --mcp`. The package
   declares a single binary (`smb`), so `npx` resolves it despite the name
