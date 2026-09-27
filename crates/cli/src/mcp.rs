@@ -29,10 +29,8 @@ use {
     anyhow::{anyhow, Result},
     rmcp::{
         handler::server::{wrapper::Parameters, ServerHandler},
-        model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerInfo},
-        tool, tool_handler, tool_router,
-        transport::stdio,
-        ErrorData, ServiceExt,
+        model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig},
+        tool, tool_handler, tool_router, ErrorData, ServiceExt,
     },
     schemars::JsonSchema,
     serde::Deserialize,
@@ -982,14 +980,14 @@ impl SmbMcpServer {
 
 #[tool_handler(router = Self::cloud_tool_router())]
 impl ServerHandler for SmbMcpServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         // `Implementation` is `#[non_exhaustive]`, so start from the build-env
         // default and override the identity fields to report `smb`, not `rmcp`.
         let mut server_info = Implementation::from_build_env();
         server_info.name = "smb".to_string();
         server_info.version = env!("CARGO_PKG_VERSION").to_string();
 
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(server_info)
             .with_instructions(
                 "smbCloud CLI exposed as MCP tools. Authentication uses the token stored by \
@@ -1008,7 +1006,7 @@ pub async fn serve(environment: Environment, scope: McpScope) -> Result<()> {
     }
 
     let running = SmbMcpServer::new(environment)
-        .serve(stdio())
+        .serve(xcrs::mcp::compatible_stdio().await?)
         .await
         .map_err(|e| anyhow!("Failed to start MCP server: {e}"))?;
     running

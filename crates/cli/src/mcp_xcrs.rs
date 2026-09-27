@@ -9,8 +9,7 @@
 use {
     anyhow::{anyhow, Result},
     rmcp::{
-        model::{Implementation, ServerCapabilities, ServerInfo},
-        transport::stdio,
+        model::{Implementation, ServerCapabilities, ServerConfig},
         ServerHandler, ServiceExt,
     },
 };
@@ -52,14 +51,14 @@ xcrs::xcrs_mcp_tools!(
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]
 impl ServerHandler for AutomationMcpServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         // `Implementation` is `#[non_exhaustive]`, so start from the build-env
         // default and override the identity fields.
         let mut server_info = Implementation::from_build_env();
         server_info.name = "XCRS Mobile & TV Automation".to_string();
         server_info.version = env!("CARGO_PKG_VERSION").to_string();
 
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(server_info)
             .with_instructions(
                 "Cross-platform mobile and TV app automation over Apple simulators/ControlKit \
@@ -76,7 +75,7 @@ impl ServerHandler for AutomationMcpServer {
 /// Run the automation MCP server over stdio until the client disconnects.
 pub async fn serve() -> Result<()> {
     let running = AutomationMcpServer::new()
-        .serve(stdio())
+        .serve(xcrs::mcp::compatible_stdio().await?)
         .await
         .map_err(|error| anyhow!("Failed to start automation MCP server: {error}"))?;
     running

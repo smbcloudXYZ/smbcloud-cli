@@ -17,14 +17,59 @@
 use {
     anyhow::{anyhow, Result},
     rmcp::{
-        model::{Implementation, ServerCapabilities, ServerInfo},
-        transport::stdio,
+        model::{Implementation, ServerCapabilities, ServerConfig},
         ServerHandler, ServiceExt,
     },
     schemars::JsonSchema,
     serde::{Deserialize, Serialize},
-    std::path::PathBuf,
+    serde_json::{json, Value},
+    std::{io::Cursor, path::PathBuf},
+    tokio::io::{
+        stdin, stdout, AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, Stdout,
+    },
 };
+
+type StdioReader = Box<dyn AsyncRead + Send + Unpin>;
+
+/// Preserve compatibility with clients that send the legacy, metadata-free
+/// `server/discover` probe before falling back to `initialize`.
+pub async fn compatible_stdio() -> Result<(StdioReader, Stdout)> {
+    let mut reader = BufReader::new(stdin());
+    let mut first_line = String::new();
+    reader.read_line(&mut first_line).await?;
+
+    let mut output = stdout();
+    if let Some(response) = legacy_discovery_response(&first_line) {
+        output.write_all(&response).await?;
+        output.flush().await?;
+        return Ok((Box::new(reader), output));
+    }
+
+    let input = Cursor::new(first_line.into_bytes()).chain(reader);
+    Ok((Box::new(input), output))
+}
+
+fn legacy_discovery_response(line: &str) -> Option<Vec<u8>> {
+    let request: Value = serde_json::from_str(line).ok()?;
+    if request.get("method")?.as_str()? != "server/discover"
+        || request.get("params")?.get("_meta").is_some()
+    {
+        return None;
+    }
+
+    let id = request.get("id")?.clone();
+    let mut response = serde_json::to_vec(&json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": {
+            "code": -32601,
+            "message": "Method 'server/discover' is not available without request metadata."
+        }
+    }))
+    .ok()?;
+    response.push(b'\n');
+    Some(response)
+}
 
 /// A validated, unambiguous automation target: exactly one of an Apple simulator, an
 /// Apple ControlKit host (physical device, remote runner, or local Mac), or an
@@ -2008,12 +2053,12 @@ xcrs_mcp_tools!(
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]
 impl ServerHandler for XcrsMcpServer {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self) -> ServerConfig {
         let mut implementation = Implementation::from_build_env();
         implementation.name = "xcrs".to_string();
         implementation.version = env!("CARGO_PKG_VERSION").to_string();
 
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(implementation)
             .with_instructions(
                 "xcrs exposes a canonical cross-platform automation contract (device_list, \
@@ -2028,7 +2073,7 @@ impl ServerHandler for XcrsMcpServer {
 
 pub async fn serve() -> Result<()> {
     let running = XcrsMcpServer::new()
-        .serve(stdio())
+        .serve(compatible_stdio().await?)
         .await
         .map_err(|error| anyhow!("Failed to start xcrs MCP server: {error}"))?;
     running
@@ -2041,6 +2086,28 @@ pub async fn serve() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_discovery_probe_receives_method_not_found() {
+        let response = legacy_discovery_response(
+            r#"{"jsonrpc":"2.0","id":0,"method":"server/discover","params":{}}"#,
+        )
+        .expect("legacy discovery probe should receive a fallback response");
+        let response: Value =
+            serde_json::from_slice(&response).expect("response should be valid JSON");
+
+        assert_eq!(response["id"], 0);
+        assert_eq!(response["error"]["code"], -32601);
+    }
+
+    #[test]
+    fn modern_discovery_probe_passes_through() {
+        let response = legacy_discovery_response(
+            r#"{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}"#,
+        );
+
+        assert!(response.is_none());
+    }
 
     /// The 19 canonical tool names shared by the standalone and embedded
     /// automation servers.
