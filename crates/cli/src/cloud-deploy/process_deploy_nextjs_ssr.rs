@@ -220,7 +220,12 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
     // With stdio captured pnpm has no TTY, so when it needs to recreate
     // node_modules (store or linker change) it aborts with
     // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY instead of prompting.
-    if package_manager == "pnpm" {
+    // CI=true would also skip the prompt, but it turns on --frozen-lockfile.
+    // Matching on the file stem also catches full paths and Windows `pnpm.cmd`.
+    let is_pnpm = std::path::Path::new(package_manager)
+        .file_stem()
+        .is_some_and(|stem| stem.eq_ignore_ascii_case("pnpm"));
+    if is_pnpm {
         install_command.arg("--config.confirm-modules-purge=false");
     }
     let install_output = install_command.current_dir(source).output().map_err(|e| {
