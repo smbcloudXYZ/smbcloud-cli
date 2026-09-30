@@ -85,11 +85,11 @@ pub struct Project {
     pub created_at: DateTime<Utc>,
     #[serde(default = "default_datetime")]
     pub updated_at: DateTime<Utc>,
-    /// Deployment kind, e.g. "vite-spa", "nextjs-ssr", or "rust".
+    /// Deployment kind, e.g. "vite-spa", "sveltekit", "nextjs-ssr", or "rust".
     pub kind: Option<String>,
     /// Local source directory to build from, e.g. "frontend/connected-devices"
     /// or a Rust crate root like ".".
-    /// Used by local-build deploys such as vite-spa, nextjs-ssr, and rust.
+    /// Used by local-build deploys such as vite-spa, sveltekit, nextjs-ssr, and rust.
     /// Distinct from `path`, which is the remote destination on the server.
     pub source: Option<String>,
     /// Build output directory relative to `source`, e.g. "dist".

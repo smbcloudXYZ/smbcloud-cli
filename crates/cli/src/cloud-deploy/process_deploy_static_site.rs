@@ -18,13 +18,53 @@ use {
 };
 
 pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result<CommandResult> {
-    // Resolve required SPA fields from the project config.
     // `source` is the local directory containing the vite project (e.g. "frontend/connected-devices/").
     // `path` is the remote destination on the server, consumed by rsync_deploy.
-    let project_path = config.project.source.as_deref().unwrap_or(".");
-    let output_dir = config.project.output.as_deref().unwrap_or("dist");
-    let package_manager = config.project.package_manager.as_deref().unwrap_or("pnpm");
+    let strategy = smbcloud_deploy::ViteSpaBuild {
+        project_path: config.project.source.as_deref().unwrap_or(".").to_string(),
+        output_dir: config
+            .project
+            .output
+            .as_deref()
+            .unwrap_or("dist")
+            .to_string(),
+        package_manager: config
+            .project
+            .package_manager
+            .as_deref()
+            .unwrap_or("pnpm")
+            .to_string(),
+    };
+    deploy_static_build(env, config, &strategy).await
+}
 
+pub async fn process_deploy_sveltekit(env: Environment, config: Config) -> Result<CommandResult> {
+    // adapter-static writes to `build/` unless svelte.config.js sets `pages`.
+    let strategy = smbcloud_deploy::SvelteKitBuild {
+        project_path: config.project.source.as_deref().unwrap_or(".").to_string(),
+        output_dir: config
+            .project
+            .output
+            .as_deref()
+            .unwrap_or("build")
+            .to_string(),
+        package_manager: config
+            .project
+            .package_manager
+            .as_deref()
+            .unwrap_or("pnpm")
+            .to_string(),
+    };
+    deploy_static_build(env, config, &strategy).await
+}
+
+/// Builds locally with `strategy`, then rsyncs the output to the project's
+/// remote `path` for nginx to serve as static files.
+async fn deploy_static_build(
+    env: Environment,
+    config: Config,
+    strategy: &dyn BuildStrategy,
+) -> Result<CommandResult> {
     // Fetch user for SSH key and deployment record.
     let access_token = crate::token::get_smb_token::get_smb_token(env)?;
     let user = me(env, client(), &access_token).await?;
@@ -32,16 +72,11 @@ pub async fn process_deploy_vite_spa(env: Environment, config: Config) -> Result
     // ── Step 1: build locally (engine BuildStrategy) ─────────────────────────
 
     let reporter = crate::ui::reporter::SpinnerReporter::new();
-    let artifact = smbcloud_deploy::ViteSpaBuild {
-        project_path: project_path.to_string(),
-        output_dir: output_dir.to_string(),
-        package_manager: package_manager.to_string(),
-    }
-    .build(&reporter)?;
+    let artifact = strategy.build(&reporter)?;
 
     // ── Step 2: record deployment as Started ─────────────────────────────────
     //
-    // A pure rsync SPA deploy has no git commit hash; use a UTC timestamp as a
+    // A pure rsync static deploy has no git commit hash; use a UTC timestamp as a
     // lightweight, non-empty identifier for the API record.
 
     let deploy_ref = Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
