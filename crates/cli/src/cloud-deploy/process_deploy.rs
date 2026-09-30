@@ -9,8 +9,8 @@ use {
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
             process_deploy_rust::process_deploy_rust,
+            process_deploy_static_site::{process_deploy_sveltekit, process_deploy_vite_spa},
             process_deploy_swift::process_deploy_swift,
-            process_deploy_vite_spa::process_deploy_vite_spa,
             remote_messages::{build_next_app, start_server},
         },
         token::{get_smb_token::get_smb_token, is_logged_in::is_logged_in},
@@ -142,6 +142,11 @@ pub async fn process_deploy(
     // The kind field in config.toml drives this: kind = "vite-spa".
     if config.project.kind.as_deref() == Some("vite-spa") {
         return process_deploy_vite_spa(env, config).await;
+    }
+
+    // Route SvelteKit projects built with adapter-static: install + build, rsync the output.
+    if config.project.kind.as_deref() == Some("sveltekit") {
+        return process_deploy_sveltekit(env, config).await;
     }
 
     // Route Next.js SSR projects: pnpm install + build, rsync 8 items, SSH pm2 restart.

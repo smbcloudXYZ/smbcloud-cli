@@ -22,7 +22,7 @@ pub mod report;
 pub mod runner;
 pub mod transport;
 
-pub use build::{BuildArtifact, BuildStrategy, ViteSpaBuild};
+pub use build::{BuildArtifact, BuildStrategy, SvelteKitAdapter, SvelteKitBuild, ViteSpaBuild};
 pub use error::DeployError;
 pub use report::{NoopReporter, Reporter};
 pub use runner::detect_runner;

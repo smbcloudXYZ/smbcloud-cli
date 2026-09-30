@@ -130,7 +130,7 @@ Two cross-cutting globals are resolved once in `main` before any handler runs:
 
 ## Deploy subsystem (`crates/cli/src/deploy/`)
 
-The most involved area. `process_deploy.rs` loads `.smb/config.toml` (running interactive `setup_project` if missing), overlays server-side config, validates project access, then **dispatches by `config.project.kind`** to a per-stack path: `vite-spa`, `nextjs-ssr`, `rails`, `rust`, `swift` each have their own `process_deploy_*.rs`. If `kind` is unset it falls back to `deployment_method`: `Rsync` (build locally, upload over rsync, restart over SSH) or `Git` (push to a remote git hook), with `detect_runner.rs` sniffing the framework from `package.json`/`Gemfile`/`Package.swift`/`Cargo.toml`.
+The most involved area. `process_deploy.rs` loads `.smb/config.toml` (running interactive `setup_project` if missing), overlays server-side config, validates project access, then **dispatches by `config.project.kind`** to a per-stack path: `vite-spa` and `sveltekit` (SvelteKit with `adapter-static`) share `process_deploy_static_site.rs`; `nextjs-ssr`, `rails`, `rust`, `swift` each have their own `process_deploy_*.rs`. If `kind` is unset it falls back to `deployment_method`: `Rsync` (build locally, upload over rsync, restart over SSH) or `Git` (push to a remote git hook), with `detect_runner.rs` sniffing the framework from `package.json`/`Gemfile`/`Package.swift`/`Cargo.toml`.
 
 **Monorepo**: `runner = Monorepo` with a `[[projects]]` array in config; `smb deploy --project <name>` (or an interactive picker) swaps `config.project` to the named sub-project before the dispatch above. `migrate.rs`/`smb migrate` pushes local deploy fields up to the server.
 
