@@ -13,6 +13,10 @@ pub struct AuthApp {
     // arg — the two are intentionally different types.
     pub project_id: Option<i32>,
     pub support_email: Option<String>,
+    pub apple_oauth_enabled: Option<bool>,
+    pub apple_oauth_client_id: Option<String>,
+    pub apple_oauth_configured: Option<bool>,
+    pub apple_oauth_secret_present: Option<bool>,
     #[serde(with = "ar_date_format")]
     pub created_at: DateTime<Utc>,
     #[serde(with = "ar_date_format")]
@@ -77,6 +81,35 @@ pub struct AuthAppClientCreate {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn auth_app_apple_settings_are_optional_and_typed() -> Result<(), serde_json::Error> {
+        let mut payload = json!({
+            "id": "app-id",
+            "name": "Example",
+            "created_at": "2026-09-30T08:00:00.000Z",
+            "updated_at": "2026-09-30T08:00:00.000Z"
+        });
+        let legacy: AuthApp = serde_json::from_value(payload.clone())?;
+        assert_eq!(legacy.apple_oauth_enabled, None);
+        assert_eq!(legacy.apple_oauth_client_id, None);
+        assert_eq!(legacy.apple_oauth_configured, None);
+        assert_eq!(legacy.apple_oauth_secret_present, None);
+
+        payload["apple_oauth_enabled"] = json!(true);
+        payload["apple_oauth_client_id"] = json!("com.example.web");
+        payload["apple_oauth_configured"] = json!(true);
+        payload["apple_oauth_secret_present"] = json!(true);
+        let configured: AuthApp = serde_json::from_value(payload)?;
+        assert_eq!(configured.apple_oauth_enabled, Some(true));
+        assert_eq!(
+            configured.apple_oauth_client_id.as_deref(),
+            Some("com.example.web")
+        );
+        assert_eq!(configured.apple_oauth_configured, Some(true));
+        assert_eq!(configured.apple_oauth_secret_present, Some(true));
+        Ok(())
+    }
     #[test]
     fn test_auth_app_create() {
         let auth_app_create = AuthAppCreate {
