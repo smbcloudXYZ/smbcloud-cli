@@ -2624,6 +2624,7 @@ name = "smbcloud-deploy"
 version = "0.5.4"
 dependencies = [
  "anyhow",
+ "serde_json",
  "smbcloud-model",
  "smbcloud-utils",
  "tempfile",
