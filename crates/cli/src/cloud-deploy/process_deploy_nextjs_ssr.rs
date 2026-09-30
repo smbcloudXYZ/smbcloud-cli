@@ -215,16 +215,20 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
 
     // Capture stdout/stderr so pnpm's output does not interleave with the
     // spinner animation. On failure the captured output is printed for the user.
-    let install_output = Command::new(package_manager)
-        .args(["install", "--ignore-scripts"])
-        .current_dir(source)
-        .output()
-        .map_err(|e| {
-            anyhow!(fail_message(&format!(
-                "Failed to spawn '{} install': {}",
-                package_manager, e
-            )))
-        })?;
+    let mut install_command = Command::new(package_manager);
+    install_command.args(["install", "--ignore-scripts"]);
+    // With stdio captured pnpm has no TTY, so when it needs to recreate
+    // node_modules (store or linker change) it aborts with
+    // ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY instead of prompting.
+    if package_manager == "pnpm" {
+        install_command.arg("--config.confirm-modules-purge=false");
+    }
+    let install_output = install_command.current_dir(source).output().map_err(|e| {
+        anyhow!(fail_message(&format!(
+            "Failed to spawn '{} install': {}",
+            package_manager, e
+        )))
+    })?;
 
     if !install_output.status.success() {
         install_spinner.stop_and_persist(&fail_symbol(), fail_message("Install failed."));
