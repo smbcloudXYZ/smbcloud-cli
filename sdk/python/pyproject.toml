@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 dynamic = ["version"]
 license = { file = "LICENSE" }
-authors = [{ name = "Seto Elkahfi", email = "hej@setoelkahfi.se" }]
+authors = [{ name = "Seto Elkahfi", email = "seto@smbcloud.xyz" }]
 keywords = ["smbcloud", "auth", "sdk", "python", "rust"]
 classifiers = [
     "Development Status :: 4 - Beta",

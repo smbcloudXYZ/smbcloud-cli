@@ -1,5 +1,5 @@
 use {
-    crate::{app_auth::AuthApp, ar_date_format, runner::Runner},
+    crate::{app_auth::AuthApp, ar_date_format, runner::Runner, tenant::Tenant},
     chrono::{DateTime, Utc},
     serde::{Deserialize, Serialize},
     serde_repr::{Deserialize_repr, Serialize_repr},
@@ -35,7 +35,7 @@ impl Display for DeploymentMethod {
     }
 }
 
-#[derive(Deserialize, Debug, Serialize, Clone)]
+#[derive(Deserialize, Debug, Serialize, Clone, Default)]
 pub struct Config {
     /// Legacy project field — kept for backward compatibility during migration.
     pub current_project: Option<Project>,
@@ -43,6 +43,11 @@ pub struct Config {
     #[serde(default)]
     pub current_frontend_app: Option<crate::frontend_app::FrontendApp>,
     pub current_auth_app: Option<AuthApp>,
+    /// The tenant selected with `smb tenant use`. Determines which workspace
+    /// tenant-scoped operations (e.g. `smb project new`) target — the API
+    /// falls back to the user's personal tenant when this isn't set.
+    #[serde(default)]
+    pub current_tenant: Option<Tenant>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -50,6 +55,10 @@ pub struct Config {
 pub struct Project {
     /// Umbrella smbCloud workspace ID.
     pub id: i32,
+    /// The tenant this project belongs to. Optional for older API responses
+    /// that predate the tenant/workspace split.
+    #[serde(default)]
+    pub tenant_id: Option<i64>,
     #[serde(default)]
     pub name: String,
     #[serde(default)]
@@ -66,17 +75,21 @@ pub struct Project {
     /// Repo ID backing this deploy target. Optional until the API exposes it
     /// consistently to the CLI.
     pub deploy_repo_id: Option<i64>,
+    /// Approved rsync host override for deployments that do not use the
+    /// runner's default static tier.
+    #[serde(default)]
+    pub rsync_host: Option<String>,
     /// Repo-relative app path for monorepo targets, e.g. "apps/web/console".
     pub source_path: Option<String>,
     #[serde(default = "default_datetime")]
     pub created_at: DateTime<Utc>,
     #[serde(default = "default_datetime")]
     pub updated_at: DateTime<Utc>,
-    /// Deployment kind, e.g. "vite-spa", "nextjs-ssr", or "rust".
+    /// Deployment kind, e.g. "vite-spa", "sveltekit", "nextjs-ssr", or "rust".
     pub kind: Option<String>,
     /// Local source directory to build from, e.g. "frontend/connected-devices"
     /// or a Rust crate root like ".".
-    /// Used by local-build deploys such as vite-spa, nextjs-ssr, and rust.
+    /// Used by local-build deploys such as vite-spa, sveltekit, nextjs-ssr, and rust.
     /// Distinct from `path`, which is the remote destination on the server.
     pub source: Option<String>,
     /// Build output directory relative to `source`, e.g. "dist".
@@ -90,6 +103,13 @@ pub struct Project {
     /// Populated from the server-side App record; not written to `.smb/config.toml`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pm2_env: Option<std::collections::HashMap<String, serde_json::Value>>,
+    /// Runtime supervisor for `nextjs-ssr` apps: `"pm2"` (default) or `"systemd"`.
+    /// When `"systemd"`, the deploy restart step drives a git-owned
+    /// `systemctl --user restart <pm2_app>.service` (created by the
+    /// pm2-to-systemd migration) instead of `pm2 delete`/`pm2 start`.
+    /// `pm2_app` is still used as the unit name.
+    #[serde(default)]
+    pub process_manager: Option<String>,
     /// Port the standalone server binds to (default: 3000). Must match nginx upstream configuration.
     #[serde(default)]
     pub port: Option<u16>,

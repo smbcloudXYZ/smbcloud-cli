@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.name = 'smbcloud-auth'
   spec.version = Auth::VERSION
   spec.authors = ['Seto Elkahfi']
-  spec.email = ['hej@setoelkahfi.se']
+  spec.email = ['seto@smbcloud.xyz']
 
   spec.summary = 'Ruby bindings for the smbCloud Auth SDK.'
   spec.description = 'Ruby bindings for smbCloud Auth, powered by the shared Rust SDK and a native Magnus extension.'

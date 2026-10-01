@@ -1,30 +1,89 @@
+---
+title: Mail
+description: smbCloud Mail is the transactional email service. Send from your own verified domain over the API, read delivery status for every message, and route inbound mail where it needs to go.
+---
+
 # Mail
 
-Mail is the domain mail-routing product. It's forwarding-first today, and it can
-now store inbound message history too.
+Mail is the email service for your product. Send transactional email from your own
+domain over the API, then read what happened to each message. The same domain also
+routes inbound mail, so receipts go out and replies come back through one place.
 
-## What you can do
+## Send transactional email
+
+Mint an API key for your Mail app in the console. Keys look like `smb_mail_…`, and
+sending is scoped to the domain that Mail app has verified.
+
+```sh
+curl -X POST https://api.smbcloud.xyz/v1/email/messages \
+  -H "Authorization: Bearer smb_mail_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "billing@example.com",
+    "to": ["customer@acme.com"],
+    "subject": "Your receipt",
+    "html": "<h1>Thanks!</h1>",
+    "idempotency_key": "receipt-2026-0001"
+  }'
+```
+
+At least one of `html` or `text` is required, and `from` must sit on the verified
+domain. Messages also take `cc`, `bcc`, `reply_to`, base64 attachments, custom
+headers, and tags.
+
+Reuse an `idempotency_key` and you get the original message back instead of a second
+send, which is what you want when a retry fires after a timeout.
+
+From Rust, use [`smbcloud-email-sdk`](https://crates.io/crates/smbcloud-email-sdk):
+
+```rust
+let message = SendEmail::new("billing@example.com", ["customer@acme.com"])
+    .subject("Your receipt")
+    .html("<h1>Thanks!</h1>")
+    .idempotency_key("receipt-2026-0001");
+
+let sent = client.send(&message).await?;
+```
+
+## Track delivery
+
+Every message carries a status: queued, sent, delivered, bounced, complained, or
+failed. Fetch one message for its full event timeline, or list recent messages
+filtered by status when you want to see what bounced.
+
+```sh
+curl "https://api.smbcloud.xyz/v1/email/messages?status=bounced&limit=20" \
+  -H "Authorization: Bearer smb_mail_your_read_key"
+```
+
+Reading messages needs a read-scope key. Sending keys cannot read.
+
+## Receive and route
+
+A Mail app maps to one domain and holds many inbox routes. Each route forwards
+inbound mail where it needs to go, and stores the message so you keep the history.
 
 - Run one Mail app per domain
 - Set up many inbox routes on a Mail app
 - Forward inbound mail where it needs to go
 - Store inbound message history
 
-## How it fits together
-
-- A project can have many Mail apps.
-- One Mail app maps to one domain.
-- One Mail app can have many inbox routes.
-
-Day to day, you work with **inboxes**, **forwarding**, and **stored messages**.
-The domain setup — DNS, bucket, prefix, and shared routing — lives on the Mail
-app's setup page, out of the way of everyday inbox work.
+A project can have many Mail apps. The domain setup, meaning DNS, bucket, prefix,
+and shared routing, lives on the Mail app's setup page, out of the way of everyday
+inbox work.
 
 ## Getting started
 
 1. Create a Mail app for your domain.
 2. Complete the domain setup (DNS and routing) on the Mail app's setup page.
-3. Add inbox routes and forwarding.
+3. Mint an API key to send, or add inbox routes to receive.
 
-Mail is forwarding-first — it's not a full hosted mailbox suite. Stored messages
-add history on top of routing.
+Mail handles transactional email and domain routing. It is not a hosted mailbox
+suite: for business mailboxes you read in an app, see
+[smbCloud Mail for business](https://smbcloudmail.com).
+
+## From the CLI or an AI agent
+
+`smb mail` manages Mail apps and inbox routes from the terminal, and the same
+operations are available to Claude, Cursor, and other agents through the
+[MCP server](/developer/cli/mcp).

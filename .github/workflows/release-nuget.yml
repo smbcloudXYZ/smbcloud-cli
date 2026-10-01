@@ -288,3 +288,26 @@ jobs:
             --api-key "${NUGET_API_KEY}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
+
+  dispatch-mcp-registry:
+    name: Trigger MCP Registry release
+    runs-on: ubuntu-latest
+    needs: publish-nuget
+    permissions:
+      actions: write
+    steps:
+      # The MCP Registry listing needs both npm and NuGet live at this version,
+      # and NuGet is the slower of the two, so it hangs off this workflow rather
+      # than the parallel fan-out in release-crate.yml.
+      - name: Trigger MCP Registry release workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = '${{ github.event.inputs.tag }}' || context.ref.replace('refs/tags/', '')
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release-mcp-registry.yml',
+              ref: tag,
+              inputs: { tag }
+            })

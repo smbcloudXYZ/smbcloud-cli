@@ -1,11 +1,11 @@
-.PHONY: help release patch minor major custom sync-release-metadata regenerate-release-lockfiles
+.PHONY: help release patch minor major custom sync-release-metadata regenerate-release-lockfiles check-release-versions
 
 help:
 	@echo "Release commands:"
 	@echo "  make patch"
 	@echo "  make minor"
 	@echo "  make major"
-	@echo "  make custom VERSION=0.3.40"
+	@echo "  make custom VERSION=0.4.14"
 
 release:
 	@test -n "$(BUMP)" || (echo "BUMP is required" && exit 1)
@@ -19,22 +19,38 @@ release:
 	fi
 	@$(MAKE) sync-release-metadata
 	@$(MAKE) regenerate-release-lockfiles
+	@$(MAKE) check-release-versions
 	@release_version=$$(sed -n 's/^version = "\(.*\)"/\1/p' crates/cli/Cargo.toml | head -n 1); \
 	if [ -z "$$release_version" ]; then echo "Unable to determine release version from crates/cli/Cargo.toml"; exit 1; fi; \
+	release_branch=$$(git branch --show-current); \
 	git add -A; \
 	git commit -m "Release $$release_version"; \
-	git tag "v$$release_version"; \
-	echo "Release $$release_version prepared locally."; \
-	echo "Next: git push origin development && git push origin v$$release_version"
+	if [ "$$release_branch" = "development" ]; then \
+		git tag "v$$release_version"; \
+		echo "Release $$release_version prepared locally."; \
+		echo "Next: git push origin development && git push origin v$$release_version"; \
+	else \
+		echo "Release $$release_version prepared on $$release_branch (not tagged)."; \
+		echo "The tag belongs on development, on the merge commit."; \
+		echo "Next: git push origin $$release_branch"; \
+		echo "  CI green: git checkout development && git merge --no-ff $$release_branch"; \
+		echo "  then:     git tag v$$release_version && git push origin development && git push origin v$$release_version"; \
+	fi
 
 sync-release-metadata:
 	@node ./scripts/sync-release-version.mjs
 
 regenerate-release-lockfiles:
-	@cargo generate-lockfile --manifest-path sdk/gems/auth/Cargo.toml
-	@cargo generate-lockfile --manifest-path sdk/gems/model/Cargo.toml
-	@bundle lock --gemfile sdk/gems/auth/Gemfile
-	@bundle lock --gemfile sdk/gems/model/Gemfile
+	@# Ruby extension Cargo.lock files resolve crates.io dependencies that are
+	@# published only after this release tag is pushed. The SDK gem workflow waits
+	@# for those crates and resolves them during its build, so do not attempt to
+	@# regenerate the locks while preparing the tag locally.
+	@BUNDLE_GEMFILE=sdk/gems/auth/Gemfile bundle lock
+	@BUNDLE_GEMFILE=sdk/gems/email/Gemfile bundle lock
+	@BUNDLE_GEMFILE=sdk/gems/model/Gemfile bundle lock
+
+check-release-versions:
+	@node ./scripts/check-release-versions.mjs
 
 patch:
 	@$(MAKE) release BUMP=patch

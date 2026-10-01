@@ -65,6 +65,28 @@ cargo test  --workspace --exclude smbcloud-auth-sdk-wasm
 cargo test -p smbcloud-model app_auth::tests::some_test    # a single test
 ```
 
+**Always run `cargo fmt --all` and the `cargo clippy` command above before considering any
+Rust change done** — after every edit, not just before a push. Fix clippy findings rather
+than silencing them with `#[allow(...)]` unless there's a specific reason the lint doesn't
+apply, and note that reason inline.
+
+`ci.yml` runs six jobs on every push; run the ones relevant to what changed, not just the
+main Rust workspace job — a change that only compiles in the main workspace but breaks one
+of these is still a broken CI run:
+
+| Job | Touches | Local check |
+|---|---|---|
+| Rust workspace | any `crates/*` change (except the wasm crate) | `cargo fmt --all -- --check && cargo clippy --workspace --exclude smbcloud-auth-sdk-wasm --tests -- -D warnings && cargo test --workspace --exclude smbcloud-auth-sdk-wasm` |
+| `smbcloud-auth-sdk-wasm` | that crate, or `smbcloud-auth-sdk` it wraps | `cargo check --package smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown` |
+| Python SDK | `sdk/python`, or `smbcloud-auth-sdk` | `cd sdk/python && maturin build --release --locked --out dist` |
+| npm/WASM SDK | `sdk/npm/smbcloud-auth`, or `smbcloud-auth-sdk` | `cd sdk/npm/smbcloud-auth && node ./prepare-package.mjs` (needs `wasm-pack` installed) |
+| NuGet .NET tool | `nuget/smbcloud-cli` | `dotnet build nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release` |
+| Ruby gem | `sdk/gems/auth`, or `smbcloud-auth-sdk` | `cd sdk/gems/auth && bundle exec rake compile` |
+
+The last four jobs need their own toolchain (maturin/PyO3, wasm-pack + Node, the .NET SDK,
+Ruby/bundler) — if it isn't installed, say so explicitly rather than skipping the check
+silently, so the user knows it wasn't verified.
+
 `smbcloud-auth-sdk-wasm` targets `wasm32-unknown-unknown` and cannot build or test on the host — it is always excluded from workspace clippy/test and checked separately: `cargo check -p smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown`.
 
 `CLI_CLIENT_SECRET` (see `.env.example`) is the OAuth client-credentials secret read at runtime; tests and `cargo check` don't need it, but login flows against a real API do.
@@ -78,6 +100,8 @@ make patch | make minor | make major | make custom VERSION=0.x.y
 ```
 
 It commits `Release <version>` and tags `v<version>` locally; pushing is manual. Crate publishing is separate and manual (`cargo workspaces publish`, see `docs/development.md`). The per-target release workflows (`release-*.yml`) build the distributable artifacts.
+
+`server.json` and `server-xcrs.json` (the MCP Registry listings) are version-synced by the same Makefile step, and `release-nuget.yml` triggers `release-mcp-registry.yml` once its publish job succeeds — the listings need the npm, NuGet, and Cargo packages live at their recorded versions, and the registry validates their metadata against the real packages. See `docs/mcp-registry.md`.
 
 ---
 
@@ -106,7 +130,7 @@ Two cross-cutting globals are resolved once in `main` before any handler runs:
 
 ## Deploy subsystem (`crates/cli/src/deploy/`)
 
-The most involved area. `process_deploy.rs` loads `.smb/config.toml` (running interactive `setup_project` if missing), overlays server-side config, validates project access, then **dispatches by `config.project.kind`** to a per-stack path: `vite-spa`, `nextjs-ssr`, `rails`, `rust`, `swift` each have their own `process_deploy_*.rs`. If `kind` is unset it falls back to `deployment_method`: `Rsync` (build locally, upload over rsync, restart over SSH) or `Git` (push to a remote git hook), with `detect_runner.rs` sniffing the framework from `package.json`/`Gemfile`/`Package.swift`/`Cargo.toml`.
+The most involved area. `process_deploy.rs` loads `.smb/config.toml` (running interactive `setup_project` if missing), overlays server-side config, validates project access, then **dispatches by `config.project.kind`** to a per-stack path: `vite-spa` and `sveltekit` (SvelteKit with `adapter-static`) share `process_deploy_static_site.rs`; `nextjs-ssr`, `rails`, `rust`, `swift` each have their own `process_deploy_*.rs`. If `kind` is unset it falls back to `deployment_method`: `Rsync` (build locally, upload over rsync, restart over SSH) or `Git` (push to a remote git hook), with `detect_runner.rs` sniffing the framework from `package.json`/`Gemfile`/`Package.swift`/`Cargo.toml`.
 
 **Monorepo**: `runner = Monorepo` with a `[[projects]]` array in config; `smb deploy --project <name>` (or an interactive picker) swaps `config.project` to the named sub-project before the dispatch above. `migrate.rs`/`smb migrate` pushes local deploy fields up to the server.
 

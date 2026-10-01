@@ -9,7 +9,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 dynamic = ["version"]
 license = { text = "Apache-2.0" }
-authors = [{ name = "Seto Elkahfi", email = "hej@setoelkahfi.se" }]
+authors = [{ name = "Seto Elkahfi", email = "seto@smbcloud.xyz" }]
 keywords = ["cli", "cloud", "smbcloud", "web2", "web3"]
 classifiers = [
     "Development Status :: 4 - Beta",

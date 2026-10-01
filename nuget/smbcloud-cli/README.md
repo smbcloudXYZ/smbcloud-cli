@@ -1,5 +1,7 @@
 # smbCloud CLI for .NET
 
+<!-- mcp-name: io.github.smbcloudXYZ/smbcloud-cli -->
+
 `smb` is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 
 ## Install

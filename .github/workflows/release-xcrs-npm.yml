@@ -1,0 +1,197 @@
+name: NPM XCRS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.3.39)"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish-npm-binaries:
+    name: Publish NPM packages
+    runs-on: ${{ matrix.build.OS }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build:
+          - {
+              NAME: linux-x64-glibc,
+              OS: ubuntu-latest,
+              TARGET: x86_64-unknown-linux-gnu,
+            }
+          - {
+              NAME: linux-arm64-glibc,
+              OS: ubuntu-24.04-arm,
+              TARGET: aarch64-unknown-linux-gnu,
+            }
+          - {
+              NAME: win32-x64-msvc,
+              OS: windows-2022,
+              TARGET: x86_64-pc-windows-msvc,
+            }
+          - {
+              NAME: win32-arm64-msvc,
+              OS: windows-2022,
+              TARGET: aarch64-pc-windows-msvc,
+            }
+          - {
+              NAME: darwin-x64,
+              OS: macos-15-intel,
+              TARGET: x86_64-apple-darwin,
+            }
+          - {
+              NAME: darwin-arm64,
+              OS: macos-latest,
+              TARGET: aarch64-apple-darwin,
+            }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Install Rust target
+        shell: bash
+        run: |
+          rustup target add ${{ matrix.build.TARGET }} --toolchain ${{ env.RUST_TOOLCHAIN }}
+          rustup target list --installed
+
+      - name: Build
+        shell: bash
+        run: |
+          cargo build --release --locked --target ${{ matrix.build.TARGET }} --package xcrs
+
+      - name: Install node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          # We want to name our npm package @smbcloud/xcrs, and the command is xcrs.
+          # All optional platform dependencies follow the @smbcloud/xcrs-${os}-${arch}
+          # naming convention.
+
+          # Move to the npm directory
+          cd npm
+          # set the binary name, this is from the rust Cargo.toml file
+          cargo_bin="xcrs"
+          node_pkg_prefix="xcrs"
+          # derive the OS and architecture from the build matrix name
+          # note: when split by a hyphen, first part is the OS and the second is the architecture
+          node_os=$(echo "${{ matrix.build.NAME }}" | cut -d '-' -f1)
+          export node_os
+          node_arch=$(echo "${{ matrix.build.NAME }}" | cut -d '-' -f2)
+          export node_arch
+          # set the version
+          export node_version="${{ env.RELEASE_VERSION }}"
+          # set the package name
+          # note: use 'windows' as OS name instead of 'win32'
+          if [ "${{ matrix.build.OS }}" = "windows-2022" ]; then
+            export node_pkg="${node_pkg_prefix}-windows-${node_arch}"
+          else
+            export node_pkg="${node_pkg_prefix}-${node_os}-${node_arch}"
+          fi
+          # create the package directory
+          mkdir -p "${node_pkg}/bin"
+          # generate package metadata
+          node ./scripts/render-platform-package.cjs "${node_pkg}" "${node_version}" "${node_os}" "${node_arch}" "Platform binary for the xcrs CLI."
+          # copy the binary into the package
+          # note: windows binaries has '.exe' extension
+          if [ "${{ matrix.build.OS }}" = "windows-2022" ]; then
+            cargo_bin="${cargo_bin}.exe"
+          fi
+          cp "../target/${{ matrix.build.TARGET }}/release/${cargo_bin}" "${node_pkg}/bin"
+          # publish the package
+          cd "${node_pkg}"
+          npm_package_name="@smbcloud/${node_pkg}"
+          if npm view "${npm_package_name}@${node_version}" version >/dev/null 2>&1; then
+            echo "${npm_package_name}@${node_version} already exists on npm, skipping publish"
+            exit 0
+          fi
+          npm publish --access public
+
+  publish-npm-base:
+    name: Publish the base NPM package
+    needs: publish-npm-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Set the release version
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_version="${GITHUB_REF_NAME#v}"
+          else
+            release_version="${{ github.event.inputs.tag }}"
+            release_version="${release_version#v}"
+          fi
+
+          echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
+
+      - name: Install node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish the package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          cd npm/xcrs
+
+          node ../scripts/render-main-package.cjs "./package.json" "${{ env.RELEASE_VERSION }}" xcrs
+
+          npm_package_name="@smbcloud/xcrs"
+          npm_package_version="${{ env.RELEASE_VERSION }}"
+          if npm view "${npm_package_name}@${npm_package_version}" version >/dev/null 2>&1; then
+            echo "${npm_package_name}@${npm_package_version} already exists on npm, skipping publish"
+            exit 0
+          fi
+
+          npm install
+          npm run build
+          npm publish --access public

@@ -1,6 +1,6 @@
 ---
 name: smbcloud-deploy-monorepo
-description: Use when deploying from a monorepo with smbCloud CLI, especially repositories that contain multiple deployable sub-projects with different strategies (Next.js SSR, Vite SPA, Rails, static) behind a single `.smb/config.toml` with `runner = 255` and `[[projects]]` entries.
+description: Use when deploying from a monorepo with smbCloud CLI, especially repositories that contain multiple deployable sub-projects with different strategies (Next.js SSR, Vite SPA, SvelteKit, Rails, static) behind a single `.smb/config.toml` with `runner = 255` and `[[projects]]` entries.
 ---
 
 # smbCloud Deploy Monorepo
@@ -12,7 +12,7 @@ Applies to:
 - repositories with `runner = 255` in `[project]`
 - `.smb/config.toml` files with `[[projects]]` arrays
 - `process_deploy.rs` monorepo resolution logic
-- sub-project routing to `nextjs-ssr`, `vite-spa`, `rails`, rsync, or git deploy paths
+- sub-project routing to `nextjs-ssr`, `vite-spa`, `sveltekit`, `rails`, rsync, or git deploy paths
 - multi-tenant PM2 and Nginx server configuration
 - CI workflows that deploy individual sub-projects from a monorepo
 
@@ -121,6 +121,20 @@ output = "dist"
 package_manager = "pnpm"
 created_at = "2025-09-20T16:33:05.154Z"
 updated_at = "2025-09-20T16:33:05.154Z"
+
+[[projects]]
+id = <n>
+name = "<app>"
+repository = "<app>"
+description = "SvelteKit app built with adapter-static."
+source = "apps/<app>"
+path = "apps/web/<app>"
+runner = 0
+kind = "sveltekit"
+output = "build"
+package_manager = "pnpm"
+created_at = "2025-09-20T16:33:05.154Z"
+updated_at = "2025-09-20T16:33:05.154Z"
 ```
 
 ## Sub-project field reference
@@ -134,13 +148,13 @@ updated_at = "2025-09-20T16:33:05.154Z"
 | `repository`        | yes         | remote repository name on the smbCloud server (used for git deploy and SSH paths)           |
 | `description`       | no          | human-readable description                                                                  |
 | `source`            | yes         | local path to the sub-project directory, relative to the monorepo root                      |
-| `path`              | depends     | remote directory on the server, relative to `~/` — required for `nextjs-ssr` and `vite-spa` |
+| `path`              | depends     | remote directory on the server, relative to `~/`, required for `nextjs-ssr`, `vite-spa`, and `sveltekit` |
 | `runner`            | yes         | server tier: `0` (NodeJs), `1` (Static), `2` (Ruby), `3` (Swift)                            |
-| `kind`              | depends     | deploy strategy: `"nextjs-ssr"`, `"vite-spa"`, `"rails"`, or omitted for generic deploy     |
-| `package_manager`   | depends     | `"pnpm"` or `"npm"` — required for `nextjs-ssr` and `vite-spa`                              |
+| `kind`              | depends     | deploy strategy: `"nextjs-ssr"`, `"vite-spa"`, `"sveltekit"`, `"rails"`, or omitted for generic deploy |
+| `package_manager`   | depends     | `"pnpm"` or `"npm"`, used by `nextjs-ssr`, `vite-spa`, and `sveltekit`; defaults to `"pnpm"` |
 | `pm2_app`           | depends     | PM2 process name — required for `nextjs-ssr`                                                |
 | `port`              | depends     | runtime port — required for `nextjs-ssr`, defaults to `3000` if omitted                     |
-| `output`            | depends     | build output directory — required for `vite-spa`, typically `"dist"`                        |
+| `output`            | depends     | build output directory: `vite-spa` defaults to `"dist"`, `sveltekit` to `"build"`          |
 | `shared_lib`        | no          | path to shared library directory to rsync before deploy — used by `rails`                   |
 | `compile_cmd`       | no          | SSH command to run on the server after syncing shared libs — used by `rails`                |
 | `deployment_method` | no          | `0` (Git) or `1` (Rsync) — only matters when `kind` is not set                              |
@@ -163,6 +177,7 @@ smb deploy --project <name>
     ┌────┼──────────┬──────────────┐
     ▼    ▼          ▼              ▼
  vite-spa  nextjs-ssr  rails    (none)
+ sveltekit
     │       │          │           │
     ▼       ▼          ▼           ▼
  pnpm    pnpm       rsync    deployment_method?
@@ -190,6 +205,23 @@ Local build, rsync the output directory. No PM2 — Nginx serves static files di
 
 Required fields: `kind`, `source`, `path`, `output`, `package_manager`
 
+A plain Svelte + Vite app (no SvelteKit) is a `vite-spa`.
+
+### Strategy: `sveltekit`
+
+SvelteKit built with `@sveltejs/adapter-static`. Shares the `vite-spa` ship path (`process_deploy_static_site.rs`); only the build differs:
+
+1. Read the adapter from `package.json`. Anything other than `adapter-static` (`adapter-auto`, `adapter-node`, …) fails before building, naming the adapter. Server-rendered SvelteKit needs a Node process, which this path doesn't manage.
+2. `<package_manager> install`, then `<package_manager> run build`, inside `source/`, with the terminal attached.
+3. Check `output` (default `build`) has a top-level `.html` file: a prerendered `index.html` or an SPA fallback such as `200.html`.
+4. Rsync `output/` to `path`.
+
+Required fields: `kind`, `source`, `path`
+
+Optional: `output` (default `"build"`, match `pages` in `adapter-static`), `package_manager` (default `"pnpm"`)
+
+For a client-rendered app, set `fallback` in `adapter-static` and keep `paths.relative: false` in `svelte.config.js`, so deep links load assets from `/_app/` instead of a relative path. Nginx needs a matching `try_files $uri $uri/ /<fallback>;`. Use `200.html` rather than `index.html` as the fallback when `/` is prerendered, so deep links don't boot from the landing page's markup.
+
 ### Strategy: `rails`
 
 Rsync shared libraries, SSH compile native extensions, git force-push the sub-project directory to the server's bare repo (triggers post-receive hook).
@@ -206,7 +238,7 @@ When `kind` is omitted, the `deployment_method` field controls the path. Git pus
 
 The `source` field is the most important monorepo-specific field. It tells the CLI where the sub-project lives relative to the monorepo root.
 
-For `nextjs-ssr` and `vite-spa`, the CLI changes into the `source` directory before running build commands:
+For `nextjs-ssr`, `vite-spa`, and `sveltekit`, the CLI changes into the `source` directory before running build commands:
 
 - `pnpm install` runs inside `source/`
 - `pnpm build` runs inside `source/`
@@ -486,14 +518,14 @@ Current tracking model in the CLI:
 - requests still route through the umbrella workspace `id`
 - when `frontend_app_id` is present in the deploy target config, the payload also carries it so the API can attribute the deploy to the correct app inside the repo or monorepo
 
-For non-git deploys (rsync, nextjs-ssr, vite-spa), the `commit_hash` field is a UTC timestamp (`20250920T163305Z`) since there is no git commit on the deploy path.
+For non-git deploys (rsync, nextjs-ssr, vite-spa, sveltekit), the `commit_hash` field is a UTC timestamp (`20250920T163305Z`) since there is no git commit on the deploy path.
 
 ## Adding a new sub-project to a monorepo
 
 1. Create the project in smbCloud (via `smb init` in a temporary directory, or the web console) to get an `id`
 2. Add a `[[projects]]` entry to the monorepo's `.smb/config.toml` with the correct `kind`, `source`, `path`, `runner`, and strategy-specific fields
 3. If `kind = "nextjs-ssr"`: allocate a unique port, configure PM2 ecosystem file on the server, add Nginx reverse proxy config
-4. If `kind = "vite-spa"`: add Nginx static file config
+4. If `kind = "vite-spa"` or `kind = "sveltekit"`: add Nginx static file config (with an SPA fallback `try_files` for client-rendered SvelteKit)
 5. If `kind = "rails"`: set up a bare git repo on the server with a post-receive hook
 6. Test with `smb deploy -p <name>`
 
@@ -609,6 +641,7 @@ If you are changing env manually outside the deploy flow, `pm2 restart <app> --u
 - forgetting to set `runner = 255` on the root `[project]` of a monorepo — the CLI treats it as a standalone project and tries to deploy the root
 - duplicating `port` values across sub-projects on the same server
 - using `kind = "nextjs-ssr"` on a project without `output: "standalone"` in its Next.js config
+- using `kind = "sveltekit"` with `adapter-auto` or `adapter-node`; switch `svelte.config.js` to `adapter-static` instead
 - running `smb deploy` from a subdirectory instead of the monorepo root — `source` paths will not resolve
 - forgetting `--mkpath` on rsync in CI workflows — first deploys fail because the remote directory does not exist
 - forgetting `--copy-links` on `.next/standalone/` uploads — the server receives broken `pnpm` symlinks and PM2 crashes with `Cannot find module 'next'`

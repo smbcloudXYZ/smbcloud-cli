@@ -1,5 +1,5 @@
 use {
-    log::error,
+    log::{debug, error},
     reqwest::{RequestBuilder, Response, StatusCode},
     serde::de::DeserializeOwned,
     smbcloud_model::{
@@ -8,9 +8,6 @@ use {
         login::AccountStatus,
     },
 };
-
-#[cfg(not(target_arch = "wasm32"))]
-use log::debug;
 
 //use std::time::Duration;
 #[cfg(debug_assertions)]
@@ -74,11 +71,10 @@ pub async fn parse_error_response<T: DeserializeOwned>(
     };
 
     if LOG_RESPONSE_BODY {
-        println!();
-        println!("Parse Error >>>>");
-        println!("{:?}", serde_json::to_string_pretty(&error_response_body));
-        println!("Parse Error >>>>");
-        println!();
+        debug!(
+            "Parse Error >>>> {:?}",
+            serde_json::to_string_pretty(&error_response_body)
+        );
     }
 
     let error_response = match serde_json::from_str(&error_response_body) {
@@ -110,11 +106,7 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
     };
 
     if LOG_RESPONSE_BODY {
-        println!();
-        println!("request_login: Parse >>>>");
-        println!("{:?}", response.status());
-        println!("request_login: Parse >>>>");
-        println!();
+        debug!("request_login: Parse >>>> {:?}", response.status());
     }
 
     match (response.status(), response.headers().get("Authorization")) {
@@ -301,11 +293,10 @@ pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, 
     };
 
     if LOG_RESPONSE_BODY {
-        println!();
-        println!("Parse >>>>");
-        println!("{:?}", serde_json::to_string_pretty(&response_body));
-        println!("Parse >>>>");
-        println!();
+        debug!(
+            "Parse >>>> {:?}",
+            serde_json::to_string_pretty(&response_body)
+        );
     }
 
     let response = match serde_json::from_str::<R>(&response_body) {

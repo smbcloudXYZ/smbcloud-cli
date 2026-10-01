@@ -5,7 +5,7 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    Deploy with smbCloud from your terminal.
+    smbCloud Mail, Auth, Deploy, and GresIQ from your terminal or your AI agent.
     <br />
     <br />
     <a href="https://smbcloud.xyz/">Website</a>
@@ -28,9 +28,14 @@
 
 ## About
 
-**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/).
+**`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/). It is
+also an MCP server, so Claude, Cursor, and other AI agents can run the same operations
+you do.
 
-Deploy Rust, Node.js, Ruby, or Swift apps from your terminal.
+Send transactional email and set up domains and inbox routing on
+[smbCloud Mail](https://smbcloudmail.com), manage authentication apps on
+[smbCloud Auth](https://smbcloudauth.com), and deploy Rust, Node.js, Ruby, or Swift
+apps. One binary, no runtime to install.
 
 ## Install
 
@@ -84,6 +89,46 @@ smb deploy
 ```
 
 That gets you from login to first deploy.
+
+## MCP server
+
+`smb --mcp` speaks the [Model Context Protocol](https://modelcontextprotocol.io) over
+stdio, exposing 31 tools across smbCloud Mail, Auth, projects, and deployments. It is
+listed in the official MCP Registry as `io.github.smbcloudXYZ/smbcloud-cli`.
+
+Claude Code:
+
+```sh
+claude mcp add smbcloud -- smb --mcp
+```
+
+Claude Desktop, Cursor, and anything else that takes a JSON config:
+
+```json
+{
+  "mcpServers": {
+    "smbcloud": {
+      "command": "npx",
+      "args": ["@smbcloud/cli", "--mcp"]
+    }
+  }
+}
+```
+
+Auth comes from `smb login`, so a terminal session and an agent session share the same
+token and the same selected project. See [`docs/mcp.md`](./docs/mcp.md) for the full tool
+reference.
+
+For mobile and TV app testing, run the focused **XCRS Mobile & TV
+Automation** profile:
+
+```sh
+claude mcp add xcrs -- smb --mcp --scope automation
+```
+
+It exposes target-aware Xcode, ControlKit, CoreDevice, and adb tools without
+mixing them into the cloud tool set. The same profile is also available from
+the standalone `xcrs --mcp` crate.
 
 ## CI / non-interactive mode
 

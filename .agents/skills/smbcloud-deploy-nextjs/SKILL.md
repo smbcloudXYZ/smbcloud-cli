@@ -1,6 +1,6 @@
 ---
 name: smbcloud-deploy-nextjs
-description: Use when deploying or debugging Next.js apps on smbCloud, especially the dedicated `nextjs-ssr` flow that builds locally, uploads `.next/standalone` via rsync, restarts PM2 over SSH, and serves traffic behind Nginx.
+description: Use when deploying or debugging Next.js apps on smbCloud, especially the dedicated `nextjs-ssr` flow that builds locally, uploads `.next/standalone` via rsync, restarts the app over SSH (PM2 by default, or a git-owned `systemctl --user` service when `process_manager = "systemd"`), and serves traffic behind Nginx.
 ---
 
 # smbCloud Deploy Next.js
@@ -83,6 +83,7 @@ package_manager = "pnpm"
 pm2_app = "my-app"
 path = "apps/web/my-app"
 port = 3028
+# process_manager = "systemd"  # optional; default is pm2 (see "systemd --user" below)
 ```
 
 Important rules:
@@ -93,8 +94,13 @@ Important rules:
 - `deploy_repo_id` identifies the DeployRepo record backing this app — include it when available
 - `source` is the local Next.js app directory
 - `path` is the remote destination directory on the server
-- `pm2_app` is mandatory because the CLI restarts PM2 by name
+- `pm2_app` is mandatory because the CLI restarts PM2 by name (with
+  `process_manager = "systemd"` this same value is the systemd `--user` unit
+  name, `<pm2_app>.service`)
 - `port` should be set explicitly and must match nginx
+- `process_manager` is optional. Omit it (or set `"pm2"`) for the default PM2
+  path; set `"systemd"` to restart via a git-owned `systemctl --user` service
+  instead (see "Process manager: systemd --user" below)
 - `deployment_method = 1` may still be present, but the `kind` routing is what matters most
 
 ## Expected remote layout
@@ -146,6 +152,93 @@ This has two consequences:
 - old git-based `post-receive` hooks are irrelevant for the SSR path
 - the configured `port` in `.smb/config.toml` is used for the fallback start path
 - the live server `ecosystem.config.cjs` (or `.js`) is the runtime source of truth when present
+
+## Process manager: systemd --user (alternative to PM2)
+
+Set `process_manager = "systemd"` in `[project]` to have the deploy restart the
+app through a **git-owned `systemctl --user` service** instead of PM2. The unit
+is named after `pm2_app` (`<pm2_app>.service`). This is the recommended target
+for the nbg box — a cgroup-supervised unit kills the whole process tree on
+`restart` (no orphaned `next-server` holding the port, the failure mode that
+caused the karokowe.com gateway-timeout outage) and survives reboot via linger,
+with no `pm2 save` to forget.
+
+The deploy restart step becomes (no sudo — the CLI SSHes as the git app-owner
+and drives that user's own manager):
+
+```sh
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+UNIT="$PM2_APP.service"
+# fails loudly if the unit was never created
+systemctl --user cat "$UNIT" >/dev/null || exit 1
+systemctl --user restart "$UNIT"
+systemctl --user is-active "$UNIT"    # verified after a short sleep
+```
+
+Prerequisites (one-time per app, done out-of-band before the first
+`process_manager = "systemd"` deploy):
+
+1. Enable linger for the app-owner so its units run without an active login and
+   start at boot: `sudo loginctl enable-linger git`.
+2. Create the unit and env file, then cut over off PM2 (all as the `git` user).
+   Capture the app's current settings first — `pm2 describe <app>` shows the
+   interpreter, script, cwd, and env PM2 is running with, which is what the unit
+   has to reproduce:
+
+   ```sh
+   export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+   APP=my-app                      # == pm2_app == the unit name
+   APP_PATH=~/apps/web/my-app      # == `path` in .smb/config.toml
+   mkdir -p ~/.config/systemd/user
+
+   # Env file (mode 600 — it holds per-app secrets).
+   # Port/hostname must match .smb/config.toml and the Nginx upstream.
+   install -m 600 /dev/null ~/.config/systemd/user/$APP.env
+   cat >> ~/.config/systemd/user/$APP.env <<'EOF'
+   NODE_ENV=production
+   PORT=3031
+   HOSTNAME=127.0.0.1
+   EOF
+
+   cat > ~/.config/systemd/user/$APP.service <<EOF
+   [Unit]
+   Description=$APP (Next.js standalone)
+   After=network-online.target
+
+   [Service]
+   Type=simple
+   WorkingDirectory=$APP_PATH
+   EnvironmentFile=%h/.config/systemd/user/$APP.env
+   ExecStart=/usr/bin/env node server.js
+   Restart=always
+   RestartSec=2
+
+   [Install]
+   WantedBy=default.target
+   EOF
+   ```
+
+   Then cut over, stopping PM2 first so both supervisors never hold the port at
+   once:
+
+   ```sh
+   pm2 delete "$APP" || true
+   pm2 save                                    # forget it across pm2 resurrect
+   systemctl --user daemon-reload
+   systemctl --user enable --now "$APP.service"
+   systemctl --user is-active "$APP.service"   # expect: active
+   curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3031
+   ```
+
+   If `ExecStart` needs to differ (a custom server entrypoint, a pinned Node
+   version via `~/.nvm/versions/node/<v>/bin/node`), match whatever
+   `pm2 describe` reported rather than the defaults above.
+3. Set `process_manager = "systemd"` in the app's `.smb/config.toml`.
+
+After that, every `smb deploy` restarts via `systemctl --user` and the deploy
+aborts if the unit is missing (so a misconfigured `process_manager` can't
+silently leave the app down).
+
 
 ### Environment variables — ecosystem file (standard pattern)
 

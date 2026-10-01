@@ -1,8 +1,8 @@
 [package]
 name = "email"
-version = "0.4.7"
+version = "0.6.0"
 edition = "2024"
-authors = ["Seto Elkahfi <hej@setoelkahfi.se>"]
+authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 publish = false
 
 [lib]

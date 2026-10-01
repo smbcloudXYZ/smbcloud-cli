@@ -3,11 +3,18 @@ use smbcloud_networking::smb_client::SmbClient;
 pub mod account;
 pub mod ci;
 pub mod cli;
+#[path = "cloud-auth/mod.rs"]
+pub mod cloud_auth;
+pub mod controlkit;
+#[path = "cloud-deploy/mod.rs"]
 pub mod deploy;
 pub mod interface;
+#[path = "cloud-mail/mod.rs"]
 pub mod mail;
 pub mod mcp;
 pub mod project;
+mod session_config;
+pub mod tenant;
 mod token;
 pub mod ui;
 

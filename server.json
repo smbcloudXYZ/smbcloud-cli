@@ -1,0 +1,107 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.smbcloudXYZ/smbcloud-cli",
+  "title": "smbCloud Mail & Auth",
+  "description": "Email infrastructure and authentication for developers: domains, inbox routes, auth apps, deploys.",
+  "version": "0.6.0",
+  "websiteUrl": "https://docs.smbcloud.xyz/developer/cli",
+  "icons": [
+    {
+      "src": "https://smbcloud.xyz/logo.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "866x866"
+      ]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/smbcloudXYZ/smbcloud-cli",
+    "source": "github",
+    "id": "597171611"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.smbcloud.xyz/v1/mcp"
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@smbcloud/cli",
+      "version": "0.6.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--mcp",
+          "description": "Run the CLI as an MCP server over stdio instead of executing a one-shot command.",
+          "isRequired": true
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "SMB_MAIL_API_KEY",
+          "description": "Mail app API key (smb_mail_...) used by the mail_send tool. Optional: every other tool uses the session from `smb login`.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    },
+    {
+      "registryType": "nuget",
+      "registryBaseUrl": "https://api.nuget.org/v3/index.json",
+      "identifier": "SmbCloud.Cli",
+      "version": "0.6.0",
+      "runtimeHint": "dnx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--mcp",
+          "description": "Run the CLI as an MCP server over stdio instead of executing a one-shot command.",
+          "isRequired": true
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "SMB_MAIL_API_KEY",
+          "description": "Mail app API key (smb_mail_...) used by the mail_send tool. Optional: every other tool uses the session from `smb login`.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "categories": [
+        "email",
+        "authentication",
+        "developer-tools"
+      ],
+      "keywords": [
+        "transactional email",
+        "email api",
+        "email domains",
+        "inbox routing",
+        "authentication",
+        "oauth",
+        "identity",
+        "deployment"
+      ],
+      "products": {
+        "smbCloud Mail": "https://smbcloudmail.com",
+        "smbCloud Auth": "https://smbcloudauth.com"
+      }
+    }
+  }
+}

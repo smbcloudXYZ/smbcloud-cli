@@ -1,5 +1,3 @@
-use std::{fs::OpenOptions, io::Write};
-
 use crate::client;
 use crate::token::get_smb_token::get_smb_token;
 use crate::{
@@ -12,8 +10,7 @@ use crate::{
     },
 };
 use anyhow::{anyhow, Result};
-use log::debug;
-use smbcloud_model::project::{Config, Project};
+use smbcloud_model::project::Project;
 use smbcloud_network::environment::Environment;
 use smbcloud_networking_project::crud_project_read::{get_project, get_projects};
 use spinners::Spinner;
@@ -104,38 +101,15 @@ pub(crate) async fn process_project_use(env: Environment, id: String) -> Result<
     let project = get_project(env, client(), access_token.clone(), id).await?;
     let frontend_app = resolve_frontend_app_for_project(env, &access_token, &project, true).await?;
 
-    let config = Config {
-        current_project: Some(project),
-        current_frontend_app: frontend_app,
-        current_auth_app: None,
-    };
-
     let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
         succeed_message("Loading"),
     );
-    match home::home_dir() {
-        Some(path) => {
-            let config_directory = path.join(env.smb_dir());
-            std::fs::create_dir_all(&config_directory)?;
-            debug!("{}", config_directory.display());
-            let mut file = OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(config_directory.join("config.json"))?;
-            let json = serde_json::to_string(&config)?;
-            file.write_all(json.as_bytes())?;
+    crate::session_config::set_current_project(env, project, frontend_app)?;
 
-            Ok(CommandResult {
-                spinner,
-                symbol: succeed_symbol(),
-                msg: succeed_message("Use project successful."),
-            })
-        }
-        None => {
-            let error = anyhow!("Failed to get home directory.");
-            Err(error)
-        }
-    }
+    Ok(CommandResult {
+        spinner,
+        symbol: succeed_symbol(),
+        msg: succeed_message("Use project successful."),
+    })
 }
