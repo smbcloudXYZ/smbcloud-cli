@@ -2516,7 +2516,7 @@ checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
 name = "smbcloud-auth"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "log",
  "reqwest",
@@ -2531,7 +2531,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-auth-sdk"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "base64 0.22.1",
  "reqwest",
@@ -2546,7 +2546,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-auth-sdk-py"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "pyo3",
  "pythonize",
@@ -2560,7 +2560,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-auth-sdk-wasm"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "serde-wasm-bindgen",
  "smbcloud-auth-sdk",
@@ -2573,7 +2573,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-cli"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2621,7 +2621,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-deploy"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "serde_json",
@@ -2634,7 +2634,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-email-sdk"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "log",
@@ -2649,7 +2649,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-gresiq"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "native-tls",
  "postgres-native-tls",
@@ -2663,7 +2663,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-gresiq-sdk"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "log",
@@ -2677,7 +2677,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-mail"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "reqwest",
  "serde",
@@ -2689,7 +2689,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-model"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "chrono",
  "log",
@@ -2705,7 +2705,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-network"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "clap 4.6.6",
  "log",
@@ -2718,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "smbcloud-network",
  "url-builder",
@@ -2726,7 +2726,7 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-networking-project"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2744,11 +2744,11 @@ dependencies = [
 
 [[package]]
 name = "smbcloud-s6n"
-version = "0.6.1"
+version = "0.6.2"
 
 [[package]]
 name = "smbcloud-utils"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "dirs",
@@ -3973,7 +3973,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xcrs"
-version = "0.6.1"
+version = "0.6.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
