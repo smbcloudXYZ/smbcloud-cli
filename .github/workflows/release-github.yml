@@ -191,6 +191,10 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           files: release/*
+          # Build the notes from the PRs since the previous tag, the same
+          # format as the "Generate release notes" button on the web UI, so
+          # nobody has to fill the release body in by hand after the fact.
+          generate_release_notes: true
 
       # These channels all publish somewhere outside this repo (a tap, a
       # Scoop bucket, microsoft/winget-pkgs) and every one of them reads
