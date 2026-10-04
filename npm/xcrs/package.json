@@ -48,6 +48,7 @@
   "optionalDependencies": {
     "@smbcloud/xcrs-darwin-arm64": "0.6.1",
     "@smbcloud/xcrs-darwin-x64": "0.6.1",
+    "@smbcloud/xcrs-linux-arm64": "0.6.1",
     "@smbcloud/xcrs-linux-x64": "0.6.1",
     "@smbcloud/xcrs-windows-arm64": "0.6.1",
     "@smbcloud/xcrs-windows-x64": "0.6.1"

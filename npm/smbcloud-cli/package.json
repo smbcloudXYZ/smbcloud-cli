@@ -60,6 +60,7 @@
   "optionalDependencies": {
     "@smbcloud/cli-darwin-arm64": "0.6.1",
     "@smbcloud/cli-darwin-x64": "0.6.1",
+    "@smbcloud/cli-linux-arm64": "0.6.1",
     "@smbcloud/cli-linux-x64": "0.6.1",
     "@smbcloud/cli-windows-arm64": "0.6.1",
     "@smbcloud/cli-windows-x64": "0.6.1"
