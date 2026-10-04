@@ -1,0 +1,148 @@
+name: Scoop Release
+
+# Dispatched by release-github.yml once the release and its checksums exist.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.6.0)"
+        required: true
+
+concurrency:
+  # A re-pushed or re-dispatched tag fires this a second time. Queue the
+  # duplicate behind the original instead of cancelling it: cancelling a run
+  # mid-publish can leave a channel half-uploaded, whereas a queued duplicate
+  # just hits the "already published" check and exits clean.
+  group: ${{ github.workflow }}-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  REPO: smbcloudXYZ/smbcloud-cli
+
+jobs:
+  update-scoop-bucket:
+    name: Update Scoop bucket
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve tag and version
+        id: release
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          VERSION="${TAG#v}"
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Read SHA256 checksums from release
+        id: sha
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p artifacts
+
+          gh release download "${{ steps.release.outputs.tag }}" \
+            --repo "${{ env.REPO }}" \
+            --pattern "smb-win-*.exe.sha256" \
+            --dir artifacts/
+
+          AMD64_SHA=$(cat artifacts/smb-win-amd64.exe.sha256)
+          ARM64_SHA=$(cat artifacts/smb-win-arm64.exe.sha256)
+
+          echo "amd64=${AMD64_SHA}" >> "$GITHUB_OUTPUT"
+          echo "arm64=${ARM64_SHA}" >> "$GITHUB_OUTPUT"
+
+          echo "AMD64 SHA256: ${AMD64_SHA}"
+          echo "ARM64 SHA256: ${ARM64_SHA}"
+
+      - name: Checkout Scoop bucket
+        uses: actions/checkout@v6
+        with:
+          repository: smbcloudXYZ/scoop-bucket
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          path: scoop-bucket
+
+      - name: Generate manifest
+        shell: bash
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+          TAG="${{ steps.release.outputs.tag }}"
+          AMD64_SHA="${{ steps.sha.outputs.amd64 }}"
+          ARM64_SHA="${{ steps.sha.outputs.arm64 }}"
+
+          mkdir -p scoop-bucket/bucket
+
+          # The `#/smb.exe` URL fragment is Scoop's rename-on-download
+          # syntax: the release asset is smb-win-amd64.exe, but the shim has
+          # to end up as smb.exe for `smb` to work on PATH.
+          cat > scoop-bucket/bucket/smb.json <<MANIFEST
+          {
+              "version": "${VERSION}",
+              "description": "smbCloud command line interface: Mail, Auth, Deploy, and GresIQ from your terminal.",
+              "homepage": "https://smbcloud.xyz",
+              "license": "Apache-2.0",
+              "architecture": {
+                  "64bit": {
+                      "url": "https://github.com/${REPO}/releases/download/${TAG}/smb-win-amd64.exe#/smb.exe",
+                      "hash": "${AMD64_SHA}"
+                  },
+                  "arm64": {
+                      "url": "https://github.com/${REPO}/releases/download/${TAG}/smb-win-arm64.exe#/smb.exe",
+                      "hash": "${ARM64_SHA}"
+                  }
+              },
+              "bin": "smb.exe",
+              "checkver": {
+                  "github": "https://github.com/${REPO}"
+              },
+              "autoupdate": {
+                  "architecture": {
+                      "64bit": {
+                          "url": "https://github.com/${REPO}/releases/download/v\$version/smb-win-amd64.exe#/smb.exe"
+                      },
+                      "arm64": {
+                          "url": "https://github.com/${REPO}/releases/download/v\$version/smb-win-arm64.exe#/smb.exe"
+                      }
+                  },
+                  "hash": {
+                      "url": "\$url.sha256"
+                  }
+              }
+          }
+          MANIFEST
+
+          echo "Generated manifest:"
+          cat scoop-bucket/bucket/smb.json
+
+      - name: Validate manifest JSON
+        shell: bash
+        run: |
+          if ! jq empty scoop-bucket/bucket/smb.json; then
+            echo "::error::Generated Scoop manifest is not valid JSON" >&2
+            exit 1
+          fi
+
+          for field in version bin architecture; do
+            if [ "$(jq -r "has(\"${field}\")" scoop-bucket/bucket/smb.json)" != "true" ]; then
+              echo "::error::Scoop manifest is missing the '${field}' field" >&2
+              exit 1
+            fi
+          done
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          VERSION="${{ steps.release.outputs.version }}"
+
+          cd scoop-bucket
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add bucket/smb.json
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "Update smb to ${VERSION}"
+          git push
