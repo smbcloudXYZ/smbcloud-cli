@@ -9,11 +9,12 @@ if (!outputPath || !version) {
     throw new Error("Usage: render-main-package.cjs <output-path> <version> [product]");
 }
 
-// The five platform binary packages the wrapper resolves at runtime. Kept in
+// The platform binary packages the wrapper resolves at runtime. Kept in
 // lockstep with the release build matrix and the `optionalDependencies` below.
 const platformSuffixes = [
     "darwin-arm64",
     "darwin-x64",
+    "linux-arm64",
     "linux-x64",
     "windows-arm64",
     "windows-x64",
