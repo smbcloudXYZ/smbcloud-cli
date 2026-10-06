@@ -521,19 +521,28 @@ fn resolve_supervisor(process_manager: Option<&str>) -> Result<Supervisor> {
 
 /// Builds the URL the remote script polls after the restart. `None` unless both
 /// `port` and `health_path` are set. The path ends up in a shell script, so it
-/// is limited to URL-path characters.
+/// is limited to URL-path characters, and every `%` must start a valid
+/// percent-escape.
 fn resolve_health_url(port: Option<u16>, health_path: Option<&str>) -> Result<Option<String>> {
     let Some(path) = health_path.map(str::trim).filter(|path| !path.is_empty()) else {
         return Ok(None);
     };
+    let bytes = path.as_bytes();
     let valid = path.starts_with('/')
         && path
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.' | '~' | '%'));
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.' | '~' | '%'))
+        && bytes.iter().enumerate().all(|(i, &b)| {
+            b != b'%'
+                || bytes
+                    .get(i + 1..i + 3)
+                    .is_some_and(|hex| hex.iter().all(u8::is_ascii_hexdigit))
+        });
     if !valid {
         return Err(anyhow!(fail_message(&format!(
             "Invalid health_path '{path}' in .smb/config.toml. \
-             It must start with '/' and contain only letters, digits and / - _ . ~ %."
+             It must start with '/' and contain only letters, digits and / - _ . ~ %; \
+             each % must be followed by two hex digits."
         ))));
     }
     Ok(port.map(|port| format!("http://127.0.0.1:{port}{path}")))
@@ -932,12 +941,20 @@ mod tests {
 
     #[test]
     fn health_path_validation_rejects_unsafe_values() {
-        for path in ["health", "/a b", "/x;rm", "/$(id)", "/a'b"] {
+        for path in [
+            "health", "/a b", "/x;rm", "/$(id)", "/a'b", "/foo%ZZ", "/foo%", "/foo%2",
+        ] {
             assert!(
                 resolve_health_url(Some(8080), Some(path)).is_err(),
                 "{path}"
             );
         }
+    }
+
+    #[test]
+    fn health_path_accepts_valid_percent_escapes() {
+        let url = resolve_health_url(Some(8080), Some("/a%20b")).unwrap();
+        assert_eq!(url.as_deref(), Some("http://127.0.0.1:8080/a%20b"));
     }
 
     #[test]
