@@ -38,6 +38,13 @@ const DEFAULT_RUST_TARGET: &str = "x86_64-unknown-linux-gnu";
 ///   - `source`      — local crate directory (defaults to current directory)
 ///   - `binary_name` — binary filename to upload; falls back to Cargo package name
 ///   - `rust_target` — local cross-compilation target triple; defaults to `x86_64-unknown-linux-gnu`
+///   - `process_manager` — `"nohup"` (default) or `"systemd"`; systemd restarts
+///     `<binary_name>.service` with `systemctl --user` (see `resolve_supervisor`)
+///   - `port`, `health_path` — when both are set, the deploy polls
+///     `http://127.0.0.1:<port><health_path>` after the restart
+///
+/// The binary is uploaded as `<binary>.new`, the live one is kept as
+/// `<binary>.previous`, and a failed check restores it.
 pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<CommandResult> {
     let deploy_start = std::time::Instant::now();
 
@@ -56,6 +63,9 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         ))));
     }
 
+    let supervisor = resolve_supervisor(config.project.process_manager.as_deref())?;
+    let health_url =
+        resolve_health_url(config.project.port, config.project.health_path.as_deref())?;
     let binary_name = resolve_binary_name(&config, source_dir)?;
     let rust_target = config
         .project
@@ -160,7 +170,10 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
     } else {
         format!("{}/", remote_path)
     };
-    let destination = format!("git@{}:{}", rsync_host, remote_with_slash);
+    let destination = format!(
+        "git@{}:{}{}.new",
+        rsync_host, remote_with_slash, binary_name
+    );
     let binary_path_str = binary_path.to_string_lossy().into_owned();
 
     let binary_size = fs::metadata(&binary_path).map(|m| m.len()).unwrap_or(0);
@@ -229,7 +242,8 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         ),
     );
 
-    let deploy_script = build_remote_start_script(remote_path, &binary_name);
+    let deploy_script =
+        build_remote_start_script(remote_path, &binary_name, supervisor, health_url.as_deref());
     let ssh_output = run_remote_script(
         &identity_file_str,
         &known_hosts_file,
@@ -247,6 +261,12 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
             fail_message("Launch failed")
         );
         print_output_details(&ssh_output);
+        if let Some(line) = String::from_utf8_lossy(&ssh_output.stdout)
+            .lines()
+            .find(|line| line.starts_with("Rolled back"))
+        {
+            eprintln!("{}", line);
+        }
         mark_failed(
             &deploy_ref,
             &created_deployment,
@@ -474,9 +494,62 @@ echo "Prepared $APP_PATH"
     )
 }
 
-fn build_remote_start_script(remote_path: &str, binary_name: &str) -> String {
-    format!(
+/// How the service is stopped and started on the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Supervisor {
+    /// Kill the old process, start the new one with `nohup`.
+    Nohup,
+    /// `systemctl --user restart <binary_name>.service`.
+    Systemd,
+}
+
+/// Maps `process_manager` to a [`Supervisor`] (matched case-insensitively).
+/// `None`, `""` and `"nohup"` keep the original behaviour. Any other value is a
+/// hard error: a typo like `system` must not start a nohup process next to a
+/// systemd-owned one that already holds the port.
+fn resolve_supervisor(process_manager: Option<&str>) -> Result<Supervisor> {
+    match process_manager.map(str::trim) {
+        None | Some("") => Ok(Supervisor::Nohup),
+        Some(m) if m.eq_ignore_ascii_case("nohup") => Ok(Supervisor::Nohup),
+        Some(m) if m.eq_ignore_ascii_case("systemd") => Ok(Supervisor::Systemd),
+        Some(other) => Err(anyhow!(fail_message(&format!(
+            "Unknown process_manager '{other}' in .smb/config.toml. \
+             Expected \"nohup\" (default) or \"systemd\"."
+        )))),
+    }
+}
+
+/// Builds the URL the remote script polls after the restart. `None` unless both
+/// `port` and `health_path` are set. The path ends up in a shell script, so it
+/// is limited to URL-path characters.
+fn resolve_health_url(port: Option<u16>, health_path: Option<&str>) -> Result<Option<String>> {
+    let Some(path) = health_path.map(str::trim).filter(|path| !path.is_empty()) else {
+        return Ok(None);
+    };
+    let valid = path.starts_with('/')
+        && path
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.' | '~' | '%'));
+    if !valid {
+        return Err(anyhow!(fail_message(&format!(
+            "Invalid health_path '{path}' in .smb/config.toml. \
+             It must start with '/' and contain only letters, digits and / - _ . ~ %."
+        ))));
+    }
+    Ok(port.map(|port| format!("http://127.0.0.1:{port}{path}")))
+}
+
+/// Remote script: swap the uploaded `<binary>.new` into place (keeping the live
+/// one as `<binary>.previous`), restart, verify, and roll back on failure.
+fn build_remote_start_script(
+    remote_path: &str,
+    binary_name: &str,
+    supervisor: Supervisor,
+    health_url: Option<&str>,
+) -> String {
+    let mut script = format!(
         r#"set -e
+exec 2>&1
 APP_PATH={remote_path}
 PROCESS_NAME={binary_name}
 
@@ -492,41 +565,166 @@ fi
 
 cd "$APP_PATH"
 
-if [ ! -f "$PROCESS_NAME" ]; then
-    echo "Error: $PROCESS_NAME does not exist in $APP_PATH."
+if [ ! -f "$PROCESS_NAME.new" ]; then
+    echo "Error: $PROCESS_NAME.new does not exist in $APP_PATH."
     exit 1
 fi
 
-chmod +x "$PROCESS_NAME"
-
-PID=$(pidof "$PROCESS_NAME" 2>/dev/null || true)
-
-if [ -n "$PID" ]; then
-    echo "Stopping $PROCESS_NAME ($PID)..."
-    kill "$PID" 2>/dev/null || true
-    sleep 2
-    if kill -0 "$PID" 2>/dev/null; then
-        echo "Force-killing $PROCESS_NAME ($PID)..."
-        kill -9 "$PID" 2>/dev/null || true
-    fi
-fi
-
-echo "Starting $PROCESS_NAME..."
-nohup "./$PROCESS_NAME" >> "$APP_PATH/$PROCESS_NAME.log" 2>&1 &
-sleep 1
-
-NEW_PID=$(pidof "$PROCESS_NAME" 2>/dev/null || true)
-if [ -z "$NEW_PID" ]; then
-    echo "Error: failed to start $PROCESS_NAME."
-    exit 1
-fi
-
-echo "Started $PROCESS_NAME as $NEW_PID"
-echo "Done."
 "#,
         remote_path = shell_single_quote(remote_path),
         binary_name = shell_single_quote(binary_name),
-    )
+    );
+    script.push_str(&restart_section(supervisor));
+    script.push_str(&verify_section(supervisor, health_url));
+    script.push_str(swap_section());
+    script.push_str(
+        r#"if restart_service && check_service; then
+    started
+    echo "Done."
+    exit 0
+fi
+
+echo "Error: $PROCESS_NAME failed its check after the restart."
+show_logs
+if [ -f "$PROCESS_NAME.previous" ]; then
+    echo "Rolling back to the previous binary..."
+    cp -p "$PROCESS_NAME.previous" "$PROCESS_NAME.rollback"
+    mv -f "$PROCESS_NAME.rollback" "$PROCESS_NAME"
+    if restart_service && check_service; then
+        echo "Rolled back to the previous $PROCESS_NAME, which is serving again."
+    else
+        echo "Rolled back to the previous $PROCESS_NAME, but it failed its check too."
+    fi
+else
+    echo "No previous binary to roll back to."
+fi
+exit 1
+"#,
+    );
+    script
+}
+
+/// Keeps the live binary as `.previous` and moves `.new` into place.
+fn swap_section() -> &'static str {
+    r#"if [ -f "$PROCESS_NAME" ]; then
+    cp -p "$PROCESS_NAME" "$PROCESS_NAME.previous"
+fi
+chmod +x "$PROCESS_NAME.new"
+mv -f "$PROCESS_NAME.new" "$PROCESS_NAME"
+
+"#
+}
+
+/// Defines `restart_service`. The systemd variant also fails early, before the
+/// swap, when the unit does not exist.
+fn restart_section(supervisor: Supervisor) -> String {
+    match supervisor {
+        Supervisor::Nohup => r#"restart_service() {
+    PID=$(pidof "$PROCESS_NAME" 2>/dev/null || true)
+    if [ -n "$PID" ]; then
+        echo "Stopping $PROCESS_NAME ($PID)..."
+        kill "$PID" 2>/dev/null || true
+        sleep 2
+        if kill -0 "$PID" 2>/dev/null; then
+            echo "Force-killing $PROCESS_NAME ($PID)..."
+            kill -9 "$PID" 2>/dev/null || true
+        fi
+    fi
+    echo "Starting $PROCESS_NAME..."
+    nohup "./$PROCESS_NAME" >> "$APP_PATH/$PROCESS_NAME.log" 2>&1 &
+}
+
+"#
+        .to_owned(),
+        Supervisor::Systemd => r#"export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+UNIT="$PROCESS_NAME.service"
+if ! systemctl --user cat "$UNIT" >/dev/null 2>&1; then
+    echo "Error: systemd --user unit $UNIT not found on the server."
+    echo "Create ~/.config/systemd/user/$UNIT and enable it (see the"
+    echo "smbcloud-deploy-rust guide, 'Process manager: systemd --user'),"
+    echo "or unset process_manager to use the default start. Then re-deploy."
+    exit 1
+fi
+
+restart_service() {
+    echo "Restarting $UNIT via systemd --user..."
+    systemctl --user restart "$UNIT"
+}
+
+"#
+        .to_owned(),
+    }
+}
+
+/// Defines `check_service`, `started` and `show_logs`. The check polls the
+/// health URL for up to 30 seconds when there is one, else looks for a live
+/// process (`is-active` under systemd, `pidof` under nohup).
+fn verify_section(supervisor: Supervisor, health_url: Option<&str>) -> String {
+    let mut section = String::new();
+    match health_url {
+        Some(url) => {
+            section.push_str(&format!("HEALTH_URL={}\n\n", shell_single_quote(url)));
+            section.push_str(
+                r#"check_service() {
+    echo "Waiting for $HEALTH_URL..."
+    i=0
+    while [ "$i" -lt 30 ]; do
+        if curl -fsS -o /dev/null --max-time 2 "$HEALTH_URL"; then
+            return 0
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    return 1
+}
+
+"#,
+            );
+        }
+        None => section.push_str(match supervisor {
+            Supervisor::Systemd => {
+                r#"check_service() {
+    sleep 3
+    systemctl --user is-active "$UNIT" >/dev/null 2>&1
+}
+
+"#
+            }
+            Supervisor::Nohup => {
+                r#"check_service() {
+    sleep 1
+    [ -n "$(pidof "$PROCESS_NAME" 2>/dev/null || true)" ]
+}
+
+"#
+            }
+        }),
+    }
+    section.push_str(match supervisor {
+        Supervisor::Systemd => {
+            r#"started() {
+    echo "Started $PROCESS_NAME via $UNIT"
+}
+
+show_logs() {
+    journalctl --user -u "$UNIT" -n 20 --no-pager 2>&1 || true
+}
+
+"#
+        }
+        Supervisor::Nohup => {
+            r#"started() {
+    echo "Started $PROCESS_NAME as $(pidof "$PROCESS_NAME" 2>/dev/null || true)"
+}
+
+show_logs() {
+    tail -n 20 "$APP_PATH/$PROCESS_NAME.log" 2>&1 || true
+}
+
+"#
+        }
+    });
+    section
 }
 
 fn build_ssh_command(identity_file: &str, known_hosts_file: &NamedTempFile) -> String {
@@ -637,5 +835,141 @@ async fn mark_failed(
             },
         )
         .await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn script(supervisor: Supervisor, health_url: Option<&str>) -> String {
+        build_remote_start_script("apps/my-app", "my-app", supervisor, health_url)
+    }
+
+    #[test]
+    fn resolve_supervisor_defaults_to_nohup() {
+        for pm in [
+            None,
+            Some(""),
+            Some("nohup"),
+            Some("NoHup"),
+            Some(" nohup "),
+        ] {
+            assert_eq!(resolve_supervisor(pm).unwrap(), Supervisor::Nohup, "{pm:?}");
+        }
+    }
+
+    #[test]
+    fn resolve_supervisor_systemd_is_case_insensitive() {
+        for pm in ["systemd", "SystemD", " systemd "] {
+            assert_eq!(resolve_supervisor(Some(pm)).unwrap(), Supervisor::Systemd);
+        }
+    }
+
+    #[test]
+    fn resolve_supervisor_rejects_unknown_value() {
+        for pm in ["system", "pm2", "supervisord"] {
+            let msg = resolve_supervisor(Some(pm)).unwrap_err().to_string();
+            assert!(msg.contains(pm), "names the offending value: {msg}");
+            assert!(msg.contains("nohup") && msg.contains("systemd"), "{msg}");
+        }
+    }
+
+    #[test]
+    fn systemd_script_restarts_the_user_unit() {
+        let s = script(Supervisor::Systemd, None);
+        assert!(s.contains("systemctl --user restart \"$UNIT\""));
+        assert!(s.contains("UNIT=\"$PROCESS_NAME.service\""));
+        assert!(s.contains("XDG_RUNTIME_DIR=\"/run/user/$(id -u)\""));
+        assert!(s.contains("systemctl --user is-active"));
+        assert!(!s.contains("nohup"));
+        assert!(!s.contains("kill"));
+        assert!(!s.contains("sudo"));
+    }
+
+    #[test]
+    fn nohup_script_keeps_the_pidof_flow() {
+        let s = script(Supervisor::Nohup, None);
+        assert!(s.contains("pidof"));
+        assert!(s.contains("nohup \"./$PROCESS_NAME\""));
+        assert!(!s.contains("systemctl"));
+    }
+
+    #[test]
+    fn both_scripts_back_up_and_swap_before_restarting() {
+        for supervisor in [Supervisor::Nohup, Supervisor::Systemd] {
+            let s = script(supervisor, None);
+            let backup = s
+                .find("cp -p \"$PROCESS_NAME\" \"$PROCESS_NAME.previous\"")
+                .unwrap();
+            let swap = s
+                .find("mv -f \"$PROCESS_NAME.new\" \"$PROCESS_NAME\"")
+                .unwrap();
+            let restart = s.find("if restart_service && check_service").unwrap();
+            assert!(backup < swap && swap < restart, "{supervisor:?}");
+            assert!(s.contains("Rolled back"), "{supervisor:?}");
+        }
+    }
+
+    #[test]
+    fn health_url_controls_the_curl_poll() {
+        for supervisor in [Supervisor::Nohup, Supervisor::Systemd] {
+            let with = script(supervisor, Some("http://127.0.0.1:8080/health"));
+            assert!(with.contains("curl -fsS"));
+            assert!(with.contains("HEALTH_URL='http://127.0.0.1:8080/health'"));
+            assert!(!script(supervisor, None).contains("curl"));
+        }
+    }
+
+    #[test]
+    fn health_url_needs_both_port_and_path() {
+        let url = resolve_health_url(Some(8080), Some("/health")).unwrap();
+        assert_eq!(url.as_deref(), Some("http://127.0.0.1:8080/health"));
+        assert_eq!(resolve_health_url(None, Some("/health")).unwrap(), None);
+        assert_eq!(resolve_health_url(Some(8080), None).unwrap(), None);
+        assert_eq!(resolve_health_url(Some(8080), Some("")).unwrap(), None);
+    }
+
+    #[test]
+    fn health_path_validation_rejects_unsafe_values() {
+        for path in ["health", "/a b", "/x;rm", "/$(id)", "/a'b"] {
+            assert!(
+                resolve_health_url(Some(8080), Some(path)).is_err(),
+                "{path}"
+            );
+        }
+    }
+
+    #[test]
+    fn binary_name_with_single_quote_is_quoted() {
+        let s = build_remote_start_script("apps/x", "a'b", Supervisor::Nohup, None);
+        assert!(s.contains("PROCESS_NAME='a'\"'\"'b'"));
+    }
+
+    #[test]
+    fn every_script_variant_is_valid_bash() {
+        for supervisor in [Supervisor::Nohup, Supervisor::Systemd] {
+            for health in [None, Some("http://127.0.0.1:8080/health")] {
+                let mut child = Command::new("bash")
+                    .args(["-n", "-s"])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .expect("bash is available");
+                child
+                    .stdin
+                    .take()
+                    .unwrap()
+                    .write_all(script(supervisor, health).as_bytes())
+                    .unwrap();
+                let out = child.wait_with_output().unwrap();
+                assert!(
+                    out.status.success(),
+                    "{supervisor:?} {health:?}: {}",
+                    String::from_utf8_lossy(&out.stderr)
+                );
+            }
+        }
     }
 }

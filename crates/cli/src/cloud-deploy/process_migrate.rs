@@ -200,6 +200,7 @@ fn strip_project(project: &Project) -> Project {
         pm2_env: None,
         process_manager: None,
         port: None,
+        health_path: None,
         shared_lib: None,
         compile_cmd: None,
         install_command: None,
