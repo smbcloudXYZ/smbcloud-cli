@@ -35,9 +35,11 @@ pub struct DeployConfig {
     pub pm2_app: Option<String>,
     #[serde(default)]
     pub pm2_env: Option<std::collections::HashMap<String, serde_json::Value>>,
-    /// Runtime supervisor for `nextjs-ssr` apps: `"pm2"` (default) or
-    /// `"systemd"`. When `systemd`, deploys restart via a git-owned
+    /// Runtime supervisor. `nextjs-ssr`: `"pm2"` (default) or `"systemd"`;
+    /// `systemd` restarts via a git-owned
     /// `systemctl --user restart <pm2_app>.service` instead of `pm2`.
+    /// `rust`: `"nohup"` (default) or `"systemd"`, restarting
+    /// `<binary_name>.service` the same way.
     #[serde(default)]
     pub process_manager: Option<String>,
     #[serde(default)]

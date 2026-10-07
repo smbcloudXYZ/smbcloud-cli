@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: smbCloudXYZ.smbcloud-cli
+PackageVersion: @VERSION@
+PackageLocale: en-US
+Publisher: smbCloud
+PublisherUrl: https://smbcloud.xyz/
+PublisherSupportUrl: https://github.com/@REPO@/issues
+PackageName: smbCloud CLI
+PackageUrl: https://smbcloud.xyz/
+License: Apache-2.0
+LicenseUrl: https://github.com/@REPO@/blob/main/LICENSE
+ShortDescription: smbCloud command line interface.
+Description: |-
+  smbCloud Mail, Auth, Deploy, and GresIQ from your terminal or your AI
+  agent. `smb` is the command-line interface for smbCloud: send mail with
+  smbCloud Mail, manage authentication apps on smbCloud Auth, and deploy
+  Rust, Node.js, Ruby, or Swift projects from one binary.
+Moniker: smb
+Tags:
+  - cli
+  - cloud
+  - deploy
+  - developer-tools
+  - email
+  - smbcloud
+  - terminal
+ReleaseNotesUrl: https://github.com/@REPO@/releases/tag/@TAG@
+Documentations:
+  - DocumentLabel: Readme
+    DocumentUrl: https://github.com/@REPO@/blob/main/README.MD
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

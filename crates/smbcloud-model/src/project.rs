@@ -103,16 +103,23 @@ pub struct Project {
     /// Populated from the server-side App record; not written to `.smb/config.toml`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pm2_env: Option<std::collections::HashMap<String, serde_json::Value>>,
-    /// Runtime supervisor for `nextjs-ssr` apps: `"pm2"` (default) or `"systemd"`.
-    /// When `"systemd"`, the deploy restart step drives a git-owned
+    /// Runtime supervisor. For `nextjs-ssr` apps: `"pm2"` (default) or
+    /// `"systemd"`. When `"systemd"`, the deploy restart step drives a git-owned
     /// `systemctl --user restart <pm2_app>.service` (created by the
     /// pm2-to-systemd migration) instead of `pm2 delete`/`pm2 start`.
     /// `pm2_app` is still used as the unit name.
-    #[serde(default)]
+    /// For `rust` apps: `"nohup"` (default) or `"systemd"`, with
+    /// `<binary_name>.service` as the user unit name.
     pub process_manager: Option<String>,
     /// Port the standalone server binds to (default: 3000). Must match nginx upstream configuration.
     #[serde(default)]
     pub port: Option<u16>,
+    /// HTTP path polled after a `rust` deploy restart, e.g. `"/health"`. Used
+    /// together with `port`: the deploy requests
+    /// `http://127.0.0.1:<port><health_path>` until it succeeds, and rolls back
+    /// to the previous binary if it does not.
+    #[serde(default)]
+    pub health_path: Option<String>,
     /// Path to a shared lib directory to rsync to the server before deploying,
     /// e.g. "lib". Used by Rails apps that depend on native gems built from
     /// monorepo-level source. Relative to the repo root.

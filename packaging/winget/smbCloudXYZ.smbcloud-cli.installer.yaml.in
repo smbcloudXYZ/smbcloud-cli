@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: smbCloudXYZ.smbcloud-cli
+PackageVersion: @VERSION@
+InstallerType: portable
+# `Commands` is what winget names the shim it drops on PATH. The release
+# assets are smb-win-<arch>.exe, but the command has to be `smb`.
+Commands:
+  - smb
+ReleaseDate: "@RELEASE_DATE@"
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/@REPO@/releases/download/@TAG@/smb-win-amd64.exe
+    InstallerSha256: @SHA_AMD64@
+  - Architecture: arm64
+    InstallerUrl: https://github.com/@REPO@/releases/download/@TAG@/smb-win-arm64.exe
+    InstallerSha256: @SHA_ARM64@
+ManifestType: installer
+ManifestVersion: 1.6.0
