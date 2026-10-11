@@ -1,6 +1,6 @@
 use {
     anyhow::{anyhow, Result},
-    clap::Parser,
+    clap::{CommandFactory, Parser},
     console::style,
     smbcloud_cli::{
         account::{login::process_login, logout::process_logout, me::process_me, process_account},
@@ -172,6 +172,17 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         setup_logging(cli.environment, None)?;
     }
 
+    // Bare `smb` with no subcommand prints help and exits cleanly. Deploy is a
+    // deliberate action, so we don't want to run it implicitly — and winget's
+    // installer validation launches the exe with no arguments and treats a
+    // non-zero exit as a failure, which an implicit deploy (no config, no
+    // login, no network) would always trigger.
+    if cli.command.is_none() {
+        Cli::command().print_help()?;
+        println!();
+        std::process::exit(0);
+    }
+
     // Check if the command requires internet connection
     let needs_internet = match &cli.command {
         Some(Commands::Me {})
@@ -183,10 +194,10 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         | Some(Commands::Auth { .. })
         | Some(Commands::Project { .. })
         | Some(Commands::Tenant { .. })
-        | Some(Commands::Migrate {})
-        | None => true,
+        | Some(Commands::Migrate {}) => true,
         Some(Commands::ControlKit { .. }) => false,
         Some(Commands::Init {}) => true,
+        None => unreachable!("handled above: bare invocation prints help and exits"),
     };
 
     // Check internet connectivity for commands that need it
@@ -209,6 +220,6 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Tenant { command }) => process_tenant(cli.environment, command).await,
         Some(Commands::ControlKit { command }) => process_controlkit(command).await,
         Some(Commands::Migrate {}) => process_migrate(cli.environment).await,
-        None => process_deploy(cli.environment, None).await,
+        None => unreachable!("handled above: bare invocation prints help and exits"),
     }
 }
