@@ -324,7 +324,7 @@ pub async fn process_deploy_rust(env: Environment, config: Config) -> Result<Com
         symbol: succeed_symbol(),
         msg: format!(
             "Deployed {} in {}",
-            console::style(&config.name).white().bold(),
+            console::style(&config.project.name).white().bold(),
             console::style(&duration).cyan(),
         ),
     })
