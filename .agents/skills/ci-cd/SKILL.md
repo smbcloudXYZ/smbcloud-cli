@@ -379,23 +379,29 @@ No `PYPI_TOKEN` secret needed. The action exchanges the GitHub OIDC JWT for a sh
 
 If the trusted publisher is missing, the publish step fails with `invalid-publisher: valid token, but no corresponding publisher`.
 
-### npm — does NOT support trusted publishing natively
+### npm — trusted publishing, configured per package
 
-npm has no OIDC-based trusted publishing equivalent to PyPI. The `id-token: write` permission in the npm workflow is unused for auth.
-
-Authentication requires a stored secret:
+The npm workflows (`release-npm.yml`, `release-sdk-npm.yml`, `release-xcrs-npm.yml`) publish over OIDC. There is no `NPM_TOKEN` secret and no `NODE_AUTH_TOKEN` on the publish steps. Each workflow needs:
 
 ```yaml
-- name: Publish to NPM
-  env:
-    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 ```
 
-`setup-node` with `registry-url` writes an `.npmrc` referencing `${NODE_AUTH_TOKEN}`. That variable must be in the step's `env` block at publish time. If it is missing, `npm publish` silently has no auth and returns 404 for new packages (existing packages that pass the `npm view` idempotency check are never attempted, masking the missing token).
+npm >= 11.5.1 and Node >= 22.14.0 are required, which `.nvmrc` covers.
 
-The 404 on `npm publish` does not mean the package does not exist. npm returns 404 for auth failures to avoid leaking package existence.
+The trusted publisher is set on each package, not on the `@smbcloud` scope, and it names one workflow file. Every platform package needs its own entry:
 
-**npm trusted publishing (future):** npm does support OIDC trusted publishing via `npm trust github`. It requires the package to exist on npm first. Configure it per-package after the first manual publish. See `smbcloud-cli-release` skill for details.
+```sh
+npm trust github @smbcloud/cli-linux-arm64 --repo smbcloudXYZ/smbcloud-cli --file release-npm.yml
+```
+
+A package without one fails at `npm publish` while its siblings succeed. `@smbcloud/cli-linux-arm64` was missed this way: it kept publishing on the stored token until the token died, and for eight releases starting at v0.5.3 its 404 also skipped the base `@smbcloud/cli` job, which `needs` every platform job.
+
+A 404 on `npm publish` does not mean the package does not exist. npm returns 404 for auth failures to avoid leaking package existence.
+
+`npm trust` only works on a package that already exists, so the first version of a new package name has to be published by hand. See the `smbcloud-cli-release` skill for details.
 
 ### crates.io — uses `CARGO_REGISTRY_TOKEN`
 
