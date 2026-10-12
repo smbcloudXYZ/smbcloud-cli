@@ -3,8 +3,13 @@ name: SDK npm Release
 # Publishes @smbcloud/sdk-auth (WASM) to npm.
 # WASM is a single universal target — no platform matrix needed.
 #
-# Required secrets:
-#   NPM_TOKEN  — npm access token with publish rights to @smbcloud/sdk-auth
+# Authenticates with npm trusted publishing (OIDC), so there is no npm token
+# to store or rotate. The package needs a trusted publisher on npmjs.com that
+# names this repository and this workflow file:
+#
+#   npm trust github @smbcloud/sdk-auth --repo smbcloudXYZ/smbcloud-cli --file release-sdk-npm.yml
+#
+# OIDC publishing needs npm >= 11.5.1 and Node >= 22.14.0; .nvmrc covers both.
 
 on:
   workflow_dispatch:
@@ -14,6 +19,8 @@ on:
         required: true
 
 permissions:
+  # Lets the job request the OIDC token npm exchanges for publish rights.
+  id-token: write
   contents: read
 
 env:
@@ -110,6 +117,4 @@ jobs:
       - name: Publish to npm
         if: steps.npm-check.outputs.exists != 'true'
         working-directory: sdk/npm/smbcloud-auth
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
