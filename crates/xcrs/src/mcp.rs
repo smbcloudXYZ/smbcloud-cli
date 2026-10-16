@@ -339,6 +339,15 @@ impl Orientation {
 /// Static, hand-maintained capability description for Android targets. Unlike
 /// Apple's `device.capabilities` ControlKit call, adb has no capability-discovery
 /// RPC, so this mirrors exactly the actions `AndroidDebugBridge` implements.
+///
+/// This is the adb-only baseline, and the semantic UI actions it reports as
+/// `false` (`ui_describe`, `ui_element_list`, `ui_tap`) are the ones that only
+/// XCRS AndroidKit can provide. The `device_capabilities` handler starts from
+/// this value and, when it reaches AndroidKit via its `device.info` call,
+/// upgrades exactly those three to `true` and records an `androidkit` object;
+/// when the call fails, it leaves them `false` and records the setup hint
+/// instead. So a `false` here means "not available over adb alone", not "never
+/// available on this target".
 pub fn android_capabilities() -> serde_json::Value {
     serde_json::json!({
         "screen_capture": true,
@@ -1050,6 +1059,8 @@ macro_rules! xcrs_mcp_tools {
                                     object.insert("androidkit".to_string(), ::serde_json::json!({ "available": true, "info": info }));
                                 }
                                 Err(error) => {
+                                    object.insert("ui_describe".to_string(), ::serde_json::json!(false));
+                                    object.insert("ui_element_list".to_string(), ::serde_json::json!(false));
                                     object.insert("ui_tap".to_string(), ::serde_json::json!(false));
                                     object.insert("androidkit".to_string(), ::serde_json::json!({
                                         "available": false,
@@ -2712,6 +2723,26 @@ mod tests {
         assert_eq!(
             capabilities["input_button"]["buttons"],
             serde_json::json!(AndroidButton::ALL)
+        );
+    }
+
+    /// The adb-only baseline reports the AndroidKit-backed semantic UI actions as
+    /// unavailable; `device_capabilities` may only ever upgrade them to `true`
+    /// after a successful `device.info` call, so a regression that flips them on
+    /// here would advertise actions that plain adb cannot perform.
+    #[test]
+    fn android_capabilities_reports_androidkit_backed_actions_as_unavailable() {
+        let capabilities = android_capabilities();
+        for action in ["ui_describe", "ui_element_list", "ui_tap"] {
+            assert_eq!(
+                capabilities[action],
+                serde_json::json!(false),
+                "{action} is AndroidKit-backed and must default to false"
+            );
+        }
+        assert!(
+            capabilities.get("androidkit").is_none(),
+            "the androidkit object is added by the device_capabilities handler, not the baseline"
         );
     }
 }
