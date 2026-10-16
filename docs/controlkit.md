@@ -158,6 +158,104 @@ Platform-specific operations intentionally reject unsupported input. For
 example, visionOS rejects raw touch, watchOS rejects pointer and spatial input,
 and macOS rejects touch and Home-button requests.
 
+## Inspect the macOS host
+
+The `host` subcommands describe what is actually on the local Mac's screen.
+They are for the cases where a UI test's own output is not enough: which
+windows are up, what text a screenshot contains, or which colors run along one
+line of pixels. Unlike the runner tools above they talk to no device and start
+no XCTest — they run a small Swift helper,
+[`xcrs-host-inspect`](https://github.com/ondeinference/xcrs-controlkit), in
+process on the host. They need macOS 13 or later for the AppKit window server
+and Vision's text recognizer, are CLI-only, and are not part of the `--mcp`
+tool set.
+
+### Build the helper
+
+Build it once with SwiftPM from the `xcrs-controlkit` checkout:
+
+```sh
+cd <path-to-xcrs-controlkit>
+swift build -c release
+```
+
+The CLI uses the first `xcrs-host-inspect` it finds, in this order:
+
+1. the path in the `XCRS_HOST_INSPECT` environment variable,
+2. next to the `xcrs` binary itself, for a release that ships the helper,
+3. `.build/release`, then `.build/debug`, relative to the current directory,
+4. `~/bin`, `/usr/local/bin`, and `/opt/homebrew/bin`.
+
+Because steps 3 are relative, running `xcrs` from inside the checkout finds a
+`swift build` without any further setup. Set `XCRS_HOST_INSPECT` when you have
+several builds and want to choose between them.
+
+### Read the screen
+
+List the host's on-screen windows, ordered by layer and then window id:
+
+```sh
+xcrs host windows
+xcrs host windows --owner Mail --json
+```
+
+Each window reports its `id`, the owning application name (`owner`), its
+`title`, its `layer`, and its `bounds`. `--owner` keeps only windows owned by
+one application name.
+
+Read the text in an image with Vision and print each string with its
+confidence:
+
+```sh
+xcrs host ocr --image shot.png
+xcrs host ocr --image shot.png --language en-US --language sv-SE --json
+```
+
+`--language` is repeatable; omit it to use the platform's own default.
+
+Crop a rect out of an image and write it to a new PNG:
+
+```sh
+xcrs host crop --image shot.png --rect 20,40,320,180 --out header.png
+```
+
+`--rect` takes `x,y,width,height`. The result reports the written path and its
+pixel dimensions, and the input image is never modified.
+
+Probe one row or column and describe it as a run of colors, so a solid surface
+collapses to a single line instead of thousands of pixels:
+
+```sh
+xcrs host probe --image shot.png --row --position 300
+xcrs host probe --image shot.png --column --position 120 --from 40 --to 260
+```
+
+`--position` is the row or column to read, and exactly one of `--row` or
+`--column` is required. `--from` and `--to` clip the line to part of its
+length. Runs report `start`, `end`, `width`, and a quantized `#rrggbb`
+`color`, so low-order noise does not split one surface into several runs.
+
+### Coordinates and scale
+
+Coordinates you pass are in caller units, and `--scale` says how many pixels
+one unit covers: the default `1` reads them as pixels, and `2` reads them as
+Retina points on a 2x display. `crop` and `probe` honor it for their rect,
+position, and bounds. Output geometry follows the same convention — an image
+reports `width`/`height` in caller units alongside `pixel_width`/
+`pixel_height` — while window bounds are screen points regardless of
+`--scale`.
+
+### Exit codes and errors
+
+The helper separates a malformed command from failed work: it exits with
+status 2 when it rejects the arguments, and 1 when the operation itself fails,
+writing the reason to stderr. The CLI validates rects, the scale, and probe
+bounds before it spawns the helper, so bad input usually never reaches it.
+When the helper does fail, the CLI reports it with its status — for example
+`xcrs-host-inspect crop exited with status 1: …` — and exits non-zero. A
+helper that cannot be started at all, such as a missing binary, is reported
+with a hint to run `swift build` in `xcrs-controlkit`.
+
 ## See also
 
 For the product-level overview of end-to-end testing with xcrs and
