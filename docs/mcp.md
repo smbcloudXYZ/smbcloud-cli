@@ -162,7 +162,7 @@ not a separate MCP-specific shape.
 
 #### Interactive views (MCP Apps)
 
-Two tools declare an [MCP Apps](https://modelcontextprotocol.io/extensions/apps) view.
+Three tools declare an [MCP Apps](https://modelcontextprotocol.io/extensions/apps) view.
 Hosts that support the extension, such as Claude and ChatGPT, render it in a sandboxed frame
 next to the result:
 
@@ -172,6 +172,10 @@ next to the result:
   preview, received, forward status). Click a row to open the message, which calls
   `mail_message_show`; **Back** returns to the list and **Refresh** reloads it. Only the
   plain-text body is shown, never `html_body`.
+
+- `auth_app_show` and `auth_app_new` → `ui://smbcloud/auth-app.html`: a setup card with the
+  client ID (copy), the client secret (masked, with Reveal and Copy), the support email, and a
+  Sign in with Apple checklist. The secret is only present when the API returns it.
 
 List views show the newest 50 rows. Other clients see the same JSON result as before. Each
 view is a single self-contained HTML document that makes no network requests; Refresh and

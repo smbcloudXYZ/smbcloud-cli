@@ -48,7 +48,7 @@ use {
         mail_message::{get_mail_message, get_mail_messages},
     },
     smbcloud_model::{
-        app_auth::{AuthAppCreate, AuthAppUpdate},
+        app_auth::{AuthApp, AuthAppCreate, AuthAppUpdate},
         mail::{
             MailAppCreate, MailAppUpdate, MailInboxCreate, MailInboxUpdate, MailMessage,
             MailTestEmailRequest,
@@ -114,11 +114,12 @@ fn invalid_request(message: impl Into<String>) -> ErrorData {
 
 const DEPLOYMENTS_VIEW_URI: &str = "ui://smbcloud/deployments.html";
 const INBOX_VIEW_URI: &str = "ui://smbcloud/inbox.html";
+const AUTH_APP_VIEW_URI: &str = "ui://smbcloud/auth-app.html";
 const MCP_APP_MIME_TYPE: &str = "text/html;profile=mcp-app";
 
 /// Every MCP Apps view the server serves: (uri, name, description, html).
 /// Adding a view is one row here plus the tool that points at it.
-const VIEWS: [(&str, &str, &str, &str); 2] = [
+const VIEWS: [(&str, &str, &str, &str); 3] = [
     (
         DEPLOYMENTS_VIEW_URI,
         "deployments",
@@ -130,6 +131,12 @@ const VIEWS: [(&str, &str, &str, &str); 2] = [
         "inbox",
         "Interactive inbox for a Mail inbox route.",
         include_str!("mcp_apps/inbox.html"),
+    ),
+    (
+        AUTH_APP_VIEW_URI,
+        "auth-app",
+        "Setup card for an Auth app: client ID, secret, and provider checklist.",
+        include_str!("mcp_apps/auth_app.html"),
     ),
 ];
 
@@ -159,6 +166,10 @@ fn deployments_tool_meta() -> MetaObject {
 
 fn inbox_tool_meta() -> MetaObject {
     ui_tool_meta(INBOX_VIEW_URI)
+}
+
+fn auth_app_tool_meta() -> MetaObject {
+    ui_tool_meta(AUTH_APP_VIEW_URI)
 }
 
 /// The plain JSON content stays so hosts without MCP Apps support (and the
@@ -193,6 +204,12 @@ fn mail_messages_result(
         "inbox_id": inbox_id,
         "messages": newest,
     }));
+    Ok(result)
+}
+
+fn auth_app_result(auth_app: &AuthApp) -> Result<CallToolResult, ErrorData> {
+    let mut result = CallToolResult::success(vec![ContentBlock::json(auth_app)?]);
+    result.structured_content = Some(serde_json::json!({ "auth_app": auth_app }));
     Ok(result)
 }
 
@@ -996,7 +1013,11 @@ impl SmbMcpServer {
         json_result(&auth_apps)
     }
 
-    #[tool(description = "Show a single Auth app by ID, returned as JSON.")]
+    #[tool(
+        description = "Show a single Auth app by ID, returned as JSON. Hosts that support \
+                       MCP Apps render a setup card.",
+        meta = auth_app_tool_meta()
+    )]
     async fn auth_app_show(
         &self,
         Parameters(args): Parameters<AuthAppShowArgs>,
@@ -1006,13 +1027,15 @@ impl SmbMcpServer {
             crate::cloud_auth::auth_app::get_auth_app(self.environment, client(), token, args.id)
                 .await
                 .map_err(to_error_data)?;
-        json_result(&auth_app)
+        auth_app_result(&auth_app)
     }
 
     #[tool(
         description = "Create an Auth app under a project. Defaults to the currently \
                        selected project (`project_use`) if project_id is omitted. Returns \
-                       the created Auth app as JSON."
+                       the created Auth app as JSON. Hosts that support MCP Apps render a \
+                       setup card.",
+        meta = auth_app_tool_meta()
     )]
     async fn auth_app_new(
         &self,
@@ -1033,7 +1056,7 @@ impl SmbMcpServer {
         )
         .await
         .map_err(to_error_data)?;
-        json_result(&auth_app)
+        auth_app_result(&auth_app)
     }
 
     #[tool(
@@ -1194,6 +1217,8 @@ mod tests {
         for (tool_name, uri) in [
             ("deployments", DEPLOYMENTS_VIEW_URI),
             ("mail_message_list", INBOX_VIEW_URI),
+            ("auth_app_show", AUTH_APP_VIEW_URI),
+            ("auth_app_new", AUTH_APP_VIEW_URI),
         ] {
             let tool = tools
                 .iter()
@@ -1279,6 +1304,29 @@ mod tests {
             structured["messages"].as_array().map(|items| items.len()),
             Some(VIEW_ROW_CAP)
         );
+    }
+
+    #[test]
+    fn auth_app_result_carries_content_and_structured_content() {
+        let auth_app: AuthApp = serde_json::from_value(serde_json::json!({
+            "id": "client-id",
+            "secret": "client-secret",
+            "name": "My app",
+            "project_id": 7,
+            "support_email": null,
+            "apple_oauth_enabled": true,
+            "apple_oauth_client_id": null,
+            "apple_oauth_configured": false,
+            "apple_oauth_secret_present": false,
+            "created_at": "2026-01-01T00:00:00.000+00:00",
+            "updated_at": "2026-01-01T00:01:00.000+00:00",
+        }))
+        .expect("fixture auth app");
+
+        let result = auth_app_result(&auth_app).expect("result");
+        assert!(!result.content.is_empty());
+        let structured = result.structured_content.expect("structured content");
+        assert_eq!(structured["auth_app"]["id"], "client-id");
     }
 
     #[test]
