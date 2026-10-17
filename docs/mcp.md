@@ -158,7 +158,18 @@ not a separate MCP-specific shape.
 | `project_create` | `name`, `description` (optional) | The created project. Targets the selected tenant, if any. |
 | `project_update` | `id`, `description` | The updated project (runner preserved). |
 | `project_delete` | `id` | Confirmation. **Destructive and irreversible.** |
-| `deployments` | `project_id` | A project's deployments. |
+| `deployments` | `project_id` | A project's deployments. On MCP Apps hosts it also renders a dashboard (see below). |
+
+#### Interactive views (MCP Apps)
+
+`deployments` declares an [MCP Apps](https://modelcontextprotocol.io/extensions/apps) view
+(`ui://smbcloud/deployments.html`). Hosts that support the extension, such as Claude and
+ChatGPT, render it in a sandboxed frame next to the result: a table of deployments with
+status, app, commit, and created/updated times, newest first, plus a **Refresh** button.
+
+Other clients see the same JSON result as before. The view is a single self-contained
+HTML document that makes no network requests; Refresh goes back through the host with a
+`tools/call` to `deployments`.
 
 ### Tenants
 

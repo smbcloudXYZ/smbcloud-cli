@@ -29,8 +29,13 @@ use {
     anyhow::{anyhow, Result},
     rmcp::{
         handler::server::{wrapper::Parameters, ServerHandler},
-        model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig},
-        tool, tool_handler, tool_router, ErrorData, ServiceExt,
+        model::{
+            CallToolResult, ContentBlock, Implementation, ListResourcesResult, MetaObject,
+            PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResponse,
+            ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerConfig,
+        },
+        service::RequestContext,
+        tool, tool_handler, tool_router, ErrorData, RoleServer, ServiceExt,
     },
     schemars::JsonSchema,
     serde::Deserialize,
@@ -47,7 +52,7 @@ use {
         mail::{
             MailAppCreate, MailAppUpdate, MailInboxCreate, MailInboxUpdate, MailTestEmailRequest,
         },
-        project::ProjectCreate,
+        project::{Deployment, ProjectCreate},
         tenant::{TenantCreate, TenantUpdate},
     },
     smbcloud_network::environment::Environment,
@@ -104,6 +109,40 @@ fn to_error_data(error: impl std::fmt::Display) -> ErrorData {
 
 fn invalid_request(message: impl Into<String>) -> ErrorData {
     ErrorData::invalid_request(message.into(), None)
+}
+
+const DEPLOYMENTS_VIEW_URI: &str = "ui://smbcloud/deployments.html";
+const MCP_APP_MIME_TYPE: &str = "text/html;profile=mcp-app";
+const DEPLOYMENTS_VIEW_HTML: &str = include_str!("mcp_apps/deployments.html");
+
+/// `_meta` linking the `deployments` tool to its MCP Apps view (SEP-1865).
+///
+/// Sent unconditionally rather than gated on the client's
+/// `io.modelcontextprotocol/ui` extension: hosts without MCP Apps support
+/// ignore `_meta`, and gating would need per-session state in the tool router
+/// for no user-visible gain.
+fn deployments_tool_meta() -> MetaObject {
+    let mut meta = MetaObject::new();
+    meta.insert(
+        "ui".to_string(),
+        serde_json::json!({ "resourceUri": DEPLOYMENTS_VIEW_URI }),
+    );
+    meta
+}
+
+/// The plain JSON content stays so hosts without MCP Apps support (and the
+/// spec's requirement for a meaningful `content`) keep working; the view reads
+/// `structured_content`, which must be an object rather than a bare array.
+fn deployments_result(
+    project_id: i32,
+    deployments: &[Deployment],
+) -> Result<CallToolResult, ErrorData> {
+    let mut result = CallToolResult::success(vec![ContentBlock::json(deployments)?]);
+    result.structured_content = Some(serde_json::json!({
+        "project_id": project_id,
+        "deployments": deployments,
+    }));
+    Ok(result)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -429,7 +468,11 @@ impl SmbMcpServer {
         json_result(&project)
     }
 
-    #[tool(description = "List deployments for a project by project ID, returned as a JSON array.")]
+    #[tool(
+        description = "List deployments for a project by project ID, returned as a JSON array. \
+                       Hosts that support MCP Apps render an interactive dashboard.",
+        meta = deployments_tool_meta()
+    )]
     async fn deployments(
         &self,
         Parameters(args): Parameters<DeploymentsArgs>,
@@ -438,7 +481,7 @@ impl SmbMcpServer {
         let deployments = get_deployments(self.environment, client(), token, args.project_id)
             .await
             .map_err(to_error_data)?;
-        json_result(&deployments)
+        deployments_result(args.project_id, &deployments)
     }
 
     #[tool(
@@ -987,15 +1030,56 @@ impl ServerHandler for SmbMcpServer {
         server_info.name = "smb".to_string();
         server_info.version = env!("CARGO_PKG_VERSION").to_string();
 
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(server_info)
-            .with_instructions(
-                "smbCloud CLI exposed as MCP tools. Authentication uses the token stored by \
+        ServerConfig::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(server_info)
+        .with_instructions(
+            "smbCloud CLI exposed as MCP tools. Authentication uses the token stored by \
                  `smb login`; tools run non-interactively. `tenant_use` / `project_use` select \
                  the tenant/project context other tools default to, shared with the CLI's own \
                  `smb tenant use` / `smb project use`. Use `smb --mcp --scope automation` \
-                 instead for mobile and TV app automation tools.",
-            )
+                 instead for mobile and TV app automation tools. `deployments` renders an \
+                 interactive dashboard on MCP Apps hosts.",
+        )
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, ErrorData> {
+        let view = Resource::new(DEPLOYMENTS_VIEW_URI, "deployments")
+            .with_description("Interactive deployments dashboard for a project.")
+            .with_mime_type(MCP_APP_MIME_TYPE);
+        Ok(ListResourcesResult::with_all_items(vec![view]))
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, ErrorData> {
+        if request.uri != DEPLOYMENTS_VIEW_URI {
+            return Err(ErrorData::resource_not_found(
+                format!("Unknown resource: {}", request.uri),
+                None,
+            ));
+        }
+        // No `csp` on purpose: the view loads nothing external, so the host's
+        // restrictive default policy is the right one.
+        let mut meta = MetaObject::new();
+        meta.insert(
+            "ui".to_string(),
+            serde_json::json!({ "prefersBorder": true }),
+        );
+        let contents = ResourceContents::text(DEPLOYMENTS_VIEW_HTML, request.uri)
+            .with_mime_type(MCP_APP_MIME_TYPE)
+            .with_meta(meta);
+        Ok(ReadResourceResult::new(vec![contents]).into())
     }
 }
 
@@ -1037,6 +1121,51 @@ mod tests {
                 "cloud router should expose {cloud_only:?}"
             );
         }
+    }
+
+    #[test]
+    fn deployments_tool_declares_ui_resource() {
+        let tools = SmbMcpServer::cloud_tool_router().list_all();
+        let tool = tools
+            .iter()
+            .find(|tool| tool.name == "deployments")
+            .expect("deployments tool");
+        let meta = tool.meta.as_ref().expect("deployments tool _meta");
+        assert_eq!(meta["ui"]["resourceUri"], DEPLOYMENTS_VIEW_URI);
+    }
+
+    #[test]
+    fn deployments_view_is_self_contained() {
+        assert!(!DEPLOYMENTS_VIEW_HTML.is_empty());
+        assert!(DEPLOYMENTS_VIEW_HTML.contains("ui/initialize"));
+        assert!(!DEPLOYMENTS_VIEW_HTML.contains("http://"));
+        assert!(!DEPLOYMENTS_VIEW_HTML.contains("https://"));
+    }
+
+    #[test]
+    fn deployments_result_carries_content_and_structured_content() {
+        let deployments: Vec<Deployment> = serde_json::from_value(serde_json::json!([{
+            "id": 1,
+            "project_id": 7,
+            "frontend_app_id": null,
+            "frontend_app_name": "web",
+            "commit_hash": "abcdef1234567",
+            "status": 2,
+            "created_at": "2026-01-01T00:00:00.000+00:00",
+            "updated_at": "2026-01-01T00:01:00.000+00:00",
+        }]))
+        .expect("fixture deployment");
+
+        let result = deployments_result(7, &deployments).expect("result");
+        assert!(!result.content.is_empty());
+        let structured = result.structured_content.expect("structured content");
+        assert_eq!(structured["project_id"], 7);
+        assert_eq!(
+            structured["deployments"]
+                .as_array()
+                .map(|items| items.len()),
+            Some(1)
+        );
     }
 
     #[test]
