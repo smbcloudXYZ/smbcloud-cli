@@ -50,7 +50,8 @@ use {
     smbcloud_model::{
         app_auth::{AuthAppCreate, AuthAppUpdate},
         mail::{
-            MailAppCreate, MailAppUpdate, MailInboxCreate, MailInboxUpdate, MailTestEmailRequest,
+            MailAppCreate, MailAppUpdate, MailInboxCreate, MailInboxUpdate, MailMessage,
+            MailTestEmailRequest,
         },
         project::{Deployment, ProjectCreate},
         tenant::{TenantCreate, TenantUpdate},
@@ -112,22 +113,52 @@ fn invalid_request(message: impl Into<String>) -> ErrorData {
 }
 
 const DEPLOYMENTS_VIEW_URI: &str = "ui://smbcloud/deployments.html";
+const INBOX_VIEW_URI: &str = "ui://smbcloud/inbox.html";
 const MCP_APP_MIME_TYPE: &str = "text/html;profile=mcp-app";
-const DEPLOYMENTS_VIEW_HTML: &str = include_str!("mcp_apps/deployments.html");
 
-/// `_meta` linking the `deployments` tool to its MCP Apps view (SEP-1865).
+/// Every MCP Apps view the server serves: (uri, name, description, html).
+/// Adding a view is one row here plus the tool that points at it.
+const VIEWS: [(&str, &str, &str, &str); 2] = [
+    (
+        DEPLOYMENTS_VIEW_URI,
+        "deployments",
+        "Interactive deployments dashboard for a project.",
+        include_str!("mcp_apps/deployments.html"),
+    ),
+    (
+        INBOX_VIEW_URI,
+        "inbox",
+        "Interactive inbox for a Mail inbox route.",
+        include_str!("mcp_apps/inbox.html"),
+    ),
+];
+
+/// List views show at most this many of the newest rows, which also keeps the
+/// text fallback under host size limits.
+const VIEW_ROW_CAP: usize = 50;
+
+/// `_meta` linking a tool to its MCP Apps view (SEP-1865).
 ///
 /// Sent unconditionally rather than gated on the client's
 /// `io.modelcontextprotocol/ui` extension: hosts without MCP Apps support
 /// ignore `_meta`, and gating would need per-session state in the tool router
 /// for no user-visible gain.
-fn deployments_tool_meta() -> MetaObject {
+///
+/// The URI is emitted under both `_meta.ui.resourceUri` and the legacy flat
+/// `_meta["ui/resourceUri"]`, because older hosts read only the flat key.
+fn ui_tool_meta(uri: &str) -> MetaObject {
     let mut meta = MetaObject::new();
-    meta.insert(
-        "ui".to_string(),
-        serde_json::json!({ "resourceUri": DEPLOYMENTS_VIEW_URI }),
-    );
+    meta.insert("ui".to_string(), serde_json::json!({ "resourceUri": uri }));
+    meta.insert("ui/resourceUri".to_string(), serde_json::json!(uri));
     meta
+}
+
+fn deployments_tool_meta() -> MetaObject {
+    ui_tool_meta(DEPLOYMENTS_VIEW_URI)
+}
+
+fn inbox_tool_meta() -> MetaObject {
+    ui_tool_meta(INBOX_VIEW_URI)
 }
 
 /// The plain JSON content stays so hosts without MCP Apps support (and the
@@ -137,11 +168,37 @@ fn deployments_result(
     project_id: i32,
     deployments: &[Deployment],
 ) -> Result<CallToolResult, ErrorData> {
-    let mut result = CallToolResult::success(vec![ContentBlock::json(deployments)?]);
+    let mut newest: Vec<&Deployment> = deployments.iter().collect();
+    newest.sort_by_key(|deployment| std::cmp::Reverse(deployment.created_at));
+    newest.truncate(VIEW_ROW_CAP);
+    let mut result = CallToolResult::success(vec![ContentBlock::json(&newest)?]);
     result.structured_content = Some(serde_json::json!({
         "project_id": project_id,
-        "deployments": deployments,
+        "deployments": newest,
     }));
+    Ok(result)
+}
+
+fn mail_messages_result(
+    app_id: &str,
+    inbox_id: &str,
+    messages: &[MailMessage],
+) -> Result<CallToolResult, ErrorData> {
+    let mut newest: Vec<&MailMessage> = messages.iter().collect();
+    newest.sort_by_key(|message| std::cmp::Reverse(message.received_at));
+    newest.truncate(VIEW_ROW_CAP);
+    let mut result = CallToolResult::success(vec![ContentBlock::json(&newest)?]);
+    result.structured_content = Some(serde_json::json!({
+        "app_id": app_id,
+        "inbox_id": inbox_id,
+        "messages": newest,
+    }));
+    Ok(result)
+}
+
+fn mail_message_result(message: &MailMessage) -> Result<CallToolResult, ErrorData> {
+    let mut result = CallToolResult::success(vec![ContentBlock::json(message)?]);
+    result.structured_content = Some(serde_json::json!({ "message": message }));
     Ok(result)
 }
 
@@ -876,7 +933,10 @@ impl SmbMcpServer {
     // ── Mail messages ────────────────────────────────────────────────────
 
     #[tool(
-        description = "List inbound mail messages for an inbox, most recent first, as a JSON array."
+        description = "List inbound mail messages for an inbox, most recent first, as a JSON array \
+                       (at most the newest 50). Hosts that support MCP Apps render an \
+                       interactive inbox.",
+        meta = inbox_tool_meta()
     )]
     async fn mail_message_list(
         &self,
@@ -887,13 +947,13 @@ impl SmbMcpServer {
             self.environment,
             client(),
             token,
-            args.app_id,
-            args.inbox_id,
-            Some(args.limit),
+            args.app_id.clone(),
+            args.inbox_id.clone(),
+            Some(args.limit.min(VIEW_ROW_CAP as u32)),
         )
         .await
         .map_err(to_error_data)?;
-        json_result(&messages)
+        mail_messages_result(&args.app_id, &args.inbox_id, &messages)
     }
 
     #[tool(description = "Show a single inbound mail message, returned as JSON.")]
@@ -912,7 +972,7 @@ impl SmbMcpServer {
         )
         .await
         .map_err(to_error_data)?;
-        json_result(&message)
+        mail_message_result(&message)
     }
 
     // ── Auth apps ────────────────────────────────────────────────────────
@@ -1052,10 +1112,15 @@ impl ServerHandler for SmbMcpServer {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        let view = Resource::new(DEPLOYMENTS_VIEW_URI, "deployments")
-            .with_description("Interactive deployments dashboard for a project.")
-            .with_mime_type(MCP_APP_MIME_TYPE);
-        Ok(ListResourcesResult::with_all_items(vec![view]))
+        let views = VIEWS
+            .iter()
+            .map(|(uri, name, description, _)| {
+                Resource::new(*uri, *name)
+                    .with_description(*description)
+                    .with_mime_type(MCP_APP_MIME_TYPE)
+            })
+            .collect();
+        Ok(ListResourcesResult::with_all_items(views))
     }
 
     async fn read_resource(
@@ -1063,12 +1128,12 @@ impl ServerHandler for SmbMcpServer {
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<ReadResourceResponse, ErrorData> {
-        if request.uri != DEPLOYMENTS_VIEW_URI {
+        let Some((_, _, _, html)) = VIEWS.iter().find(|(uri, ..)| *uri == request.uri) else {
             return Err(ErrorData::resource_not_found(
                 format!("Unknown resource: {}", request.uri),
                 None,
             ));
-        }
+        };
         // No `csp` on purpose: the view loads nothing external, so the host's
         // restrictive default policy is the right one.
         let mut meta = MetaObject::new();
@@ -1076,7 +1141,7 @@ impl ServerHandler for SmbMcpServer {
             "ui".to_string(),
             serde_json::json!({ "prefersBorder": true }),
         );
-        let contents = ResourceContents::text(DEPLOYMENTS_VIEW_HTML, request.uri)
+        let contents = ResourceContents::text(*html, request.uri)
             .with_mime_type(MCP_APP_MIME_TYPE)
             .with_meta(meta);
         Ok(ReadResourceResult::new(vec![contents]).into())
@@ -1124,22 +1189,30 @@ mod tests {
     }
 
     #[test]
-    fn deployments_tool_declares_ui_resource() {
+    fn view_tools_declare_ui_resource_under_both_keys() {
         let tools = SmbMcpServer::cloud_tool_router().list_all();
-        let tool = tools
-            .iter()
-            .find(|tool| tool.name == "deployments")
-            .expect("deployments tool");
-        let meta = tool.meta.as_ref().expect("deployments tool _meta");
-        assert_eq!(meta["ui"]["resourceUri"], DEPLOYMENTS_VIEW_URI);
+        for (tool_name, uri) in [
+            ("deployments", DEPLOYMENTS_VIEW_URI),
+            ("mail_message_list", INBOX_VIEW_URI),
+        ] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool.name == tool_name)
+                .unwrap_or_else(|| panic!("{tool_name} tool"));
+            let meta = tool.meta.as_ref().expect("tool _meta");
+            assert_eq!(meta["ui"]["resourceUri"], uri, "{tool_name}");
+            assert_eq!(meta["ui/resourceUri"], uri, "{tool_name}");
+        }
     }
 
     #[test]
-    fn deployments_view_is_self_contained() {
-        assert!(!DEPLOYMENTS_VIEW_HTML.is_empty());
-        assert!(DEPLOYMENTS_VIEW_HTML.contains("ui/initialize"));
-        assert!(!DEPLOYMENTS_VIEW_HTML.contains("http://"));
-        assert!(!DEPLOYMENTS_VIEW_HTML.contains("https://"));
+    fn views_are_self_contained() {
+        for (uri, _, _, html) in VIEWS {
+            assert!(!html.is_empty(), "{uri}");
+            assert!(html.contains("ui/initialize"), "{uri}");
+            assert!(!html.contains("http://"), "{uri}");
+            assert!(!html.contains("https://"), "{uri}");
+        }
     }
 
     #[test]
@@ -1166,6 +1239,54 @@ mod tests {
                 .map(|items| items.len()),
             Some(1)
         );
+    }
+
+    fn fixture_message(index: usize) -> MailMessage {
+        serde_json::from_value(serde_json::json!({
+            "id": format!("message-{index}"),
+            "mail_inbox_id": "inbox",
+            "provider_message_id": "provider",
+            "original_recipient_email": "to@example.com",
+            "from_email": "from@example.com",
+            "from_name": null,
+            "subject": "Hello",
+            "text_preview": "Preview",
+            "size_bytes": null,
+            "forwarded_at": null,
+            "forward_error": null,
+            "received_at": format!("2026-01-01T00:{:02}:00Z", index % 60),
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z",
+            "status": 0,
+            "text_body": "Body",
+            "html_body": null,
+            "s3_bucket": null,
+            "s3_key": null,
+        }))
+        .expect("fixture message")
+    }
+
+    #[test]
+    fn mail_messages_result_carries_content_and_structured_content() {
+        let messages: Vec<MailMessage> = (0..60).map(fixture_message).collect();
+
+        let result = mail_messages_result("app", "inbox", &messages).expect("result");
+        assert!(!result.content.is_empty());
+        let structured = result.structured_content.expect("structured content");
+        assert_eq!(structured["app_id"], "app");
+        assert_eq!(structured["inbox_id"], "inbox");
+        assert_eq!(
+            structured["messages"].as_array().map(|items| items.len()),
+            Some(VIEW_ROW_CAP)
+        );
+    }
+
+    #[test]
+    fn mail_message_result_carries_content_and_structured_content() {
+        let result = mail_message_result(&fixture_message(1)).expect("result");
+        assert!(!result.content.is_empty());
+        let structured = result.structured_content.expect("structured content");
+        assert_eq!(structured["message"]["id"], "message-1");
     }
 
     #[test]

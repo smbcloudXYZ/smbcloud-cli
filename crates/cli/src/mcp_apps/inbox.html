@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inbox</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: #e2e2e2;
+    --accent: #2563eb;
+    --ok: #15803d;
+    --fail: #b91c1c;
+    --busy: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1b1b;
+      --fg: #ececec;
+      --muted: #9a9a9a;
+      --border: #333333;
+      --accent: #60a5fa;
+      --ok: #4ade80;
+      --fail: #f87171;
+      --busy: #fbbf24;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #6b6b6b; --border: #e2e2e2;
+    --accent: #2563eb; --ok: #15803d; --fail: #b91c1c; --busy: #b45309;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #1b1b1b; --fg: #ececec; --muted: #9a9a9a; --border: #333333;
+    --accent: #60a5fa; --ok: #4ade80; --fail: #f87171; --busy: #fbbf24;
+  }
+  body {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  button {
+    font: inherit;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  tr.row { cursor: pointer; }
+  tr.row:hover td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .sub { display: block; color: var(--muted); font-size: 12px; }
+  .unread { font-weight: 600; }
+  .fail { color: var(--fail); }
+  .ok { color: var(--ok); }
+  .preview { color: var(--muted); }
+  .actions { display: flex; gap: 6px; }
+  .detail h2 { margin: 0 0 4px; font-size: 14px; }
+  .detail .meta { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .detail pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace;
+  }
+  .message { padding: 24px 8px; text-align: center; color: var(--muted); }
+  .message.error { color: var(--fail); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Inbox</h1>
+  <div class="actions">
+    <button id="back" type="button" hidden>Back</button>
+    <button id="refresh" type="button" disabled>Refresh</button>
+  </div>
+</header>
+<div id="content" class="message">Waiting for data…</div>
+<script>
+(function () {
+  "use strict";
+
+  var LIST_TOOL = "mail_message_list";
+  var SHOW_TOOL = "mail_message_show";
+  var nextId = 1;
+  var pending = {};
+  var appId = null;
+  var inboxId = null;
+  var limit = null;
+  var messages = [];
+  var contentEl = document.getElementById("content");
+  var titleEl = document.getElementById("title");
+  var refreshButton = document.getElementById("refresh");
+  var backButton = document.getElementById("back");
+
+  function send(message) {
+    window.parent.postMessage(Object.assign({ jsonrpc: "2.0" }, message), "*");
+  }
+
+  function request(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = nextId++;
+      pending[id] = { resolve: resolve, reject: reject };
+      send({ id: id, method: method, params: params });
+    });
+  }
+
+  function notify(method, params) {
+    send({ method: method, params: params });
+  }
+
+  function applyHostContext(context) {
+    if (!context) return;
+    if (context.theme === "light" || context.theme === "dark") {
+      document.documentElement.setAttribute("data-theme", context.theme);
+    }
+    var variables = context.styles && context.styles.variables;
+    if (variables) {
+      Object.keys(variables).forEach(function (name) {
+        if (variables[name]) document.documentElement.style.setProperty(name, variables[name]);
+      });
+    }
+  }
+
+  function showMessage(text, isError) {
+    contentEl.className = "message" + (isError ? " error" : "");
+    contentEl.textContent = text;
+  }
+
+  function relative(date) {
+    var seconds = Math.round((Date.now() - date.getTime()) / 1000);
+    var future = seconds < 0;
+    seconds = Math.abs(seconds);
+    var units = [["day", 86400], ["hour", 3600], ["minute", 60]];
+    for (var index = 0; index < units.length; index++) {
+      if (seconds >= units[index][1]) {
+        var count = Math.floor(seconds / units[index][1]);
+        var text = count + " " + units[index][0] + (count === 1 ? "" : "s");
+        return future ? "in " + text : text + " ago";
+      }
+    }
+    return "just now";
+  }
+
+  function timeCell(value) {
+    var cell = document.createElement("td");
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+      cell.textContent = String(value || "");
+      return cell;
+    }
+    cell.textContent = relative(date);
+    var absolute = document.createElement("span");
+    absolute.className = "sub";
+    absolute.textContent = date.toLocaleString();
+    cell.appendChild(absolute);
+    return cell;
+  }
+
+  function textCell(text, className) {
+    var cell = document.createElement("td");
+    if (className) cell.className = className;
+    cell.textContent = text;
+    return cell;
+  }
+
+  function sender(message) {
+    return message.from_name
+      ? message.from_name + " <" + message.from_email + ">"
+      : message.from_email || "";
+  }
+
+  // 0 received, 1 forwarded, 2 forward failed.
+  function forwardCell(message) {
+    if (message.status === 2) {
+      var failed = textCell(message.forward_error || "Forward failed", "fail");
+      return failed;
+    }
+    if (message.status === 1) return textCell("Forwarded", "ok");
+    return textCell("—");
+  }
+
+  function setView(isDetail) {
+    backButton.hidden = !isDetail;
+    refreshButton.hidden = isDetail;
+    titleEl.textContent = isDetail ? "Message" : "Inbox";
+  }
+
+  function renderList() {
+    setView(false);
+    if (!messages.length) {
+      showMessage("No messages yet.", false);
+      return;
+    }
+    var table = document.createElement("table");
+    var head = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    ["From", "Subject", "Received", "Forward"].forEach(function (label) {
+      var th = document.createElement("th");
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+    head.appendChild(headRow);
+    table.appendChild(head);
+
+    var body = document.createElement("tbody");
+    messages.forEach(function (message) {
+      var row = document.createElement("tr");
+      row.className = "row";
+      row.appendChild(textCell(sender(message)));
+      var subject = textCell(message.subject || "(no subject)");
+      if (message.text_preview) {
+        var preview = document.createElement("span");
+        preview.className = "sub preview";
+        preview.textContent = message.text_preview;
+        subject.appendChild(preview);
+      }
+      row.appendChild(subject);
+      row.appendChild(timeCell(message.received_at));
+      row.appendChild(forwardCell(message));
+      row.addEventListener("click", function () { openMessage(message.id); });
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    contentEl.className = "";
+    contentEl.replaceChildren(table);
+  }
+
+  function renderDetail(message) {
+    setView(true);
+    var wrapper = document.createElement("div");
+    wrapper.className = "detail";
+    var subject = document.createElement("h2");
+    subject.textContent = message.subject || "(no subject)";
+    var meta = document.createElement("div");
+    meta.className = "meta";
+    var received = new Date(message.received_at);
+    meta.textContent = "From " + sender(message) +
+      (message.to_emails && message.to_emails.length ? " · To " + message.to_emails.join(", ") : "") +
+      (isNaN(received.getTime()) ? "" : " · " + received.toLocaleString());
+    // Only the plain-text body is shown; html_body is never rendered, so the
+    // view never loads remote content.
+    var body = document.createElement("pre");
+    body.textContent = message.text_body || message.text_preview || "(no text body)";
+    wrapper.appendChild(subject);
+    wrapper.appendChild(meta);
+    wrapper.appendChild(body);
+    contentEl.className = "";
+    contentEl.replaceChildren(wrapper);
+  }
+
+  function errorText(result, fallback) {
+    var first = result && result.content && result.content[0];
+    return (first && first.text) || fallback;
+  }
+
+  function renderResult(result) {
+    if (!result) return;
+    if (result.isError) {
+      showMessage(errorText(result, "The inbox request failed."), true);
+      return;
+    }
+    var data = result.structuredContent;
+    if (data && data.message) {
+      renderDetail(data.message);
+      return;
+    }
+    if (!data || !Array.isArray(data.messages)) {
+      showMessage("No inbox data in the tool result.", true);
+      return;
+    }
+    if (data.app_id !== undefined) appId = data.app_id;
+    if (data.inbox_id !== undefined) inboxId = data.inbox_id;
+    refreshButton.disabled = appId === null || inboxId === null;
+    messages = data.messages;
+    renderList();
+  }
+
+  function openMessage(id) {
+    if (appId === null || inboxId === null) return;
+    showMessage("Loading…", false);
+    request("tools/call", {
+      name: SHOW_TOOL,
+      arguments: { app_id: appId, inbox_id: inboxId, id: id }
+    }).then(renderResult).catch(function (error) {
+      showMessage((error && error.message) || "Could not load the message.", true);
+    });
+  }
+
+  function refresh() {
+    if (appId === null || inboxId === null) return;
+    refreshButton.disabled = true;
+    var args = { app_id: appId, inbox_id: inboxId };
+    if (limit !== null) args.limit = limit;
+    request("tools/call", { name: LIST_TOOL, arguments: args })
+      .then(renderResult)
+      .catch(function (error) {
+        showMessage((error && error.message) || "Refresh failed.", true);
+      })
+      .then(function () {
+        refreshButton.disabled = appId === null || inboxId === null;
+      });
+  }
+
+  refreshButton.addEventListener("click", refresh);
+  backButton.addEventListener("click", renderList);
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+
+    if (message.method === undefined && message.id !== undefined) {
+      var entry = pending[message.id];
+      if (!entry) return;
+      delete pending[message.id];
+      if (message.error) entry.reject(message.error);
+      else entry.resolve(message.result);
+      return;
+    }
+
+    var params = message.params || {};
+    switch (message.method) {
+      case "ui/notifications/tool-input":
+        if (params.arguments) {
+          if (params.arguments.app_id !== undefined) appId = params.arguments.app_id;
+          if (params.arguments.inbox_id !== undefined) inboxId = params.arguments.inbox_id;
+          if (params.arguments.limit !== undefined) limit = params.arguments.limit;
+          refreshButton.disabled = appId === null || inboxId === null;
+        }
+        break;
+      case "ui/notifications/tool-result":
+        renderResult(params);
+        break;
+      case "ui/notifications/host-context-changed":
+        applyHostContext(params);
+        break;
+      case "ui/resource-teardown":
+        send({ id: message.id, result: {} });
+        break;
+    }
+  });
+
+  request("ui/initialize", {
+    appInfo: { name: "smbcloud-inbox", version: "1.0.0" },
+    appCapabilities: {},
+    protocolVersion: "2026-01-26"
+  }).then(function (result) {
+    applyHostContext(result && result.hostContext);
+    notify("ui/notifications/initialized", {});
+  }).catch(function () {
+    showMessage("Could not reach the host.", true);
+  });
+})();
+</script>
+</body>
+</html>

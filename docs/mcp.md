@@ -162,14 +162,22 @@ not a separate MCP-specific shape.
 
 #### Interactive views (MCP Apps)
 
-`deployments` declares an [MCP Apps](https://modelcontextprotocol.io/extensions/apps) view
-(`ui://smbcloud/deployments.html`). Hosts that support the extension, such as Claude and
-ChatGPT, render it in a sandboxed frame next to the result: a table of deployments with
-status, app, commit, and created/updated times, newest first, plus a **Refresh** button.
+Two tools declare an [MCP Apps](https://modelcontextprotocol.io/extensions/apps) view.
+Hosts that support the extension, such as Claude and ChatGPT, render it in a sandboxed frame
+next to the result:
 
-Other clients see the same JSON result as before. The view is a single self-contained
-HTML document that makes no network requests; Refresh goes back through the host with a
-`tools/call` to `deployments`.
+- `deployments` → `ui://smbcloud/deployments.html`: a table of deployments with status, app,
+  commit, and created/updated times, newest first, plus a **Refresh** button.
+- `mail_message_list` → `ui://smbcloud/inbox.html`: the inbox as a table (from, subject,
+  preview, received, forward status). Click a row to open the message, which calls
+  `mail_message_show`; **Back** returns to the list and **Refresh** reloads it. Only the
+  plain-text body is shown, never `html_body`.
+
+List views show the newest 50 rows. Other clients see the same JSON result as before. Each
+view is a single self-contained HTML document that makes no network requests; Refresh and
+drill-in go back through the host with a `tools/call`. Tool `_meta` carries the view URI
+under both `ui.resourceUri` and the legacy `ui/resourceUri` key, since older hosts read only
+the flat one.
 
 ### Tenants
 
