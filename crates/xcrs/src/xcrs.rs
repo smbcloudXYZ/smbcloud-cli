@@ -17,6 +17,16 @@ const ANDROIDKIT_START_TIMEOUT: Duration = Duration::from_secs(10);
 const ANDROIDKIT_START_PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 const ANDROIDKIT_START_RETRY_DELAY: Duration = Duration::from_millis(100);
 
+/// `ETXTBSY`, for an executable that another process still holds open for
+/// writing. It has the same value on Linux and the BSDs, and `ErrorKind` has no
+/// variant for it.
+#[cfg(unix)]
+const TEXT_FILE_BUSY: i32 = 26;
+#[cfg(unix)]
+const TEXT_FILE_BUSY_RETRY_DELAY: Duration = Duration::from_millis(20);
+#[cfg(unix)]
+const TEXT_FILE_BUSY_RETRY_ATTEMPTS: usize = 5;
+
 pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
     use base64::{engine::general_purpose::STANDARD, Engine};
 
@@ -1520,6 +1530,16 @@ pub struct HostInspect {
     helper_path: PathBuf,
 }
 
+#[cfg(unix)]
+fn is_text_file_busy(result: &std::io::Result<Output>) -> bool {
+    matches!(result, Err(error) if error.raw_os_error() == Some(TEXT_FILE_BUSY))
+}
+
+#[cfg(not(unix))]
+fn is_text_file_busy(_result: &std::io::Result<Output>) -> bool {
+    false
+}
+
 impl Default for HostInspect {
     fn default() -> Self {
         Self {
@@ -1549,21 +1569,39 @@ impl HostInspect {
     /// here, so a caller can forward the code instead of re-deriving it. This
     /// only fails when the helper could not be started at all.
     pub fn invoke(&self, arguments: &[String]) -> Result<HostInspectInvocation> {
-        let output = Command::new(&self.helper_path)
-            .args(arguments)
-            .output()
-            .with_context(|| {
-                format!(
-                    "failed to run {} (build it with `swift build` in xcrs-controlkit)",
-                    self.helper_path.display()
-                )
-            })?;
+        let output = self.run_helper(arguments).with_context(|| {
+            format!(
+                "failed to run {} (build it with `swift build` in xcrs-controlkit)",
+                self.helper_path.display()
+            )
+        })?;
 
         Ok(HostInspectInvocation {
             exit_code: output.status.code(),
             stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         })
+    }
+
+    /// Start the helper, waiting out a file that is briefly unstartable.
+    ///
+    /// Unix refuses to `exec` an executable that any process still holds open
+    /// for writing, and reports that as `ETXTBSY` rather than as a missing or
+    /// broken binary. A `swift build` replacing the helper does it, and so does
+    /// a sibling thread forking while a test writes a stand-in; both last only
+    /// until the other side closes its descriptor, so a short retry is the
+    /// difference between a transient condition and a reported failure.
+    fn run_helper(&self, arguments: &[String]) -> std::io::Result<Output> {
+        let mut attempt = 0;
+        loop {
+            let started = Command::new(&self.helper_path).args(arguments).output();
+            if !is_text_file_busy(&started) || attempt >= TEXT_FILE_BUSY_RETRY_ATTEMPTS {
+                return started;
+            }
+
+            attempt += 1;
+            std::thread::sleep(TEXT_FILE_BUSY_RETRY_DELAY);
+        }
     }
 
     /// List the host's on-screen windows, ordered by layer and then id.
@@ -2480,15 +2518,24 @@ SERIAL456              no permissions (user denied) usb:0-2 transport_id:3
     /// without a built `xcrs-host-inspect` or a macOS host.
     #[cfg(unix)]
     fn write_fake_helper(directory: &Path, script: &str) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
 
         let path = directory.join(HOST_INSPECT_HELPER);
-        std::fs::write(&path, script).expect("the fake helper should write");
-        let mut permissions = std::fs::metadata(&path)
-            .expect("the fake helper should stat")
-            .permissions();
-        permissions.set_mode(0o755);
-        std::fs::set_permissions(&path, permissions).expect("the fake helper should be executable");
+        // One handle writes the script and carries the executable bit, so the
+        // file is never re-opened and its descriptor is closed before the test
+        // starts it.
+        let mut helper = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o755)
+            .open(&path)
+            .expect("the fake helper should open");
+        helper
+            .write_all(script.as_bytes())
+            .expect("the fake helper should write");
+        drop(helper);
 
         path
     }
@@ -2560,6 +2607,32 @@ SERIAL456              no permissions (user denied) usb:0-2 transport_id:3
             window.bounds,
             HostInspectRect::new(0.0, 25.0, 1440.0, 875.0)
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn waits_out_a_helper_that_is_still_open_for_writing() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let (helper, recorded) = recording_helper(directory.path(), WINDOW_LIST_JSON, 0);
+        let host = HostInspect::with_path(&helper);
+
+        // Unix refuses to start a file that is open for writing anywhere, and
+        // that is what a sibling thread forking mid-write produces. Holding the
+        // descriptor here reproduces it on demand.
+        let held = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&helper)
+            .expect("the helper should reopen for writing");
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            drop(held);
+        });
+
+        host.windows(None)
+            .expect("windows should wait out the open handle");
+        release.join().expect("the releasing thread should finish");
+
+        assert_eq!(recorded_arguments(&recorded), vec!["windows"]);
     }
 
     #[cfg(unix)]
