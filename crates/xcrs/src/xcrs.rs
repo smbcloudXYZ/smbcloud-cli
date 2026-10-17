@@ -1184,6 +1184,525 @@ fn shell_escape(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
+/// The name of the Swift helper that reads the host machine.
+const HOST_INSPECT_HELPER: &str = "xcrs-host-inspect";
+
+/// What one `xcrs-host-inspect` run wrote, whether or not it succeeded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HostInspectInvocation {
+    /// The helper's exit code, or `None` when a signal killed it.
+    pub exit_code: Option<i32>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+impl HostInspectInvocation {
+    pub fn succeeded(&self) -> bool {
+        self.exit_code == Some(0)
+    }
+
+    /// Whether the helper rejected the invocation itself rather than failing
+    /// the work it was asked to do. The helper reserves exit code 2 for a
+    /// malformed command and 1 for a failed operation.
+    pub fn is_usage_error(&self) -> bool {
+        self.exit_code == Some(2)
+    }
+
+    /// The failure text, preferring stderr and falling back to stdout.
+    pub fn message(&self) -> String {
+        [self.stderr.trim(), self.stdout.trim()]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+/// Converts between the units a caller reasons about and image pixels.
+///
+/// A Retina screenshot is two pixels per point, so a scale of `2` accepts and
+/// reports points; the default of `1` accepts and reports pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct HostInspectScale(f64);
+
+impl HostInspectScale {
+    /// Pixels, which is the helper's default.
+    pub const PIXELS: Self = Self(1.0);
+
+    pub fn new(pixels_per_unit: f64) -> Result<Self> {
+        if !pixels_per_unit.is_finite() || pixels_per_unit <= 0.0 {
+            return Err(anyhow!(
+                "scale must be a positive number, got {pixels_per_unit}"
+            ));
+        }
+
+        Ok(Self(pixels_per_unit))
+    }
+
+    pub fn pixels_per_unit(&self) -> f64 {
+        self.0
+    }
+
+    pub fn pixels(&self, units: f64) -> f64 {
+        units * self.0
+    }
+
+    pub fn units(&self, pixels: f64) -> f64 {
+        pixels / self.0
+    }
+}
+
+impl Default for HostInspectScale {
+    fn default() -> Self {
+        Self::PIXELS
+    }
+}
+
+impl std::fmt::Display for HostInspectScale {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}", self.0)
+    }
+}
+
+impl std::str::FromStr for HostInspectScale {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let pixels_per_unit = value
+            .trim()
+            .parse::<f64>()
+            .with_context(|| format!("scale expects a number, got {value}"))?;
+
+        Self::new(pixels_per_unit)
+    }
+}
+
+/// A rectangle in caller units. Rows run top down and columns left to right,
+/// matching the rest of XCRS.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct HostInspectRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl HostInspectRect {
+    pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if [self.x, self.y, self.width, self.height]
+            .into_iter()
+            .any(|value| !value.is_finite())
+        {
+            return Err(anyhow!("rect values must be finite numbers, got {self}"));
+        }
+        if self.width <= 0.0 || self.height <= 0.0 {
+            return Err(anyhow!(
+                "rect width and height must be positive, got {self}"
+            ));
+        }
+
+        Ok(())
+    }
+}
+
+impl std::fmt::Display for HostInspectRect {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{},{},{},{}",
+            self.x, self.y, self.width, self.height
+        )
+    }
+}
+
+impl std::str::FromStr for HostInspectRect {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        let parts = value.split(',').collect::<Vec<_>>();
+        if parts.len() != 4 {
+            return Err(anyhow!("rect expects x,y,w,h, got {value}"));
+        }
+
+        let mut numbers = [0.0_f64; 4];
+        for (index, part) in parts.into_iter().enumerate() {
+            numbers[index] = part
+                .trim()
+                .parse::<f64>()
+                .with_context(|| format!("rect values must be numbers, got {value}"))?;
+        }
+
+        let rect = Self::new(numbers[0], numbers[1], numbers[2], numbers[3]);
+        rect.validate()?;
+
+        Ok(rect)
+    }
+}
+
+/// The image a result was read from, in both pixels and caller units.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostInspectImage {
+    pub path: String,
+    pub pixel_width: i64,
+    pub pixel_height: i64,
+    pub scale: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// An on-screen window in the global display space.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HostWindow {
+    pub id: i64,
+    pub owner: String,
+    pub title: String,
+    pub layer: i64,
+    /// Screen points, unaffected by the requested scale.
+    pub bounds: HostInspectRect,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HostWindowList {
+    pub windows: Vec<HostWindow>,
+}
+
+/// One recognized text box, ordered top to bottom and then left to right.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HostRecognizedText {
+    pub text: String,
+    pub confidence: f64,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HostOcrResult {
+    pub image: HostInspectImage,
+    /// The languages the request was configured with; empty means the
+    /// platform's own default.
+    pub languages: Vec<String>,
+    pub results: Vec<HostRecognizedText>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostCropResult {
+    pub image: HostInspectImage,
+    /// The requested rect, in caller units.
+    pub rect: HostInspectRect,
+    pub out: String,
+    pub pixel_width: i64,
+    pub pixel_height: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HostProbeAxis {
+    Row,
+    Column,
+}
+
+impl HostProbeAxis {
+    /// The flag the helper reads this axis from.
+    pub fn flag(&self) -> &'static str {
+        match self {
+            Self::Row => "--row",
+            Self::Column => "--column",
+        }
+    }
+}
+
+impl std::fmt::Display for HostProbeAxis {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Row => "row",
+            Self::Column => "column",
+        })
+    }
+}
+
+/// A stretch of one color along a probed line, half open in caller units.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HostColorRun {
+    pub start: f64,
+    pub end: f64,
+    pub width: f64,
+    /// Quantized `#rrggbb`, so low-order noise does not split a surface.
+    pub color: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HostProbeResult {
+    pub image: HostInspectImage,
+    pub axis: HostProbeAxis,
+    pub position: f64,
+    pub from: f64,
+    pub to: f64,
+    pub runs: Vec<HostColorRun>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HostOcrRequest {
+    pub image: PathBuf,
+    pub scale: HostInspectScale,
+    /// Empty leaves the platform on its own default.
+    pub languages: Vec<String>,
+}
+
+impl HostOcrRequest {
+    pub fn new(image: impl Into<PathBuf>) -> Self {
+        Self {
+            image: image.into(),
+            scale: HostInspectScale::PIXELS,
+            languages: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HostCropRequest {
+    pub image: PathBuf,
+    pub rect: HostInspectRect,
+    pub out: PathBuf,
+    pub scale: HostInspectScale,
+}
+
+impl HostCropRequest {
+    pub fn new(image: impl Into<PathBuf>, rect: HostInspectRect, out: impl Into<PathBuf>) -> Self {
+        Self {
+            image: image.into(),
+            rect,
+            out: out.into(),
+            scale: HostInspectScale::PIXELS,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct HostProbeRequest {
+    pub image: PathBuf,
+    pub axis: HostProbeAxis,
+    pub position: f64,
+    pub from: Option<f64>,
+    pub to: Option<f64>,
+    pub scale: HostInspectScale,
+}
+
+impl HostProbeRequest {
+    pub fn new(image: impl Into<PathBuf>, axis: HostProbeAxis, position: f64) -> Self {
+        Self {
+            image: image.into(),
+            axis,
+            position,
+            from: None,
+            to: None,
+            scale: HostInspectScale::PIXELS,
+        }
+    }
+}
+
+/// Client for the `xcrs-host-inspect` helper, which reads the macOS host on
+/// behalf of XCRS control runs: on-screen windows, image pixels, and text.
+#[derive(Debug, Clone)]
+pub struct HostInspect {
+    helper_path: PathBuf,
+}
+
+impl Default for HostInspect {
+    fn default() -> Self {
+        Self {
+            helper_path: discover_host_inspect_path(),
+        }
+    }
+}
+
+impl HostInspect {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_path(helper_path: impl Into<PathBuf>) -> Self {
+        Self {
+            helper_path: helper_path.into(),
+        }
+    }
+
+    pub fn helper_path(&self) -> &Path {
+        &self.helper_path
+    }
+
+    /// Run the helper and report what it wrote.
+    ///
+    /// A non-zero exit is part of the helper's contract rather than an error
+    /// here, so a caller can forward the code instead of re-deriving it. This
+    /// only fails when the helper could not be started at all.
+    pub fn invoke(&self, arguments: &[String]) -> Result<HostInspectInvocation> {
+        let output = Command::new(&self.helper_path)
+            .args(arguments)
+            .output()
+            .with_context(|| {
+                format!(
+                    "failed to run {} (build it with `swift build` in xcrs-controlkit)",
+                    self.helper_path.display()
+                )
+            })?;
+
+        Ok(HostInspectInvocation {
+            exit_code: output.status.code(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
+    }
+
+    /// List the host's on-screen windows, ordered by layer and then id.
+    pub fn windows(&self, owner: Option<&str>) -> Result<HostWindowList> {
+        let mut arguments = vec!["windows".to_string()];
+        if let Some(owner) = owner {
+            arguments.push("--owner".to_string());
+            arguments.push(owner.to_string());
+        }
+
+        self.decode(&arguments)
+    }
+
+    /// Read the text in an image.
+    pub fn recognize_text(&self, request: &HostOcrRequest) -> Result<HostOcrResult> {
+        let mut arguments = vec![
+            "ocr".to_string(),
+            "--image".to_string(),
+            path_to_string(&request.image)?,
+            "--scale".to_string(),
+            request.scale.to_string(),
+        ];
+        for language in &request.languages {
+            arguments.push("--language".to_string());
+            arguments.push(language.clone());
+        }
+
+        self.decode(&arguments)
+    }
+
+    /// Crop an image to a rect and write the result out as a PNG.
+    pub fn crop(&self, request: &HostCropRequest) -> Result<HostCropResult> {
+        request.rect.validate()?;
+        let arguments = vec![
+            "crop".to_string(),
+            "--image".to_string(),
+            path_to_string(&request.image)?,
+            "--rect".to_string(),
+            request.rect.to_string(),
+            "--out".to_string(),
+            path_to_string(&request.out)?,
+            "--scale".to_string(),
+            request.scale.to_string(),
+        ];
+
+        self.decode(&arguments)
+    }
+
+    /// Read one line of an image as a run of colors.
+    pub fn probe(&self, request: &HostProbeRequest) -> Result<HostProbeResult> {
+        if !request.position.is_finite() {
+            return Err(anyhow!(
+                "probe position must be a finite number, got {}",
+                request.position
+            ));
+        }
+
+        let mut arguments = vec![
+            "probe".to_string(),
+            "--image".to_string(),
+            path_to_string(&request.image)?,
+            request.axis.flag().to_string(),
+            request.position.to_string(),
+            "--scale".to_string(),
+            request.scale.to_string(),
+        ];
+        for (flag, bound) in [("--from", request.from), ("--to", request.to)] {
+            let Some(bound) = bound else { continue };
+            if !bound.is_finite() {
+                return Err(anyhow!("probe {flag} must be a finite number, got {bound}"));
+            }
+            arguments.push(flag.to_string());
+            arguments.push(bound.to_string());
+        }
+
+        self.decode(&arguments)
+    }
+
+    fn decode<T>(&self, arguments: &[String]) -> Result<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let command = arguments
+            .first()
+            .map(String::as_str)
+            .unwrap_or("invocation");
+        let invocation = self.invoke(arguments)?;
+        if !invocation.succeeded() {
+            let status = match invocation.exit_code {
+                Some(code) => format!("exited with status {code}"),
+                None => "was killed by a signal".to_string(),
+            };
+            let message = invocation.message();
+
+            return Err(if message.is_empty() {
+                anyhow!("xcrs-host-inspect {command} {status}")
+            } else {
+                anyhow!("xcrs-host-inspect {command} {status}: {message}")
+            });
+        }
+
+        serde_json::from_str(&invocation.stdout)
+            .with_context(|| format!("failed to decode xcrs-host-inspect {command} JSON"))
+    }
+}
+
+fn discover_host_inspect_path() -> PathBuf {
+    let executable = if cfg!(windows) {
+        format!("{HOST_INSPECT_HELPER}.exe")
+    } else {
+        HOST_INSPECT_HELPER.to_string()
+    };
+
+    let mut candidates = Vec::new();
+    if let Some(path) = env::var_os("XCRS_HOST_INSPECT") {
+        candidates.push(PathBuf::from(path));
+    }
+    // A release ships the helper next to the `xcrs` binary; a SwiftPM checkout
+    // leaves it in the build directory.
+    if let Some(directory) = env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+    {
+        candidates.push(directory.join(&executable));
+    }
+    candidates.push(Path::new(".build").join("release").join(&executable));
+    candidates.push(Path::new(".build").join("debug").join(&executable));
+    if let Some(home) = env::var_os("HOME").map(PathBuf::from) {
+        candidates.push(home.join("bin").join(&executable));
+    }
+    candidates.push(Path::new("/usr/local/bin").join(&executable));
+    candidates.push(Path::new("/opt/homebrew/bin").join(&executable));
+
+    candidates
+        .into_iter()
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from(executable))
+}
+
 #[derive(Debug, Clone)]
 pub enum XcodeProject {
     Project(PathBuf),
@@ -1881,5 +2400,470 @@ SERIAL456              no permissions (user denied) usb:0-2 transport_id:3
         assert_eq!(normalized.kind, DeviceKind::PhysicalDevice);
         // Falls back to the serial when no product/model/device property is reported.
         assert_eq!(normalized.name, "R58N123ABCD");
+    }
+
+    #[test]
+    fn defaults_host_inspect_scale_to_pixels() {
+        let scale = HostInspectScale::default();
+
+        assert_eq!(scale, HostInspectScale::PIXELS);
+        assert_eq!(scale.pixels_per_unit(), 1.0);
+        assert_eq!(scale.to_string(), "1");
+    }
+
+    #[test]
+    fn converts_between_units_and_pixels() {
+        let retina = HostInspectScale::new(2.0).expect("2 is a valid scale");
+
+        assert_eq!(retina.pixels(720.0), 1440.0);
+        assert_eq!(retina.units(1440.0), 720.0);
+        assert_eq!(retina.to_string(), "2");
+    }
+
+    #[test]
+    fn parses_host_inspect_scale() {
+        let scale = "2.5".parse::<HostInspectScale>().expect("2.5 should parse");
+
+        assert_eq!(scale.pixels_per_unit(), 2.5);
+        assert!("0".parse::<HostInspectScale>().is_err());
+        assert!("-1".parse::<HostInspectScale>().is_err());
+        assert!("nan".parse::<HostInspectScale>().is_err());
+        assert!("two".parse::<HostInspectScale>().is_err());
+    }
+
+    #[test]
+    fn parses_and_formats_host_inspect_rect() {
+        let rect = "10, 20, 30, 40"
+            .parse::<HostInspectRect>()
+            .expect("a four number rect should parse");
+
+        assert_eq!(rect, HostInspectRect::new(10.0, 20.0, 30.0, 40.0));
+        assert_eq!(rect.to_string(), "10,20,30,40");
+        assert_eq!(
+            rect.to_string()
+                .parse::<HostInspectRect>()
+                .expect("round trip"),
+            rect
+        );
+    }
+
+    #[test]
+    fn rejects_a_rect_that_cannot_be_used() {
+        assert!("0,0,4".parse::<HostInspectRect>().is_err());
+        assert!("0,0,4,4,4".parse::<HostInspectRect>().is_err());
+        assert!("a,b,c,d".parse::<HostInspectRect>().is_err());
+        assert!("0,0,0,4".parse::<HostInspectRect>().is_err());
+        assert!("0,0,4,-1".parse::<HostInspectRect>().is_err());
+        assert!("0,0,inf,4".parse::<HostInspectRect>().is_err());
+    }
+
+    #[test]
+    fn discovers_the_host_inspect_helper_from_the_environment() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let helper = directory.path().join("inspect-from-environment");
+        std::fs::write(&helper, "#!/bin/sh\n").expect("the helper should write");
+
+        let previous = env::var_os("XCRS_HOST_INSPECT");
+        env::set_var("XCRS_HOST_INSPECT", &helper);
+        let discovered = discover_host_inspect_path();
+        match previous {
+            Some(value) => env::set_var("XCRS_HOST_INSPECT", value),
+            None => env::remove_var("XCRS_HOST_INSPECT"),
+        }
+
+        // The environment wins over every other candidate, exactly as it does
+        // for the Android debug bridge.
+        assert_eq!(discovered, helper);
+    }
+
+    /// Writes a stand-in for the Swift helper so the client can be exercised
+    /// without a built `xcrs-host-inspect` or a macOS host.
+    #[cfg(unix)]
+    fn write_fake_helper(directory: &Path, script: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = directory.join(HOST_INSPECT_HELPER);
+        std::fs::write(&path, script).expect("the fake helper should write");
+        let mut permissions = std::fs::metadata(&path)
+            .expect("the fake helper should stat")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions).expect("the fake helper should be executable");
+
+        path
+    }
+
+    /// A fake helper that records the arguments it was handed and prints
+    /// `stdout` before exiting with `exit_code`.
+    #[cfg(unix)]
+    fn recording_helper(directory: &Path, stdout: &str, exit_code: i32) -> (PathBuf, PathBuf) {
+        let recorded = directory.join("arguments.txt");
+        let script = format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\ncat <<'EOF'\n{}\nEOF\nexit {}\n",
+            recorded.display(),
+            stdout,
+            exit_code
+        );
+
+        (write_fake_helper(directory, &script), recorded)
+    }
+
+    #[cfg(unix)]
+    fn recorded_arguments(recorded: &Path) -> Vec<String> {
+        std::fs::read_to_string(recorded)
+            .expect("the helper should have recorded its arguments")
+            .lines()
+            .map(str::to_string)
+            .collect()
+    }
+
+    #[cfg(unix)]
+    const WINDOW_LIST_JSON: &str = r#"{
+      "windows": [
+        {
+          "id": 42,
+          "owner": "Safari",
+          "title": "Example",
+          "layer": 0,
+          "bounds": { "x": 0, "y": 25, "width": 1440, "height": 875 }
+        }
+      ]
+    }"#;
+
+    #[cfg(unix)]
+    const IMAGE_JSON: &str = r#"{
+      "path": "/tmp/screenshot.png",
+      "pixelWidth": 2880,
+      "pixelHeight": 1800,
+      "scale": 2,
+      "width": 1440,
+      "height": 900
+    }"#;
+
+    #[cfg(unix)]
+    #[test]
+    fn decodes_a_host_window_list() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let (helper, _) = recording_helper(directory.path(), WINDOW_LIST_JSON, 0);
+        let host = HostInspect::with_path(helper);
+
+        let list = host.windows(None).expect("the window list should decode");
+
+        assert_eq!(list.windows.len(), 1);
+        let window = &list.windows[0];
+        assert_eq!(window.id, 42);
+        assert_eq!(window.owner, "Safari");
+        assert_eq!(window.title, "Example");
+        assert_eq!(window.layer, 0);
+        // Bounds stay in screen points, so they are not scaled.
+        assert_eq!(
+            window.bounds,
+            HostInspectRect::new(0.0, 25.0, 1440.0, 875.0)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn builds_the_windows_arguments() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let (helper, recorded) = recording_helper(directory.path(), WINDOW_LIST_JSON, 0);
+        let host = HostInspect::with_path(helper);
+
+        host.windows(None).expect("windows should succeed");
+        assert_eq!(recorded_arguments(&recorded), vec!["windows"]);
+
+        host.windows(Some("Safari"))
+            .expect("a filtered windows call should succeed");
+        assert_eq!(
+            recorded_arguments(&recorded),
+            vec!["windows", "--owner", "Safari"]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn builds_the_ocr_arguments_and_decodes_the_result() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let stdout = format!(
+            r#"{{
+              "image": {},
+              "languages": ["en-US", "sv-SE"],
+              "results": [
+                {{
+                  "text": "Sign in",
+                  "confidence": 0.9,
+                  "x": 10,
+                  "y": 20,
+                  "width": 100,
+                  "height": 30
+                }}
+              ]
+            }}"#,
+            IMAGE_JSON
+        );
+        let (helper, recorded) = recording_helper(directory.path(), &stdout, 0);
+        let host = HostInspect::with_path(helper);
+
+        let mut request = HostOcrRequest::new("/tmp/screenshot.png");
+        request.scale = HostInspectScale::new(2.0).expect("2 is a valid scale");
+        request.languages = vec!["en-US".to_string(), "sv-SE".to_string()];
+
+        let result = host
+            .recognize_text(&request)
+            .expect("the OCR result should decode");
+
+        assert_eq!(
+            recorded_arguments(&recorded),
+            vec![
+                "ocr",
+                "--image",
+                "/tmp/screenshot.png",
+                "--scale",
+                "2",
+                "--language",
+                "en-US",
+                "--language",
+                "sv-SE",
+            ]
+        );
+        // Image geometry is reported in caller units beside the pixel size.
+        assert_eq!(result.image.pixel_width, 2880);
+        assert_eq!(result.image.width, 1440.0);
+        assert_eq!(result.image.scale, 2.0);
+        assert_eq!(result.languages, vec!["en-US", "sv-SE"]);
+        assert_eq!(result.results.len(), 1);
+        assert_eq!(result.results[0].text, "Sign in");
+        assert_eq!(result.results[0].confidence, 0.9);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn builds_the_crop_arguments_and_decodes_the_result() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let stdout = format!(
+            r#"{{
+              "image": {},
+              "rect": {{ "x": 0, "y": 0, "width": 4, "height": 4 }},
+              "out": "/tmp/crop.png",
+              "pixelWidth": 8,
+              "pixelHeight": 8
+            }}"#,
+            IMAGE_JSON
+        );
+        let (helper, recorded) = recording_helper(directory.path(), &stdout, 0);
+        let host = HostInspect::with_path(helper);
+        let request = HostCropRequest::new(
+            "/tmp/screenshot.png",
+            HostInspectRect::new(0.0, 0.0, 4.0, 4.0),
+            "/tmp/crop.png",
+        );
+
+        let result = host.crop(&request).expect("the crop result should decode");
+
+        assert_eq!(
+            recorded_arguments(&recorded),
+            vec![
+                "crop",
+                "--image",
+                "/tmp/screenshot.png",
+                "--rect",
+                "0,0,4,4",
+                "--out",
+                "/tmp/crop.png",
+                "--scale",
+                "1",
+            ]
+        );
+        assert_eq!(result.rect, HostInspectRect::new(0.0, 0.0, 4.0, 4.0));
+        assert_eq!(result.out, "/tmp/crop.png");
+        assert_eq!(result.pixel_width, 8);
+        assert_eq!(result.pixel_height, 8);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn builds_the_probe_arguments_and_decodes_the_result() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let stdout = format!(
+            r##"{{
+              "image": {},
+              "axis": "column",
+              "position": 1,
+              "from": 4,
+              "to": 8,
+              "runs": [
+                {{ "start": 4, "end": 8, "width": 4, "color": "#0000f8" }}
+              ]
+            }}"##,
+            IMAGE_JSON
+        );
+        let (helper, recorded) = recording_helper(directory.path(), &stdout, 0);
+        let host = HostInspect::with_path(helper);
+
+        let mut request = HostProbeRequest::new("/tmp/screenshot.png", HostProbeAxis::Column, 1.0);
+        request.from = Some(4.0);
+        request.to = Some(8.0);
+
+        let result = host
+            .probe(&request)
+            .expect("the probe result should decode");
+
+        assert_eq!(
+            recorded_arguments(&recorded),
+            vec![
+                "probe",
+                "--image",
+                "/tmp/screenshot.png",
+                "--column",
+                "1",
+                "--scale",
+                "1",
+                "--from",
+                "4",
+                "--to",
+                "8",
+            ]
+        );
+        assert_eq!(result.axis, HostProbeAxis::Column);
+        assert_eq!(result.position, 1.0);
+        assert_eq!(result.from, 4.0);
+        assert_eq!(result.to, 8.0);
+        assert_eq!(result.runs.len(), 1);
+        assert_eq!(result.runs[0].color, "#0000f8");
+        assert_eq!(result.runs[0].start, 4.0);
+        assert_eq!(result.runs[0].end, 8.0);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn omits_the_unset_probe_bounds() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let stdout = format!(
+            r#"{{ "image": {}, "axis": "row", "position": 1, "from": 0, "to": 8, "runs": [] }}"#,
+            IMAGE_JSON
+        );
+        let (helper, recorded) = recording_helper(directory.path(), &stdout, 0);
+        let host = HostInspect::with_path(helper);
+        let request = HostProbeRequest::new("/tmp/screenshot.png", HostProbeAxis::Row, 1.0);
+
+        host.probe(&request).expect("the probe should succeed");
+
+        assert_eq!(
+            recorded_arguments(&recorded),
+            vec![
+                "probe",
+                "--image",
+                "/tmp/screenshot.png",
+                "--row",
+                "1",
+                "--scale",
+                "1",
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn keeps_the_host_inspect_exit_code_as_data() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let (helper, _) = recording_helper(directory.path(), "", 2);
+        let host = HostInspect::with_path(helper);
+
+        let invocation = host
+            .invoke(&["windows".to_string()])
+            .expect("a usage error is still a completed run");
+
+        assert_eq!(invocation.exit_code, Some(2));
+        assert!(invocation.is_usage_error());
+        assert!(!invocation.succeeded());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reports_a_failed_helper_with_its_message() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let script =
+            "#!/bin/sh\necho 'cannot open an image /nonexistent/missing.png' >&2\nexit 1\n";
+        let helper = write_fake_helper(directory.path(), script);
+        let host = HostInspect::with_path(helper);
+
+        let error = host
+            .windows(None)
+            .expect_err("a failed helper should not decode");
+
+        let message = error.to_string();
+        assert!(message.contains("xcrs-host-inspect windows exited with status 1"));
+        assert!(message.contains("cannot open an image /nonexistent/missing.png"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reports_a_silently_failed_helper_without_a_dangling_message() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let (helper, _) = recording_helper(directory.path(), "", 1);
+        let host = HostInspect::with_path(helper);
+
+        let error = host
+            .windows(None)
+            .expect_err("a failed helper should not decode");
+
+        assert_eq!(
+            error.to_string(),
+            "xcrs-host-inspect windows exited with status 1"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_output_that_is_not_json() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let (helper, _) = recording_helper(directory.path(), "not json", 0);
+        let host = HostInspect::with_path(helper);
+
+        let error = host
+            .windows(None)
+            .expect_err("malformed output should not decode");
+
+        assert!(error
+            .to_string()
+            .contains("failed to decode xcrs-host-inspect windows JSON"));
+    }
+
+    #[test]
+    fn reports_a_missing_host_inspect_helper() {
+        let host = HostInspect::with_path("/nonexistent/xcrs-host-inspect");
+
+        let error = host
+            .windows(None)
+            .expect_err("a missing helper should not run");
+
+        let message = error.to_string();
+        assert!(message.contains("failed to run /nonexistent/xcrs-host-inspect"));
+        assert!(message.contains("swift build"));
+    }
+
+    #[test]
+    fn validates_before_running_the_helper() {
+        // Point at a helper that cannot exist, so any error other than the
+        // validation one would prove the request was sent anyway.
+        let host = HostInspect::with_path("/nonexistent/xcrs-host-inspect");
+
+        let error = host
+            .crop(&HostCropRequest::new(
+                "/tmp/screenshot.png",
+                HostInspectRect::new(0.0, 0.0, 0.0, 4.0),
+                "/tmp/crop.png",
+            ))
+            .expect_err("a zero width rect should be rejected");
+        assert!(error.to_string().contains("must be positive"));
+
+        let error = host
+            .probe(&HostProbeRequest::new(
+                "/tmp/screenshot.png",
+                HostProbeAxis::Row,
+                f64::NAN,
+            ))
+            .expect_err("a non-finite position should be rejected");
+        assert!(error.to_string().contains("must be a finite number"));
     }
 }
