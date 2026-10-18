@@ -1,5 +1,5 @@
 use {
-    crate::url_builder::build_frontend_apps_url,
+    crate::url_builder::{build_frontend_app_url, build_frontend_apps_url},
     reqwest::Client,
     smbcloud_model::{error_codes::ErrorResponse, frontend_app::FrontendApp},
     smbcloud_network::{environment::Environment, network::request},
@@ -19,6 +19,19 @@ pub async fn get_frontend_apps_by_project(
     );
     let builder = Client::new()
         .get(url)
+        .header("Authorization", access_token)
+        .header("User-agent", SMB_USER_AGENT);
+    request(builder).await
+}
+
+pub async fn get_frontend_app(
+    env: Environment,
+    client: (&SmbClient, &str),
+    access_token: String,
+    frontend_app_id: &str,
+) -> Result<FrontendApp, ErrorResponse> {
+    let builder = Client::new()
+        .get(build_frontend_app_url(env, client, frontend_app_id))
         .header("Authorization", access_token)
         .header("User-agent", SMB_USER_AGENT);
     request(builder).await
