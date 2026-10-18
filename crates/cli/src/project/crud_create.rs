@@ -23,17 +23,18 @@ use smbcloud_networking_project::{
 };
 use smbcloud_utils::config::Config as DeployConfig;
 use spinners::Spinner;
+use std::path::Path;
 
-struct RepoInput {
-    repository: String,
-    repo_kind: RepoKind,
-    runner: Runner,
+pub(crate) struct RepoInput {
+    pub(crate) repository: String,
+    pub(crate) repo_kind: RepoKind,
+    pub(crate) runner: Runner,
 }
 
-struct AppInput {
-    name: String,
-    source_path: Option<String>,
-    runner: Runner,
+pub(crate) struct AppInput {
+    pub(crate) name: String,
+    pub(crate) source_path: Option<String>,
+    pub(crate) runner: Runner,
 }
 
 pub async fn process_project_init(
@@ -138,104 +139,27 @@ pub async fn process_project_init(
 
     let access_token = get_smb_token(env)?;
     let tenant_id = crate::session_config::current_tenant_id(env).unwrap_or(None);
-    let project = match create_project(
+    let (project, first_app) = create_workspace(
         env,
-        client(),
-        access_token.clone(),
-        ProjectCreate {
-            name: project_name.clone(),
-            description: description.clone(),
-        },
+        access_token,
         tenant_id,
+        &project_name,
+        &description,
+        repo.as_ref(),
+        &apps,
     )
     .await
-    {
-        Ok(project) => project,
-        Err(e) => {
-            println!("Error: {e:#?}");
-            return Err(anyhow!(fail_message("Failed to create project.")));
-        }
-    };
-
-    let mut first_app: Option<FrontendApp> = None;
-    let mut created_apps = 0;
-    if let Some(repo) = &repo {
-        let deploy_repo = match create_deploy_repo(
-            env,
-            client(),
-            access_token.clone(),
-            DeployRepoCreate {
-                project_id: project.id,
-                name: repo.repository.clone(),
-                repository: repo.repository.clone(),
-                repo_kind: repo.repo_kind,
-                runner: repo.runner,
-                deployment_method: deployment_method_for(repo.runner),
-            },
-        )
-        .await
-        {
-            Ok(deploy_repo) => deploy_repo,
-            Err(e) => {
-                println!("Error: {e:#?}");
-                return Err(anyhow!(fail_message(
-                    "Project created, but failed to create its repo."
-                )));
-            }
-        };
-
-        // A single-app repo ships with its app, created server-side.
-        if let Some(embedded_apps) = &deploy_repo.frontend_apps {
-            if let Some(embedded_app) = embedded_apps.first() {
-                created_apps += 1;
-                first_app = Some(embedded_app.clone());
-            }
-        }
-
-        for app in &apps {
-            match create_frontend_app(
-                env,
-                client(),
-                access_token.clone(),
-                FrontendAppCreate {
-                    name: app.name.clone(),
-                    project_id: project.id,
-                    app_type: AppType::Web,
-                    runner: app.runner,
-                    deployment_method: deployment_method_for(app.runner),
-                    repository: Some(repo.repository.clone()),
-                    description: None,
-                    deploy_repo_id: Some(deploy_repo.id),
-                    source_path: app.source_path.clone(),
-                },
-            )
-            .await
-            {
-                Ok(frontend_app) => {
-                    created_apps += 1;
-                    if first_app.is_none() {
-                        first_app = Some(frontend_app);
-                    }
-                }
-                Err(e) => {
-                    println!("Error: {e:#?}");
-                    return Err(anyhow!(fail_message(&format!(
-                        "Project created, but failed to create app {}.",
-                        app.name
-                    ))));
-                }
-            }
-        }
-    }
+    .map_err(|error| anyhow!(fail_message(&error.to_string())))?;
 
     if should_init_project {
-        write_smb_config(&project, first_app.as_ref())?;
+        write_smb_config(Path::new("."), &project, first_app.as_ref())?;
     }
 
     let msg = match &repo {
         Some(repo) if repo.repo_kind == RepoKind::Monorepo => format!(
-            "{project_name} has been created with monorepo {} and {created_apps} app(s).",
-            repo.repository
+            "{project_name} has been created with monorepo {} and {} app(s).",
+            repo.repository,
+            apps.len()
         ),
         Some(repo) => {
             let app_name = first_app
@@ -255,6 +179,99 @@ pub async fn process_project_init(
         symbol: succeed_symbol(),
         msg: succeed_message(&msg),
     })
+}
+
+/// Creates the project, then its repo and apps. Shared by the interactive
+/// `smb init` wizard and the non-interactive MCP `project_init` tool, so it
+/// must not print: stdout is the MCP JSON-RPC channel.
+///
+/// Returns the project and the first app created (the single-app repo's
+/// embedded app, or the first monorepo app), which seeds `.smb/config.toml`.
+pub(crate) async fn create_workspace(
+    env: Environment,
+    access_token: String,
+    tenant_id: Option<String>,
+    name: &str,
+    description: &str,
+    repo: Option<&RepoInput>,
+    apps: &[AppInput],
+) -> Result<(Project, Option<FrontendApp>)> {
+    let project = create_project(
+        env,
+        client(),
+        access_token.clone(),
+        ProjectCreate {
+            name: name.to_string(),
+            description: description.to_string(),
+        },
+        tenant_id,
+    )
+    .await
+    .map_err(|error| anyhow!("Failed to create project: {error}"))?;
+
+    let Some(repo) = repo else {
+        return Ok((project, None));
+    };
+
+    let deploy_repo = create_deploy_repo(
+        env,
+        client(),
+        access_token.clone(),
+        DeployRepoCreate {
+            project_id: project.id,
+            name: repo.repository.clone(),
+            repository: repo.repository.clone(),
+            repo_kind: repo.repo_kind,
+            runner: repo.runner,
+            deployment_method: deployment_method_for(repo.runner),
+        },
+    )
+    .await
+    .map_err(|error| {
+        anyhow!(
+            "Project {} was created, but creating its repo failed: {error}",
+            project.id
+        )
+    })?;
+
+    // A single-app repo ships with its app, created server-side.
+    let mut first_app = deploy_repo
+        .frontend_apps
+        .as_ref()
+        .and_then(|embedded_apps| embedded_apps.first())
+        .cloned();
+
+    for app in apps {
+        let frontend_app = create_frontend_app(
+            env,
+            client(),
+            access_token.clone(),
+            FrontendAppCreate {
+                name: app.name.clone(),
+                project_id: project.id,
+                app_type: AppType::Web,
+                runner: app.runner,
+                deployment_method: deployment_method_for(app.runner),
+                repository: Some(repo.repository.clone()),
+                description: None,
+                deploy_repo_id: Some(deploy_repo.id),
+                source_path: app.source_path.clone(),
+            },
+        )
+        .await
+        .map_err(|error| {
+            anyhow!(
+                "Project {} was created, but creating app {} failed: {error}",
+                project.id,
+                app.name
+            )
+        })?;
+        if first_app.is_none() {
+            first_app = Some(frontend_app);
+        }
+    }
+
+    Ok((project, first_app))
 }
 
 fn prompt_repository_name(project_name: &str) -> Result<String> {
@@ -314,7 +331,7 @@ fn prompt_monorepo_app() -> Result<AppInput> {
 
 // Static sites have no build step to run on the server; they always ship via
 // rsync. Everything else defaults to the git flow.
-fn deployment_method_for(runner: Runner) -> DeploymentMethod {
+pub(crate) fn deployment_method_for(runner: Runner) -> DeploymentMethod {
     match runner {
         Runner::Static => DeploymentMethod::Rsync,
         _ => DeploymentMethod::Git,
@@ -329,7 +346,11 @@ fn slugify(name: &str) -> String {
         .collect()
 }
 
-fn write_smb_config(workspace_project: &Project, frontend_app: Option<&FrontendApp>) -> Result<()> {
+pub(crate) fn write_smb_config(
+    directory: &Path,
+    workspace_project: &Project,
+    frontend_app: Option<&FrontendApp>,
+) -> Result<()> {
     let deploy_target = match frontend_app {
         Some(frontend_app) => merge_project_with_frontend_app(workspace_project, frontend_app),
         None => workspace_project.clone(),
@@ -342,7 +363,33 @@ fn write_smb_config(workspace_project: &Project, frontend_app: Option<&FrontendA
         projects: None,
     };
 
-    std::fs::create_dir_all(".smb")?;
-    std::fs::write(".smb/config.toml", toml::to_string(&config)?)?;
+    let config_directory = directory.join(".smb");
+    std::fs::create_dir_all(&config_directory)?;
+    std::fs::write(
+        config_directory.join("config.toml"),
+        toml::to_string(&config)?,
+    )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_smb_config_writes_into_the_given_directory() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let project: Project = serde_json::from_value(serde_json::json!({
+            "id": 7,
+            "name": "demo",
+            "description": "A demo",
+        }))
+        .expect("fixture project");
+
+        write_smb_config(directory.path(), &project, None).expect("write config");
+
+        let written = std::fs::read_to_string(directory.path().join(".smb/config.toml"))
+            .expect("config written under the target directory");
+        assert!(written.contains("name = \"demo\""), "{written}");
+    }
 }
