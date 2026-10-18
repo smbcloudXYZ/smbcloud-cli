@@ -49,18 +49,26 @@ use {
     },
     smbcloud_model::{
         app_auth::{AuthApp, AuthAppCreate, AuthAppUpdate},
+        deploy_config_update::DeployConfigUpdate,
+        frontend_app::{AppType, DeployRepoCreate, FrontendAppCreate, RepoKind},
         mail::{
             MailAppCreate, MailAppUpdate, MailInboxCreate, MailInboxUpdate, MailMessage,
             MailTestEmailRequest,
         },
         project::{Deployment, ProjectCreate},
+        runner::Runner,
         tenant::{TenantCreate, TenantUpdate},
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::{
+        crud_deploy_repo_create::create_deploy_repo,
+        crud_frontend_app_create::create_frontend_app,
+        crud_frontend_app_deploy_config::get_deploy_config,
+        crud_frontend_app_read::{get_frontend_app, get_frontend_apps_by_project},
+        crud_frontend_app_update_deploy_config::update_deploy_config,
         crud_project_create::create_project,
         crud_project_delete::delete_project,
-        crud_project_deployment_read::get_deployments,
+        crud_project_deployment_read::{get_deployment, get_deployments},
         crud_project_read::{get_project, get_projects},
         crud_project_update::update_project,
     },
@@ -229,6 +237,10 @@ struct ProjectShowArgs {
 struct ProjectUseArgs {
     /// The project ID to select for this session.
     id: String,
+    /// Also select this frontend app (it must belong to the project). Tools
+    /// and CLI commands that resolve a deploy target default to it.
+    #[serde(default)]
+    frontend_app_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -252,6 +264,9 @@ struct ProjectUpdateArgs {
     id: String,
     /// The new description.
     description: String,
+    /// The new runner. Keeps the project's current runner when omitted.
+    #[serde(default)]
+    runner: Option<McpRunner>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -487,6 +502,172 @@ struct AuthAppDeleteArgs {
     id: String,
 }
 
+/// Runners a tool caller can pick. `Monorepo` is deliberately absent: it is
+/// implied by `repo_kind = monorepo`, not chosen per app.
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum McpRunner {
+    NodeJs,
+    Static,
+    Ruby,
+    Swift,
+    Rust,
+}
+
+impl From<McpRunner> for Runner {
+    fn from(runner: McpRunner) -> Self {
+        match runner {
+            McpRunner::NodeJs => Runner::NodeJs,
+            McpRunner::Static => Runner::Static,
+            McpRunner::Ruby => Runner::Ruby,
+            McpRunner::Swift => Runner::Swift,
+            McpRunner::Rust => Runner::Rust,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum McpRepoKind {
+    SingleApp,
+    Monorepo,
+}
+
+impl From<McpRepoKind> for RepoKind {
+    fn from(repo_kind: McpRepoKind) -> Self {
+        match repo_kind {
+            McpRepoKind::SingleApp => RepoKind::SingleApp,
+            McpRepoKind::Monorepo => RepoKind::Monorepo,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+enum McpDeploymentMethod {
+    Git,
+    Rsync,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct DeploymentShowArgs {
+    /// The project ID the deployment belongs to.
+    project_id: i32,
+    /// The deployment ID to show.
+    id: i32,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FrontendAppListArgs {
+    /// The project ID whose frontend apps to list.
+    project_id: i32,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FrontendAppShowArgs {
+    /// The frontend app ID to show.
+    id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FrontendAppNewArgs {
+    /// The project ID to create the frontend app under.
+    project_id: i32,
+    /// Name for the new frontend app.
+    name: String,
+    /// Repo-relative app path for monorepo targets, e.g. `apps/web`.
+    #[serde(default)]
+    source_path: Option<String>,
+    /// Runner for the app. Defaults to `node_js`.
+    #[serde(default)]
+    runner: Option<McpRunner>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct DeployRepoNewArgs {
+    /// The project ID to create the deploy repo under.
+    project_id: i32,
+    /// Repository name.
+    repository: String,
+    /// Whether the repo holds one deployable app or several. A single-app
+    /// repo creates its app automatically.
+    repo_kind: McpRepoKind,
+    /// Runner for a single-app repo. Defaults to `node_js`; ignored for
+    /// monorepos, whose apps pick their own runner.
+    #[serde(default)]
+    runner: Option<McpRunner>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct DeployConfigShowArgs {
+    /// The frontend app ID whose server-side deploy config to show.
+    frontend_app_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct DeployConfigUpdateArgs {
+    /// The frontend app ID whose deploy config to update. Only the fields you
+    /// pass are changed.
+    frontend_app_id: String,
+    #[serde(default)]
+    runner: Option<McpRunner>,
+    #[serde(default)]
+    deployment_method: Option<McpDeploymentMethod>,
+    /// Deployment kind, e.g. `vite-spa`, `sveltekit`, `nextjs-ssr`, `rust`.
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    source_path: Option<String>,
+    #[serde(default)]
+    remote_path: Option<String>,
+    #[serde(default)]
+    package_manager: Option<String>,
+    #[serde(default)]
+    pm2_app: Option<String>,
+    #[serde(default)]
+    port: Option<u16>,
+    #[serde(default)]
+    output_path: Option<String>,
+    #[serde(default)]
+    build_command: Option<String>,
+    #[serde(default)]
+    install_command: Option<String>,
+    #[serde(default)]
+    binary_name: Option<String>,
+    #[serde(default)]
+    build_target: Option<String>,
+    #[serde(default)]
+    shared_lib_path: Option<String>,
+}
+
+impl From<DeployConfigUpdateArgs> for DeployConfigUpdate {
+    fn from(args: DeployConfigUpdateArgs) -> Self {
+        DeployConfigUpdate {
+            runner: args.runner.map(|runner| {
+                let runner: Runner = runner.into();
+                runner as u8
+            }),
+            deployment_method: args.deployment_method.map(|method| match method {
+                McpDeploymentMethod::Git => 0,
+                McpDeploymentMethod::Rsync => 1,
+            }),
+            kind: args.kind,
+            source_path: args.source_path,
+            remote_path: args.remote_path,
+            package_manager: args.package_manager,
+            pm2_app: args.pm2_app,
+            pm2_env: None,
+            port: args.port,
+            output_path: args.output_path,
+            build_command: args.build_command,
+            install_command: args.install_command,
+            binary_name: args.binary_name,
+            build_target: args.build_target,
+            shared_lib_path: args.shared_lib_path,
+        }
+    }
+}
+
 #[tool_router(router = cloud_tool_router, vis = "pub(crate)")]
 impl SmbMcpServer {
     #[tool(description = "Get the authenticated smbCloud user's account info. \
@@ -525,19 +706,36 @@ impl SmbMcpServer {
     #[tool(
         description = "Select a project for this session, persisted to the same config \
                        CLI sessions read. Mail/Auth tools that take an optional project_id \
-                       default to this project when omitted. Returns the selected project as JSON."
+                       default to this project when omitted. Optionally selects one of its \
+                       frontend apps too. Returns the selected project as JSON."
     )]
     async fn project_use(
         &self,
         Parameters(args): Parameters<ProjectUseArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let token = self.access_token()?;
-        let project = get_project(self.environment, client(), token, args.id)
+        let project = get_project(self.environment, client(), token.clone(), args.id)
             .await
             .map_err(to_error_data)?;
-        // MCP tools are non-interactive, so unlike `smb project use` we don't
-        // try to resolve/select a frontend app here.
-        crate::session_config::set_current_project(self.environment, project.clone(), None)
+        // MCP tools are non-interactive, so unlike `smb project use` we never
+        // prompt to pick a frontend app; the caller names one explicitly.
+        let frontend_app = match args.frontend_app_id {
+            Some(frontend_app_id) => {
+                let frontend_app =
+                    get_frontend_app(self.environment, client(), token, &frontend_app_id)
+                        .await
+                        .map_err(to_error_data)?;
+                if frontend_app.project_id != project.id {
+                    return Err(invalid_request(format!(
+                        "Frontend app {frontend_app_id} does not belong to project {}.",
+                        project.id
+                    )));
+                }
+                Some(frontend_app)
+            }
+            None => None,
+        };
+        crate::session_config::set_current_project(self.environment, project.clone(), frontend_app)
             .map_err(to_error_data)?;
         json_result(&project)
     }
@@ -581,26 +779,33 @@ impl SmbMcpServer {
     }
 
     #[tool(
-        description = "Update a project's description by ID, preserving its runner. \
-                       Returns the updated project as JSON."
+        description = "Update a project's description and, optionally, its runner. The \
+                       current runner is kept when `runner` is omitted. Returns the updated \
+                       project as JSON."
     )]
     async fn project_update(
         &self,
         Parameters(args): Parameters<ProjectUpdateArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let token = self.access_token()?;
-        // `update_project` requires the runner; fetch the current project so the
-        // description-only update doesn't clobber it.
-        let current = get_project(self.environment, client(), token.clone(), args.id.clone())
-            .await
-            .map_err(to_error_data)?;
+        // `update_project` requires the runner, so a description-only update
+        // fetches the current one rather than clobbering it.
+        let runner = match args.runner {
+            Some(runner) => runner.into(),
+            None => {
+                get_project(self.environment, client(), token.clone(), args.id.clone())
+                    .await
+                    .map_err(to_error_data)?
+                    .runner
+            }
+        };
         let project = update_project(
             self.environment,
             client(),
             token,
             args.id,
             &args.description,
-            current.runner,
+            runner,
         )
         .await
         .map_err(to_error_data)?;
@@ -609,7 +814,8 @@ impl SmbMcpServer {
 
     #[tool(
         description = "Delete a project by ID. This is destructive and irreversible — the \
-                       project and its deploy configuration are removed."
+                       project and its deploy configuration are removed.",
+        annotations(destructive_hint = true)
     )]
     async fn project_delete(
         &self,
@@ -692,7 +898,8 @@ impl SmbMcpServer {
     #[tool(
         description = "Delete an organization tenant by ID. This is destructive and \
                        irreversible — it cascades to every project, Auth app, and Mail \
-                       app the tenant owns. The personal tenant can't be deleted."
+                       app the tenant owns. The personal tenant can't be deleted.",
+        annotations(destructive_hint = true)
     )]
     async fn tenant_delete(
         &self,
@@ -807,7 +1014,8 @@ impl SmbMcpServer {
 
     #[tool(
         description = "Delete a Mail app by ID. This is destructive and irreversible — its \
-                       inbox routes and SES routing are removed."
+                       inbox routes and SES routing are removed.",
+        annotations(destructive_hint = true)
     )]
     async fn mail_delete(
         &self,
@@ -877,7 +1085,10 @@ impl SmbMcpServer {
         json_result(&inbox)
     }
 
-    #[tool(description = "Delete a mail inbox route. This is destructive and irreversible.")]
+    #[tool(
+        description = "Delete a mail inbox route. This is destructive and irreversible.",
+        annotations(destructive_hint = true)
+    )]
     async fn mail_inbox_delete(
         &self,
         Parameters(args): Parameters<MailInboxDeleteArgs>,
@@ -1090,7 +1301,8 @@ impl SmbMcpServer {
 
     #[tool(
         description = "Delete an Auth app by ID. This is destructive and irreversible — its \
-                       OAuth clients and configuration are removed."
+                       OAuth clients and configuration are removed.",
+        annotations(destructive_hint = true)
     )]
     async fn auth_app_delete(
         &self,
@@ -1101,6 +1313,153 @@ impl SmbMcpServer {
             .await
             .map_err(to_error_data)?;
         text_result("Auth app deleted.")
+    }
+
+    // ── Deployments, frontend apps, deploy repos ─────────────────────────
+
+    #[tool(
+        description = "Show a single deployment by project ID and deployment ID, returned as JSON."
+    )]
+    async fn deployment_show(
+        &self,
+        Parameters(args): Parameters<DeploymentShowArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let deployment =
+            get_deployment(self.environment, client(), token, args.project_id, args.id)
+                .await
+                .map_err(to_error_data)?;
+        json_result(&deployment)
+    }
+
+    #[tool(description = "List the frontend apps (deployable apps) of a project as a JSON array.")]
+    async fn frontend_app_list(
+        &self,
+        Parameters(args): Parameters<FrontendAppListArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let frontend_apps =
+            get_frontend_apps_by_project(self.environment, client(), token, args.project_id)
+                .await
+                .map_err(to_error_data)?;
+        json_result(&frontend_apps)
+    }
+
+    #[tool(description = "Show a single frontend app by ID, returned as JSON.")]
+    async fn frontend_app_show(
+        &self,
+        Parameters(args): Parameters<FrontendAppShowArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let frontend_app = get_frontend_app(self.environment, client(), token, &args.id)
+            .await
+            .map_err(to_error_data)?;
+        json_result(&frontend_app)
+    }
+
+    #[tool(
+        description = "Create a frontend app (a deployable app) under a project. For monorepo \
+                       apps pass `source_path`. Returns the created app as JSON."
+    )]
+    async fn frontend_app_new(
+        &self,
+        Parameters(args): Parameters<FrontendAppNewArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let runner: Runner = args.runner.unwrap_or(McpRunner::NodeJs).into();
+        let frontend_app = create_frontend_app(
+            self.environment,
+            client(),
+            token,
+            FrontendAppCreate {
+                name: args.name,
+                project_id: args.project_id,
+                app_type: AppType::Web,
+                runner,
+                deployment_method: crate::project::crud_create::deployment_method_for(runner),
+                repository: None,
+                description: None,
+                deploy_repo_id: None,
+                source_path: args.source_path,
+            },
+        )
+        .await
+        .map_err(to_error_data)?;
+        json_result(&frontend_app)
+    }
+
+    #[tool(
+        description = "Create a deploy repo (the git repository or monorepo root) under a \
+                       project. A single-app repo creates its app automatically; the response \
+                       embeds it. Returns the repo as JSON."
+    )]
+    async fn deploy_repo_new(
+        &self,
+        Parameters(args): Parameters<DeployRepoNewArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let runner = match args.repo_kind {
+            McpRepoKind::Monorepo => Runner::Monorepo,
+            McpRepoKind::SingleApp => args.runner.unwrap_or(McpRunner::NodeJs).into(),
+        };
+        let deploy_repo = create_deploy_repo(
+            self.environment,
+            client(),
+            token,
+            DeployRepoCreate {
+                project_id: args.project_id,
+                name: args.repository.clone(),
+                repository: args.repository,
+                repo_kind: args.repo_kind.into(),
+                runner,
+                deployment_method: crate::project::crud_create::deployment_method_for(runner),
+            },
+        )
+        .await
+        .map_err(to_error_data)?;
+        json_result(&deploy_repo)
+    }
+
+    #[tool(
+        description = "Show the server-side deploy config of a frontend app (runner, kind, \
+                       paths, build commands), returned as JSON."
+    )]
+    async fn deploy_config_show(
+        &self,
+        Parameters(args): Parameters<DeployConfigShowArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let deploy_config =
+            get_deploy_config(self.environment, client(), token, &args.frontend_app_id)
+                .await
+                .map_err(to_error_data)?;
+        json_result(&deploy_config)
+    }
+
+    #[tool(
+        description = "Update fields of a frontend app's server-side deploy config. Only the \
+                       fields passed change. Returns the updated config as JSON."
+    )]
+    async fn deploy_config_update(
+        &self,
+        Parameters(args): Parameters<DeployConfigUpdateArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let frontend_app_id = args.frontend_app_id.clone();
+        let payload = DeployConfigUpdate::from(args);
+        if payload.is_empty() {
+            return Err(invalid_request("No deploy config fields to update."));
+        }
+        let deploy_config = update_deploy_config(
+            self.environment,
+            client(),
+            token,
+            &frontend_app_id,
+            &payload,
+        )
+        .await
+        .map_err(to_error_data)?;
+        json_result(&deploy_config)
     }
 }
 
@@ -1200,9 +1559,42 @@ mod tests {
         for cloud_only in [
             "me",
             "project_list",
+            "project_show",
+            "project_use",
+            "project_create",
+            "project_update",
+            "project_delete",
+            "deployments",
+            "deployment_show",
+            "frontend_app_list",
+            "frontend_app_show",
+            "frontend_app_new",
+            "deploy_repo_new",
+            "deploy_config_show",
+            "deploy_config_update",
             "tenant_list",
+            "tenant_show",
+            "tenant_new",
+            "tenant_update",
+            "tenant_delete",
+            "tenant_use",
             "mail_list",
+            "mail_show",
+            "mail_new",
+            "mail_update",
+            "mail_delete",
+            "mail_inbox_new",
+            "mail_inbox_update",
+            "mail_inbox_delete",
+            "mail_inbox_test",
+            "mail_send",
+            "mail_message_list",
+            "mail_message_show",
             "auth_app_list",
+            "auth_app_show",
+            "auth_app_new",
+            "auth_app_update",
+            "auth_app_delete",
         ] {
             assert!(
                 names.contains(&cloud_only),
@@ -1342,7 +1734,7 @@ mod tests {
         let tools = SmbMcpServer::cloud_tool_router().list_all();
         let names: Vec<&str> = tools.iter().map(|tool| tool.name.as_ref()).collect();
 
-        const AUTOMATION_TOOL_NAMES: [&str; 18] = [
+        const AUTOMATION_TOOL_NAMES: [&str; 19] = [
             "device_list",
             "device_select",
             "device_capabilities",
@@ -1353,6 +1745,7 @@ mod tests {
             "url_open",
             "ui_describe",
             "ui_element_list",
+            "ui_tap",
             "input_tap",
             "input_text",
             "input_swipe",
@@ -1369,5 +1762,17 @@ mod tests {
                 "cloud router should not expose automation tool {automation_only:?}"
             );
         }
+    }
+
+    #[test]
+    fn delete_tools_carry_destructive_hint() {
+        let tools = SmbMcpServer::cloud_tool_router().list_all();
+        let mut checked = 0;
+        for tool in tools.iter().filter(|tool| tool.name.ends_with("_delete")) {
+            let annotations = tool.annotations.as_ref().expect("annotations");
+            assert_eq!(annotations.destructive_hint, Some(true), "{}", tool.name);
+            checked += 1;
+        }
+        assert_eq!(checked, 5);
     }
 }
