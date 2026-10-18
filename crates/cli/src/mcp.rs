@@ -24,6 +24,7 @@ use {
             current_project::{resolve_optional_project_id, resolve_required_project_id},
             send::{resolve_api_key, send_email, OutboundEmail},
         },
+        project::crud_create::{create_workspace, write_smb_config, AppInput, RepoInput},
         token::get_smb_token::get_smb_token,
     },
     anyhow::{anyhow, Result},
@@ -38,7 +39,7 @@ use {
         tool, tool_handler, tool_router, ErrorData, RoleServer, ServiceExt,
     },
     schemars::JsonSchema,
-    serde::Deserialize,
+    serde::{Deserialize, Serialize},
     smbcloud_auth::me::me,
     smbcloud_mail::{
         mail_app::{
@@ -71,6 +72,16 @@ use {
         crud_project_deployment_read::{get_deployment, get_deployments},
         crud_project_read::{get_project, get_projects},
         crud_project_update::update_project,
+    },
+    std::{
+        collections::VecDeque,
+        path::{Path, PathBuf},
+        process::Stdio,
+        sync::{Arc, Mutex},
+    },
+    tokio::{
+        io::{AsyncBufReadExt, AsyncRead, BufReader},
+        process::Command,
     },
 };
 
@@ -666,6 +677,210 @@ impl From<DeployConfigUpdateArgs> for DeployConfigUpdate {
             shared_lib_path: args.shared_lib_path,
         }
     }
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct InitAppArgs {
+    /// Name of the app.
+    name: String,
+    /// Repo-relative app path, e.g. `apps/web`.
+    #[serde(default)]
+    source_path: Option<String>,
+    runner: McpRunner,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct ProjectInitArgs {
+    /// Absolute path of the local directory to write `.smb/config.toml` into.
+    cwd: String,
+    /// Name for the new project.
+    name: String,
+    #[serde(default)]
+    description: String,
+    /// Repository name. Omit to create the project without a repo.
+    #[serde(default)]
+    repository: Option<String>,
+    /// Defaults to `single_app` when `repository` is given.
+    #[serde(default)]
+    repo_kind: Option<McpRepoKind>,
+    /// Runner of a single-app repo. Defaults to `node_js`.
+    #[serde(default)]
+    runner: Option<McpRunner>,
+    /// Apps of a monorepo. Required for `monorepo`, not allowed otherwise.
+    #[serde(default)]
+    apps: Vec<InitAppArgs>,
+    /// Replace an existing `.smb/config.toml` in `cwd`. Off by default.
+    #[serde(default)]
+    overwrite: bool,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct DeployArgs {
+    /// Absolute path of the project directory containing `.smb/config.toml`.
+    cwd: String,
+    /// Sub-project to deploy, for monorepo configs with `[[projects]]`.
+    #[serde(default)]
+    project: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct MigrateArgs {
+    /// Absolute path of the project directory containing `.smb/config.toml`.
+    cwd: String,
+}
+
+/// How many trailing lines of a local command's output a tool returns.
+const OUTPUT_TAIL_LINES: usize = 200;
+
+#[derive(Debug, Serialize)]
+struct CommandOutcome {
+    success: bool,
+    exit_code: Option<i32>,
+    output_tail: String,
+}
+
+/// Keeps only the newest `limit` lines, so a long build can't grow without
+/// bound while the child is still running.
+struct TailBuffer {
+    lines: VecDeque<String>,
+    limit: usize,
+}
+
+impl TailBuffer {
+    fn new(limit: usize) -> Self {
+        Self {
+            lines: VecDeque::new(),
+            limit,
+        }
+    }
+
+    fn push(&mut self, raw_line: &str) {
+        if self.lines.len() == self.limit {
+            self.lines.pop_front();
+        }
+        self.lines.push_back(clean_output_line(raw_line));
+    }
+
+    fn render(&self) -> String {
+        self.lines.iter().cloned().collect::<Vec<_>>().join("\n")
+    }
+}
+
+/// Spinners redraw a line with `\r`; only the last frame is meaningful.
+fn clean_output_line(raw: &str) -> String {
+    let last_frame = raw.rsplit('\r').next().unwrap_or(raw);
+    console::strip_ansi_codes(last_frame).trim_end().to_string()
+}
+
+async fn collect_lines(reader: impl AsyncRead + Unpin, tail: Arc<Mutex<TailBuffer>>) {
+    let mut lines = BufReader::new(reader).lines();
+    // A read error ends collection for this stream; the exit status still
+    // reports the outcome, so the partial tail is the best we can do.
+    while let Ok(Some(line)) = lines.next_line().await {
+        if let Ok(mut tail) = tail.lock() {
+            tail.push(&line);
+        }
+    }
+}
+
+fn require_directory(cwd: &str) -> Result<PathBuf, ErrorData> {
+    let path = PathBuf::from(cwd);
+    if !path.is_absolute() {
+        return Err(invalid_request("`cwd` must be an absolute path."));
+    }
+    if !path.is_dir() {
+        return Err(invalid_request(format!("`cwd` is not a directory: {cwd}")));
+    }
+    Ok(path)
+}
+
+fn require_smb_config(cwd: &Path) -> Result<(), ErrorData> {
+    if !cwd.join(".smb/config.toml").is_file() {
+        return Err(invalid_request(format!(
+            "No .smb/config.toml in {}. Run `project_init` there first.",
+            cwd.display()
+        )));
+    }
+    Ok(())
+}
+
+/// Checks that `project_init` may write into `cwd`. Pure so the guards are
+/// testable without an API.
+fn check_init_target(cwd: &str, overwrite: bool) -> Result<PathBuf, ErrorData> {
+    let directory = require_directory(cwd)?;
+    if directory.join(".smb/config.toml").exists() && !overwrite {
+        return Err(invalid_request(format!(
+            "{} already has a .smb/config.toml. Pass `overwrite: true` to replace it.",
+            directory.display()
+        )));
+    }
+    Ok(directory)
+}
+
+fn check_init_shape(args: &ProjectInitArgs) -> Result<(), ErrorData> {
+    match (&args.repository, args.repo_kind) {
+        (None, Some(_)) => Err(invalid_request("`repo_kind` needs a `repository`.")),
+        (None, None) if !args.apps.is_empty() => {
+            Err(invalid_request("`apps` needs a `repository`."))
+        }
+        (Some(_), Some(McpRepoKind::Monorepo)) if args.apps.is_empty() => Err(invalid_request(
+            "A monorepo needs at least one entry in `apps`.",
+        )),
+        (Some(_), Some(McpRepoKind::SingleApp) | None) if !args.apps.is_empty() => Err(
+            invalid_request("`apps` is only allowed with `repo_kind = monorepo`."),
+        ),
+        _ => Ok(()),
+    }
+}
+
+/// Runs this same binary as `smb -e <env> --ci <args…>` inside `cwd`.
+///
+/// The deploy paths use cwd-relative paths and print to stdout, which is the
+/// MCP JSON-RPC channel, so they can't run in-process. A child keeps both
+/// isolated and reuses every deploy path unchanged; `--ci` makes any prompt
+/// fail fast instead of blocking.
+async fn run_cli_subcommand(
+    environment: Environment,
+    cwd: &Path,
+    args: &[&str],
+) -> Result<CallToolResult, ErrorData> {
+    let executable = std::env::current_exe().map_err(to_error_data)?;
+    let mut child = Command::new(executable)
+        .args(["-e", environment.to_str(), "--ci"])
+        .args(args)
+        .current_dir(cwd)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(to_error_data)?;
+
+    let tail = Arc::new(Mutex::new(TailBuffer::new(OUTPUT_TAIL_LINES)));
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| to_error_data("child stdout was not captured"))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| to_error_data("child stderr was not captured"))?;
+    let (status, _, _) = tokio::join!(
+        child.wait(),
+        collect_lines(stdout, tail.clone()),
+        collect_lines(stderr, tail.clone()),
+    );
+    let status = status.map_err(to_error_data)?;
+
+    let output_tail = tail.lock().map(|tail| tail.render()).unwrap_or_default();
+    let outcome = CommandOutcome {
+        success: status.success(),
+        exit_code: status.code(),
+        output_tail,
+    };
+    let mut result = CallToolResult::success(vec![ContentBlock::json(&outcome)?]);
+    result.is_error = Some(!outcome.success);
+    Ok(result)
 }
 
 #[tool_router(router = cloud_tool_router, vis = "pub(crate)")]
@@ -1461,6 +1676,104 @@ impl SmbMcpServer {
         .map_err(to_error_data)?;
         json_result(&deploy_config)
     }
+
+    // ── Local tools: act on a directory, run non-interactively ───────────
+
+    #[tool(
+        description = "Create a project (plus its repo and apps) and write `.smb/config.toml` \
+                       into `cwd`, the non-interactive equivalent of `smb init`. Refuses to \
+                       replace an existing config unless `overwrite` is true, in which case \
+                       the old config is lost. Created under the selected tenant (`tenant_use`) \
+                       or the personal tenant. Returns the project and the first app as JSON.",
+        annotations(destructive_hint = true)
+    )]
+    async fn project_init(
+        &self,
+        Parameters(args): Parameters<ProjectInitArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let directory = check_init_target(&args.cwd, args.overwrite)?;
+        check_init_shape(&args)?;
+        let token = self.access_token()?;
+
+        let repo = args.repository.as_ref().map(|repository| {
+            let repo_kind = args.repo_kind.unwrap_or(McpRepoKind::SingleApp);
+            let runner = match repo_kind {
+                McpRepoKind::Monorepo => Runner::Monorepo,
+                McpRepoKind::SingleApp => args.runner.unwrap_or(McpRunner::NodeJs).into(),
+            };
+            RepoInput {
+                repository: repository.clone(),
+                repo_kind: repo_kind.into(),
+                runner,
+            }
+        });
+        let apps: Vec<AppInput> = args
+            .apps
+            .iter()
+            .map(|app| AppInput {
+                name: app.name.clone(),
+                source_path: app.source_path.clone(),
+                runner: app.runner.into(),
+            })
+            .collect();
+        let tenant_id = crate::session_config::current_tenant_id(self.environment).unwrap_or(None);
+
+        let (project, first_app) = create_workspace(
+            self.environment,
+            token,
+            tenant_id,
+            &args.name,
+            &args.description,
+            repo.as_ref(),
+            &apps,
+        )
+        .await
+        .map_err(to_error_data)?;
+        write_smb_config(&directory, &project, first_app.as_ref()).map_err(to_error_data)?;
+        json_result(&serde_json::json!({
+            "project": project,
+            "frontend_app": first_app,
+            "config_path": directory.join(".smb/config.toml"),
+        }))
+    }
+
+    #[tool(
+        description = "Deploy the project in `cwd` (the equivalent of `smb deploy`). Builds \
+                       locally, pushes to the server, and restarts the app, so it can take \
+                       minutes. Needs an existing `.smb/config.toml` (see `project_init`) and \
+                       never prompts. For monorepo configs pass `project` to pick a \
+                       sub-project. Returns {success, exit_code, output_tail} with the last \
+                       ~200 lines of output; the call is an error when the deploy exits non-zero."
+    )]
+    async fn deploy(
+        &self,
+        Parameters(args): Parameters<DeployArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.access_token()?;
+        let directory = require_directory(&args.cwd)?;
+        require_smb_config(&directory)?;
+        let mut command = vec!["deploy"];
+        if let Some(project) = args.project.as_deref() {
+            command.extend(["--project", project]);
+        }
+        run_cli_subcommand(self.environment, &directory, &command).await
+    }
+
+    #[tool(
+        description = "Push the deploy fields of the local `.smb/config.toml` in `cwd` up to \
+                       the smbCloud server (the equivalent of `smb migrate`). Never prompts. \
+                       Returns {success, exit_code, output_tail}; the call is an error when \
+                       the command exits non-zero."
+    )]
+    async fn migrate(
+        &self,
+        Parameters(args): Parameters<MigrateArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.access_token()?;
+        let directory = require_directory(&args.cwd)?;
+        require_smb_config(&directory)?;
+        run_cli_subcommand(self.environment, &directory, &["migrate"]).await
+    }
 }
 
 #[tool_handler(router = Self::cloud_tool_router())]
@@ -1483,7 +1796,8 @@ impl ServerHandler for SmbMcpServer {
             "smbCloud CLI exposed as MCP tools. Authentication uses the token stored by \
                  `smb login`; tools run non-interactively. `tenant_use` / `project_use` select \
                  the tenant/project context other tools default to, shared with the CLI's own \
-                 `smb tenant use` / `smb project use`. Use `smb --mcp --scope automation` \
+                 `smb tenant use` / `smb project use`. `project_init`, `deploy` and `migrate` act on a local \
+                 directory given as an absolute `cwd`. Use `smb --mcp --scope automation` \
                  instead for mobile and TV app automation tools. `deployments` renders an \
                  interactive dashboard on MCP Apps hosts.",
         )
@@ -1564,6 +1878,7 @@ mod tests {
             "project_create",
             "project_update",
             "project_delete",
+            "project_init",
             "deployments",
             "deployment_show",
             "frontend_app_list",
@@ -1572,6 +1887,8 @@ mod tests {
             "deploy_repo_new",
             "deploy_config_show",
             "deploy_config_update",
+            "deploy",
+            "migrate",
             "tenant_list",
             "tenant_show",
             "tenant_new",
@@ -1765,14 +2082,52 @@ mod tests {
     }
 
     #[test]
-    fn delete_tools_carry_destructive_hint() {
+    fn delete_and_overwrite_tools_carry_destructive_hint() {
         let tools = SmbMcpServer::cloud_tool_router().list_all();
         let mut checked = 0;
-        for tool in tools.iter().filter(|tool| tool.name.ends_with("_delete")) {
+        for tool in tools
+            .iter()
+            .filter(|tool| tool.name.ends_with("_delete") || tool.name == "project_init")
+        {
             let annotations = tool.annotations.as_ref().expect("annotations");
             assert_eq!(annotations.destructive_hint, Some(true), "{}", tool.name);
             checked += 1;
         }
-        assert_eq!(checked, 5);
+        assert_eq!(checked, 6);
+    }
+
+    #[test]
+    fn init_target_requires_an_existing_absolute_directory() {
+        assert!(check_init_target("relative/dir", false).is_err());
+        let directory = tempfile::tempdir().expect("temp dir");
+        let missing = directory.path().join("missing");
+        assert!(check_init_target(&missing.to_string_lossy(), false).is_err());
+        assert!(check_init_target(&directory.path().to_string_lossy(), false).is_ok());
+    }
+
+    #[test]
+    fn init_target_refuses_existing_config_unless_overwriting() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        std::fs::create_dir_all(directory.path().join(".smb")).expect("create .smb");
+        std::fs::write(directory.path().join(".smb/config.toml"), "").expect("write config");
+        let cwd = directory.path().to_string_lossy().to_string();
+
+        assert!(check_init_target(&cwd, false).is_err());
+        assert!(check_init_target(&cwd, true).is_ok());
+    }
+
+    #[test]
+    fn deploy_requires_a_config_in_cwd() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        assert!(require_smb_config(directory.path()).is_err());
+    }
+
+    #[test]
+    fn output_tail_keeps_last_lines_and_strips_ansi() {
+        let mut tail = TailBuffer::new(2);
+        for line in ["one", "\x1b[32mtwo\x1b[0m", "spinner\rthree"] {
+            tail.push(line);
+        }
+        assert_eq!(tail.render(), "two\nthree");
     }
 }
