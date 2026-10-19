@@ -88,6 +88,11 @@ jobs:
         shell: bash
         run: cargo build --locked --release --target ${{ matrix.target }} --package smbcloud-cli
 
+      - name: Check Windows binary has no VC++ runtime dependency
+        if: contains(matrix.target, 'windows')
+        shell: pwsh
+        run: ./packaging/windows/check-static-crt.ps1 -Path target/${{ matrix.target }}/release/${{ env.PROJECT_NAME }}.exe
+
       - name: Package binary
         shell: bash
         run: |
