@@ -73,8 +73,8 @@ per package — and both are updated by `make patch | minor | major` along with
 the rest of the release metadata (`scripts/sync-release-version.mjs`).
 
 Publishing is chained off the release: pushing a `v*` tag runs the crates.io
-workflow, which fans out to the distribution workflows, and **NuGet CLI
-Release** triggers **MCP Registry Release** once its publish job succeeds. It
+workflow, which fans out to the distribution workflows, and **CLI Release NuGet**
+triggers **MCP Registry Release** once its publish job succeeds. It
 hangs off NuGet rather than the fan-out because the listing needs both npm and
 NuGet live at that version, and NuGet is the slower of the two.
 
