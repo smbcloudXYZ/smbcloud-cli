@@ -1,7 +1,9 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
-PackageIdentifier: smbCloudXYZ.smbcloud-cli
+PackageIdentifier: smbCloud.CLI
 PackageVersion: @VERSION@
 InstallerType: portable
+# No VCRedist dependency: the exe links the C runtime statically
+# (.cargo/config.toml), and CI rejects a build that imports it.
 # `Commands` is what winget names the shim it drops on PATH. The release
 # assets are smb-win-<arch>.exe, but the command has to be `smb`.
 Commands:

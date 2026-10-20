@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
-PackageIdentifier: smbCloudXYZ.smbcloud-cli
+PackageIdentifier: smbCloud.CLI
 PackageVersion: @VERSION@
 PackageLocale: en-US
 Publisher: smbCloud
@@ -7,6 +7,7 @@ PublisherUrl: https://smbcloud.xyz/
 PublisherSupportUrl: https://github.com/@REPO@/issues
 PackageName: smbCloud CLI
 PackageUrl: https://smbcloud.xyz/
+PrivacyUrl: https://smbcloud.xyz/privacy-policy
 License: Apache-2.0
 LicenseUrl: https://github.com/@REPO@/blob/main/LICENSE
 ShortDescription: smbCloud command line interface.
