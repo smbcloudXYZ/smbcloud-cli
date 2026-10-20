@@ -3,6 +3,7 @@ name: Tests
 # Runs on every push.
 # Covers:
 #   - All Rust workspace members (fmt, clippy, tests)
+#   - smbcloud-cli + xcrs clippy on Windows and macOS (cfg-gated code)
 #   - smbcloud-auth-sdk-wasm (wasm32-unknown-unknown cargo check)
 #   - sdk/python  → maturin wheel build  (smbcloud-sdk-auth)
 #   - sdk/npm     → wasm-pack + prepare-package.mjs  (@smbcloud/sdk-auth)
@@ -55,6 +56,44 @@ jobs:
 
       - name: Test — all workspace members (host targets)
         run: cargo test --workspace --exclude smbcloud-auth-sdk-wasm
+
+  # ── Cross-platform build ────────────────────────────────────────────────────
+  # A #[cfg(unix)] mismatch type-checks on Linux and only fails on Windows, so
+  # compile the packages the release workflows build on those OSes.
+  check-cross-platform:
+    name: Rust — clippy (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check-cross-platform-${{ matrix.os }}
+
+      - name: Clippy — smbcloud-cli and xcrs
+        run: cargo clippy --locked --package smbcloud-cli --package xcrs --tests -- -D warnings
 
   # ── WASM crate ──────────────────────────────────────────────────────────────
   check-wasm:

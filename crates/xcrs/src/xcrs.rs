@@ -22,9 +22,7 @@ const ANDROIDKIT_START_RETRY_DELAY: Duration = Duration::from_millis(100);
 /// variant for it.
 #[cfg(unix)]
 const TEXT_FILE_BUSY: i32 = 26;
-#[cfg(unix)]
 const TEXT_FILE_BUSY_RETRY_DELAY: Duration = Duration::from_millis(20);
-#[cfg(unix)]
 const TEXT_FILE_BUSY_RETRY_ATTEMPTS: usize = 5;
 
 pub fn encode_base64(data: impl AsRef<[u8]>) -> String {
