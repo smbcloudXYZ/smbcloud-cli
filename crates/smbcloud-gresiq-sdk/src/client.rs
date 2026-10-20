@@ -37,6 +37,24 @@ struct DocumentsEnvelope<T> {
     documents: Vec<GresiqDocument<T>>,
 }
 
+/// How a client proves itself to the gateway.
+#[derive(Clone)]
+enum Auth {
+    /// `X-Gresiq-Api-Key` + `X-Gresiq-Api-Secret` headers.
+    KeySecret { api_key: String, api_secret: String },
+    /// `Authorization: Bearer gqi_...`, a write-only ingest key.
+    IngestKey(String),
+}
+
+impl std::fmt::Debug for Auth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Auth::KeySecret { .. } => f.write_str("Auth::KeySecret"),
+            Auth::IngestKey(_) => f.write_str("Auth::IngestKey"),
+        }
+    }
+}
+
 /// Talks to the smbCloud GresIQ REST gateway.
 ///
 /// Cheap to clone — the inner `reqwest::Client` is `Arc`-backed.
@@ -46,15 +64,16 @@ struct DocumentsEnvelope<T> {
 ///
 /// Every request carries two headers from the GresIQ credentials:
 /// `X-Gresiq-Api-Key` and `X-Gresiq-Api-Secret`. Get these from the
-/// GresIQ console after registering a database.
+/// GresIQ console after registering a database. A client built with
+/// `from_ingest_key` sends `Authorization: Bearer` with the write-only ingest
+/// key instead.
 ///
 /// Additional headers can be layered on top via `with_extra_headers` —
 /// they ride alongside the GresIQ credentials on every subsequent request.
 #[derive(Debug, Clone)]
 pub struct GresiqClient {
     base_url: String,
-    api_key: String,
-    api_secret: String,
+    auth: Auth,
     extra_headers: HashMap<String, String>,
     http: reqwest::Client,
 }
@@ -69,8 +88,36 @@ impl GresiqClient {
         let base_url = crate::client_credentials::base_url(&environment);
         GresiqClient {
             base_url,
-            api_key: credentials.api_key.to_string(),
-            api_secret: credentials.api_secret.to_string(),
+            auth: Auth::KeySecret {
+                api_key: credentials.api_key.to_string(),
+                api_secret: credentials.api_secret.to_string(),
+            },
+            extra_headers: HashMap::new(),
+            http: reqwest::Client::new(),
+        }
+    }
+
+    /// Build a client that authenticates with a write-only `gqi_` ingest key,
+    /// sent as `Authorization: Bearer`. The gateway accepts it only for
+    /// telemetry writes (`insert` and `put_document` on the pulse routes and
+    /// document create); reads are refused. Unlike the key and secret, it is
+    /// intended to be embedded in a shipped client.
+    pub fn from_ingest_key(environment: Environment, ingest_key: &str) -> Self {
+        let base_url = crate::client_credentials::base_url(&environment);
+        GresiqClient {
+            base_url,
+            auth: Auth::IngestKey(ingest_key.to_string()),
+            extra_headers: HashMap::new(),
+            http: reqwest::Client::new(),
+        }
+    }
+
+    /// Like `from_ingest_key`, with an explicit base URL (for tests and
+    /// self-hosted gateways).
+    pub fn from_ingest_key_with_base_url(base_url: &str, ingest_key: &str) -> Self {
+        GresiqClient {
+            base_url: base_url.trim_end_matches('/').to_string(),
+            auth: Auth::IngestKey(ingest_key.to_string()),
             extra_headers: HashMap::new(),
             http: reqwest::Client::new(),
         }
@@ -98,18 +145,7 @@ impl GresiqClient {
         let url = format!("{}/gresiq/v1/{}", self.base_url, table);
         let body = serde_json::json!({ "record": record });
 
-        let mut builder = self
-            .http
-            .post(&url)
-            .header("X-Gresiq-Api-Key", &self.api_key)
-            .header("X-Gresiq-Api-Secret", &self.api_secret)
-            .json(&body);
-
-        for (key, value) in &self.extra_headers {
-            builder = builder.header(key.as_str(), value.as_str());
-        }
-
-        let response = builder.send().await?;
+        let response = self.authed_post(&url).json(&body).send().await?;
 
         if response.status().is_success() {
             log::debug!("gresiq: {} inserted ok", table);
@@ -205,9 +241,15 @@ impl GresiqClient {
     }
 
     fn with_auth(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        let mut builder = builder
-            .header("X-Gresiq-Api-Key", &self.api_key)
-            .header("X-Gresiq-Api-Secret", &self.api_secret);
+        let mut builder = match &self.auth {
+            Auth::KeySecret {
+                api_key,
+                api_secret,
+            } => builder
+                .header("X-Gresiq-Api-Key", api_key)
+                .header("X-Gresiq-Api-Secret", api_secret),
+            Auth::IngestKey(key) => builder.bearer_auth(key),
+        };
         for (key, value) in &self.extra_headers {
             builder = builder.header(key.as_str(), value.as_str());
         }
@@ -222,5 +264,65 @@ impl GresiqClient {
             .await
             .unwrap_or_else(|_| "unreadable response body".to_string());
         GresiqError::Api { status, message }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    /// Accept one request, reply 201, and return the lowercased request head.
+    async fn serve_once() -> (String, tokio::task::JoinHandle<String>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let base = format!("http://{}", listener.local_addr().unwrap());
+        let handle = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0u8; 8192];
+            let n = socket.read(&mut buf).await.unwrap();
+            let _ = socket
+                .write_all(
+                    b"HTTP/1.1 201 Created\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+                )
+                .await;
+            String::from_utf8_lossy(&buf[..n]).to_lowercase()
+        });
+        (base, handle)
+    }
+
+    #[tokio::test]
+    async fn ingest_key_is_sent_as_a_bearer_alone() {
+        let (base, handle) = serve_once().await;
+        let client = GresiqClient::from_ingest_key_with_base_url(&base, "gqi_abc");
+        client
+            .insert("pulse/model_loaded", &serde_json::json!({ "edge_id": "e" }))
+            .await
+            .unwrap();
+        let head = handle.await.unwrap();
+        assert!(head.starts_with("post /gresiq/v1/pulse/model_loaded"));
+        assert!(head.contains("authorization: bearer gqi_abc"));
+        assert!(!head.contains("x-gresiq-api-key"));
+        assert!(!head.contains("x-gresiq-api-secret"));
+    }
+
+    #[tokio::test]
+    async fn key_and_secret_still_use_the_headers() {
+        let (base, handle) = serve_once().await;
+        let mut client = GresiqClient::from_credentials(
+            Environment::Dev,
+            GresiqCredentials {
+                api_key: "key",
+                api_secret: "secret",
+            },
+        );
+        client.base_url = base;
+        client
+            .insert("pulse/model_loaded", &serde_json::json!({}))
+            .await
+            .unwrap();
+        let head = handle.await.unwrap();
+        assert!(head.contains("x-gresiq-api-key: key"));
+        assert!(head.contains("x-gresiq-api-secret: secret"));
+        assert!(!head.contains("authorization:"));
     }
 }
