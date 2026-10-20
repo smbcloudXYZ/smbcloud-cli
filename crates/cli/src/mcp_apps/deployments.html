@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deployments</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: #e2e2e2;
+    --accent: #2563eb;
+    --ok: #15803d;
+    --fail: #b91c1c;
+    --busy: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1b1b;
+      --fg: #ececec;
+      --muted: #9a9a9a;
+      --border: #333333;
+      --accent: #60a5fa;
+      --ok: #4ade80;
+      --fail: #f87171;
+      --busy: #fbbf24;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #6b6b6b; --border: #e2e2e2;
+    --accent: #2563eb; --ok: #15803d; --fail: #b91c1c; --busy: #b45309;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #1b1b1b; --fg: #ececec; --muted: #9a9a9a; --border: #333333;
+    --accent: #60a5fa; --ok: #4ade80; --fail: #f87171; --busy: #fbbf24;
+  }
+  body {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  button {
+    font: inherit;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .status { font-weight: 500; }
+  .status-0 { color: var(--busy); }
+  .status-1 { color: var(--fail); }
+  .status-2 { color: var(--ok); }
+  .sub { display: block; color: var(--muted); font-size: 12px; }
+  .message { padding: 24px 8px; text-align: center; color: var(--muted); }
+  .message.error { color: var(--fail); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Deployments</h1>
+  <button id="refresh" type="button" disabled>Refresh</button>
+</header>
+<div id="content" class="message">Waiting for data…</div>
+<script>
+(function () {
+  "use strict";
+
+  var STATUS_LABELS = ["Started", "Failed", "Done"];
+  var nextId = 1;
+  var pending = {};
+  var projectId = null;
+  var contentEl = document.getElementById("content");
+  var refreshButton = document.getElementById("refresh");
+
+  function send(message) {
+    window.parent.postMessage(Object.assign({ jsonrpc: "2.0" }, message), "*");
+  }
+
+  function request(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = nextId++;
+      pending[id] = { resolve: resolve, reject: reject };
+      send({ id: id, method: method, params: params });
+    });
+  }
+
+  function notify(method, params) {
+    send({ method: method, params: params });
+  }
+
+  function applyHostContext(context) {
+    if (!context) return;
+    if (context.theme === "light" || context.theme === "dark") {
+      document.documentElement.setAttribute("data-theme", context.theme);
+    }
+    var variables = context.styles && context.styles.variables;
+    if (variables) {
+      Object.keys(variables).forEach(function (name) {
+        if (variables[name]) document.documentElement.style.setProperty(name, variables[name]);
+      });
+    }
+  }
+
+  function showMessage(text, isError) {
+    contentEl.className = "message" + (isError ? " error" : "");
+    contentEl.textContent = text;
+  }
+
+  function relative(date) {
+    var seconds = Math.round((Date.now() - date.getTime()) / 1000);
+    var future = seconds < 0;
+    seconds = Math.abs(seconds);
+    var units = [["day", 86400], ["hour", 3600], ["minute", 60]];
+    for (var index = 0; index < units.length; index++) {
+      if (seconds >= units[index][1]) {
+        var count = Math.floor(seconds / units[index][1]);
+        var text = count + " " + units[index][0] + (count === 1 ? "" : "s");
+        return future ? "in " + text : text + " ago";
+      }
+    }
+    return "just now";
+  }
+
+  function timeCell(value) {
+    var cell = document.createElement("td");
+    var date = new Date(value);
+    if (isNaN(date.getTime())) {
+      cell.textContent = String(value || "");
+      return cell;
+    }
+    cell.textContent = relative(date);
+    var absolute = document.createElement("span");
+    absolute.className = "sub";
+    absolute.textContent = date.toLocaleString();
+    cell.appendChild(absolute);
+    return cell;
+  }
+
+  function textCell(text, className) {
+    var cell = document.createElement("td");
+    if (className) cell.className = className;
+    cell.textContent = text;
+    return cell;
+  }
+
+  function render(deployments) {
+    if (!deployments.length) {
+      showMessage("No deployments yet.", false);
+      return;
+    }
+    var sorted = deployments.slice().sort(function (a, b) {
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+    var table = document.createElement("table");
+    var head = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    ["Status", "App", "Commit", "Created", "Updated"].forEach(function (label) {
+      var th = document.createElement("th");
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+    head.appendChild(headRow);
+    table.appendChild(head);
+
+    var body = document.createElement("tbody");
+    sorted.forEach(function (deployment) {
+      var row = document.createElement("tr");
+      var status = deployment.status;
+      row.appendChild(textCell(STATUS_LABELS[status] || String(status), "status status-" + status));
+      row.appendChild(textCell(deployment.frontend_app_name || deployment.frontend_app_id || "—"));
+      var commit = document.createElement("td");
+      var code = document.createElement("code");
+      code.textContent = String(deployment.commit_hash || "").slice(0, 7);
+      commit.appendChild(code);
+      row.appendChild(commit);
+      row.appendChild(timeCell(deployment.created_at));
+      row.appendChild(timeCell(deployment.updated_at));
+      body.appendChild(row);
+    });
+    table.appendChild(body);
+    contentEl.className = "";
+    contentEl.replaceChildren(table);
+  }
+
+  function renderResult(result) {
+    if (!result) return;
+    if (result.isError) {
+      var first = result.content && result.content[0];
+      showMessage((first && first.text) || "The deployments request failed.", true);
+      return;
+    }
+    var data = result.structuredContent;
+    if (!data || !Array.isArray(data.deployments)) {
+      showMessage("No deployment data in the tool result.", true);
+      return;
+    }
+    if (data.project_id !== undefined) projectId = data.project_id;
+    refreshButton.disabled = projectId === null;
+    render(data.deployments);
+  }
+
+  refreshButton.addEventListener("click", function () {
+    if (projectId === null) return;
+    refreshButton.disabled = true;
+    request("tools/call", { name: "deployments", arguments: { project_id: projectId } })
+      .then(renderResult)
+      .catch(function (error) {
+        showMessage((error && error.message) || "Refresh failed.", true);
+      })
+      .then(function () {
+        refreshButton.disabled = projectId === null;
+      });
+  });
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+
+    if (message.method === undefined && message.id !== undefined) {
+      var entry = pending[message.id];
+      if (!entry) return;
+      delete pending[message.id];
+      if (message.error) entry.reject(message.error);
+      else entry.resolve(message.result);
+      return;
+    }
+
+    var params = message.params || {};
+    switch (message.method) {
+      case "ui/notifications/tool-input":
+        if (params.arguments && params.arguments.project_id !== undefined) {
+          projectId = params.arguments.project_id;
+          refreshButton.disabled = false;
+        }
+        break;
+      case "ui/notifications/tool-result":
+        renderResult(params);
+        break;
+      case "ui/notifications/host-context-changed":
+        applyHostContext(params);
+        break;
+      case "ui/resource-teardown":
+        send({ id: message.id, result: {} });
+        break;
+    }
+  });
+
+  request("ui/initialize", {
+    appInfo: { name: "smbcloud-deployments", version: "1.0.0" },
+    appCapabilities: {},
+    protocolVersion: "2026-01-26"
+  }).then(function (result) {
+    applyHostContext(result && result.hostContext);
+    notify("ui/notifications/initialized", {});
+  }).catch(function () {
+    showMessage("Could not reach the host.", true);
+  });
+})();
+</script>
+</body>
+</html>
