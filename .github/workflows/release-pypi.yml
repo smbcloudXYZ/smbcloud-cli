@@ -1,4 +1,4 @@
-name: PyPI CLI Release
+name: CLI Release PyPI
 
 # Windows arm64 wheels are intentionally not built here. GitHub's hosted
 # Windows runners provide x64 Python, and maturin refuses to build an arm64

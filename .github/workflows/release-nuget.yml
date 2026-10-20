@@ -1,4 +1,4 @@
-name: NuGet CLI Release
+name: CLI Release NuGet
 
 on:
   workflow_dispatch:
