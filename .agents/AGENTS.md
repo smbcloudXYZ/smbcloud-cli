@@ -70,13 +70,14 @@ Rust change done** — after every edit, not just before a push. Fix clippy find
 than silencing them with `#[allow(...)]` unless there's a specific reason the lint doesn't
 apply, and note that reason inline.
 
-`ci.yml` runs six jobs on every push; run the ones relevant to what changed, not just the
+`ci.yml` runs seven jobs on every push; run the ones relevant to what changed, not just the
 main Rust workspace job — a change that only compiles in the main workspace but breaks one
 of these is still a broken CI run:
 
 | Job | Touches | Local check |
 |---|---|---|
 | Rust workspace | any `crates/*` change (except the wasm crate) | `cargo fmt --all -- --check && cargo clippy --workspace --exclude smbcloud-auth-sdk-wasm --tests -- -D warnings && cargo test --workspace --exclude smbcloud-auth-sdk-wasm` |
+| Cross-platform (Windows, macOS) | `cfg`-gated code in `crates/cli` or `crates/xcrs` | `cargo clippy -p smbcloud-cli -p xcrs --tests -- -D warnings` (CI only for Windows; cannot run locally on a Mac) |
 | `smbcloud-auth-sdk-wasm` | that crate, or `smbcloud-auth-sdk` it wraps | `cargo check --package smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown` |
 | Python SDK | `sdk/python`, or `smbcloud-auth-sdk` | `cd sdk/python && maturin build --release --locked --out dist` |
 | npm/WASM SDK | `sdk/npm/smbcloud-auth`, or `smbcloud-auth-sdk` | `cd sdk/npm/smbcloud-auth && node ./prepare-package.mjs` (needs `wasm-pack` installed) |
