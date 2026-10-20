@@ -163,17 +163,17 @@ jobs:
           # nuget.org validates a package before it reaches the flat container,
           # so a version pushed minutes ago is not queryable yet. Poll instead
           # of failing the release on that race.
-          for attempt in $(seq 1 20); do
+          for attempt in $(seq 1 60); do
             nuget_versions="$(curl -fsSL "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/index.json")"
             if echo "${nuget_versions}" | jq -e --arg v "${RELEASE_VERSION}" '.versions | index($v)' >/dev/null; then
               echo "SmbCloud.Cli ${RELEASE_VERSION} is indexed."
               break
             fi
             if [ "${attempt}" -eq 20 ]; then
-              echo "SmbCloud.Cli ${RELEASE_VERSION} is still not indexed on nuget.org after 10 minutes." >&2
+              echo "SmbCloud.Cli ${RELEASE_VERSION} is still not indexed on nuget.org after 30 minutes." >&2
               exit 1
             fi
-            echo "Waiting for nuget.org to index ${RELEASE_VERSION} (attempt ${attempt}/20)..."
+            echo "Waiting for nuget.org to index ${RELEASE_VERSION} (attempt ${attempt}/60)..."
             sleep 30
           done
 
