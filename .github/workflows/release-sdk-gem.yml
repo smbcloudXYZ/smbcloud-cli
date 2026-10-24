@@ -8,7 +8,9 @@ name: SDK Ruby Gem Release
 # release). Each native gem is fat: one extension per Ruby minor >= 3.1. A
 # source gem covers every other platform and Ruby.
 #
-# Pull requests that touch the gems build everything but publish nothing.
+# Pull requests that touch this workflow build everything but publish nothing.
+# Gem and crate changes are covered by ci.yml, which builds against the
+# workspace crates.
 #
 # Required secrets:
 #   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth and
@@ -25,12 +27,16 @@ on:
         required: false
   pull_request:
     paths:
-      - "sdk/gems/auth/**"
-      - "sdk/gems/model/**"
       - ".github/workflows/release-sdk-gem.yml"
 
 permissions:
   contents: read
+
+# PR dry runs cancel their superseded runs. A release for a tag is serialized
+# and never cancelled halfway through push-gems.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || inputs.tag }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
