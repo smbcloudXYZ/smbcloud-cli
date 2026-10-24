@@ -377,7 +377,7 @@ jobs:
 
       - name: Install the gem
         shell: bash
-        run: gem install --local gem/*.gem
+        run: gem install gem/*.gem
 
       # No checkout in this job, so only the installed gem can satisfy the require.
       - name: Require the gem
@@ -473,4 +473,4 @@ jobs:
 
       - name: Install the source gem
         working-directory: sdk/gems/${{ matrix.gem }}
-        run: gem install --local pkg/${{ matrix.gem }}-source.gem
+        run: gem install pkg/${{ matrix.gem }}-source.gem
