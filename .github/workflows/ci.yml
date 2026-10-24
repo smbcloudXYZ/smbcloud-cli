@@ -1,16 +1,29 @@
 name: Tests
 
-# Runs on every push.
+# Runs on every branch push (not on tag pushes: a release tag re-tests a SHA the
+# branch push already covered, and the release workflows handle tags).
 # Covers:
 #   - All Rust workspace members (fmt, clippy, tests)
 #   - smbcloud-cli + xcrs clippy on Windows and macOS (cfg-gated code)
 #   - smbcloud-auth-sdk-wasm (wasm32-unknown-unknown cargo check)
 #   - sdk/python  → maturin wheel build  (smbcloud-sdk-auth)
 #   - sdk/npm     → wasm-pack + prepare-package.mjs  (@smbcloud/sdk-auth)
-#   - sdk/gems    → rb_sys native-extension compile   (smbcloud-auth gem)
+#   - sdk/gems    → smbcloud-auth and smbcloud-model, cross-built for
+#                   x86_64-linux, aarch64-linux, arm64-darwin and x86_64-darwin
+#                   against the workspace crates (oldest and newest shipped
+#                   Ruby), then installed and required on native runners; the
+#                   source gem is built, its file list checked and installed
 #   - nuget       → .NET tool launcher build         (SmbCloud.Cli)
 
-on: push
+on:
+  push:
+    branches: ["**"] # tag pushes (v*) re-test a SHA the branch push already covers
+
+# Superseded pushes to a feature branch are cancelled. development and main are
+# never cancelled, so every commit there keeps a result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/development' && github.ref != 'refs/heads/main' }}
 
 env:
   CLI_CLIENT_SECRET: ${{ secrets.CLI_CLIENT_SECRET }}
@@ -226,10 +239,45 @@ jobs:
       - name: Build .NET tool launcher
         run: dotnet build nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release
 
-  # ── Ruby Gem ────────────────────────────────────────────────────────────────
-  check-ruby-gem:
-    name: SDK — Ruby gem (smbcloud-auth)
+  # ── Ruby Gems ───────────────────────────────────────────────────────────────
+  # Skip the gem jobs when nothing they build from changed.
+  changes:
+    name: Changes — detect gem inputs
     runs-on: ubuntu-latest
+    outputs:
+      gems: ${{ steps.filter.outputs.gems }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            gems:
+              - "sdk/gems/auth/**"
+              - "sdk/gems/model/**"
+              - "crates/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".ruby-version"
+              - ".github/workflows/ci.yml"
+
+  # Cross-builds each gem like release-sdk-gem.yml, but against the workspace
+  # crates (not the published ones) and only for the oldest and newest Ruby the
+  # release ships. Those bracket the C-API differences.
+  check-ruby-gems:
+    name: SDK — ${{ matrix.gem }} gem (${{ matrix.platform }})
+    needs: changes
+    if: needs.changes.outputs.gems == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gem: [auth, model]
+        platform: [x86_64-linux, aarch64-linux, arm64-darwin, x86_64-darwin]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -249,43 +297,180 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      # The gem's ext Cargo workspace (sdk/gems/auth) is separate from the main
-      # workspace and pulls smbcloud-* crates from crates.io. Its transitive
-      # deps may link against system OpenSSL, so we install libssl-dev to be safe.
-      - name: Install system dependencies
-        run: sudo apt-get update -q && sudo apt-get install -y libssl-dev pkg-config
-
-      # Swatinem/rust-cache scoped to the gem's own Cargo workspace so its
-      # registry deps are cached independently from the main workspace.
-      - name: Setup Rust cache (gem workspace)
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: check-ruby-gem
-          workspaces: sdk/gems/auth
-
       # CI validates the unreleased workspace version. Derive the local crate
       # patches from the extension manifest; release builds deliberately
-      # resolve published crates after the release workflow has run.
+      # resolve published crates after the release workflow has run. The
+      # whole checkout is mounted into the rb-sys-dock container, so the
+      # relative paths resolve there too.
       - name: Use workspace Rust crates for the gem check
         shell: bash
         run: |
-          mkdir -p sdk/gems/auth/.cargo
+          mkdir -p sdk/gems/${{ matrix.gem }}/.cargo
           {
             echo "[patch.crates-io]"
             awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
               name = $1
               gsub(/[[:space:]]/, "", name)
               print name " = { path = \"../../../crates/" name "\" }"
-            }' sdk/gems/auth/ext/auth/Cargo.toml
-          } > sdk/gems/auth/.cargo/config.toml
+            }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
+          } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
+          cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
-          working-directory: sdk/gems/auth
+          working-directory: sdk/gems/${{ matrix.gem }}
 
-      - name: Compile native extension
-        working-directory: sdk/gems/auth
-        run: bundle exec rake compile
+      - name: Cross-compile native gem
+        id: cross-gem
+        uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform }}
+          ruby-versions: "3.1,4.0"
+          working-directory: sdk/gems/${{ matrix.gem }}
+          cache-version: ci-${{ matrix.gem }}
+
+      - name: Upload gem artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-gem-${{ matrix.gem }}-${{ matrix.platform }}
+          path: ${{ steps.cross-gem.outputs.gem-path }}
+          retention-days: 1
+
+  # Install each prebuilt gem on a native runner and require it, which takes
+  # the real load path (the per-Ruby lib/<gem>/<x.y>/ bundle first). Catches
+  # load-time breakage such as a dyld-rejected install name.
+  smoke-test-ruby-gems:
+    name: Smoke — ${{ matrix.gem }} ${{ matrix.platform }} (Ruby ${{ matrix.ruby }})
+    needs: check-ruby-gems
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        gem: [auth, model]
+        ruby: ["3.1", "4.0"]
+        platform: [x86_64-linux, aarch64-linux, arm64-darwin]
+        include:
+          - platform: x86_64-linux
+            runner: ubuntu-latest
+          - platform: aarch64-linux
+            runner: ubuntu-24.04-arm
+          - platform: arm64-darwin
+            runner: macos-latest
+          - gem: auth
+            constant: SmbCloud::Auth
+          - gem: model
+            constant: Model
+    steps:
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+
+      - name: Download gem artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: ci-gem-${{ matrix.gem }}-${{ matrix.platform }}
+          path: gem
+
+      - name: Install the gem
+        shell: bash
+        run: gem install gem/*.gem
+
+      # No checkout in this job, so only the installed gem can satisfy the require.
+      - name: Require the gem
+        shell: bash
+        run: ruby -e 'require "${{ matrix.gem }}"; puts ${{ matrix.constant }}'
+
+  # Builds the source gem from git ls-files and installs it, compiling from
+  # source once. Catches spec.files problems (symlinks, missing Cargo files)
+  # that only surface on a user's machine.
+  check-ruby-source-gems:
+    name: SDK — ${{ matrix.gem }} source gem
+    needs: changes
+    if: needs.changes.outputs.gems == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gem: [auth, model]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read Rust toolchain
+        shell: bash
+        run: |
+          rust_toolchain="$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml | head -n 1)"
+          if [ -z "$rust_toolchain" ]; then
+            echo "Failed to read Rust toolchain from rust-toolchain.toml" >&2
+            exit 1
+          fi
+          echo "RUST_TOOLCHAIN=${rust_toolchain}" >> "$GITHUB_ENV"
+
+      - name: Install toolkit
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+
+      - name: Use workspace Rust crates for the gem check
+        shell: bash
+        run: |
+          mkdir -p sdk/gems/${{ matrix.gem }}/.cargo
+          {
+            echo "[patch.crates-io]"
+            awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
+              name = $1
+              gsub(/[[:space:]]/, "", name)
+              print name " = { path = \"../../../crates/" name "\" }"
+            }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
+          } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: .ruby-version
+          bundler-cache: true
+          working-directory: sdk/gems/${{ matrix.gem }}
+
+      # `gem build`, not `rake build`: the latter depends on :compile.
+      - name: Build the source gem
+        working-directory: sdk/gems/${{ matrix.gem }}
+        run: |
+          mkdir -p pkg
+          gem build ${{ matrix.gem }}.gemspec --output pkg/${{ matrix.gem }}-source.gem
+
+      - name: Check the source gem file list
+        working-directory: sdk/gems/${{ matrix.gem }}
+        shell: bash
+        run: |
+          files="$(gem spec pkg/${{ matrix.gem }}-source.gem files | sed -n 's/^- //p')"
+          echo "$files"
+          fail=0
+          require() {
+            if ! grep -Eq "$1" <<<"$files"; then
+              echo "::error::source gem is missing $2" >&2
+              fail=1
+            fi
+          }
+          require "^ext/${{ matrix.gem }}/extconf\.rb$" "ext/${{ matrix.gem }}/extconf.rb"
+          require '^ext/.*\.rs$' "ext/**/*.rs"
+          require '(^|/)Cargo\.toml$' "Cargo.toml"
+          require '(^|/)Cargo\.lock$' "Cargo.lock"
+          if grep -Eq '(^|/)(target|tmp)/' <<<"$files"; then
+            echo "::error::source gem contains target/ or tmp/ paths" >&2
+            fail=1
+          fi
+          while IFS= read -r f; do
+            if [ -L "$f" ]; then
+              echo "::error::source gem contains the symlink $f" >&2
+              fail=1
+            fi
+          done <<<"$files"
+          exit "$fail"
+
+      - name: Install the source gem
+        working-directory: sdk/gems/${{ matrix.gem }}
+        run: gem install pkg/${{ matrix.gem }}-source.gem
