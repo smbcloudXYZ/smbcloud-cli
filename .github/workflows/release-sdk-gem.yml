@@ -10,11 +10,12 @@ name: SDK Ruby Gem Release
 #
 # Pull requests that touch the gems build everything but publish nothing.
 #
-# Required secrets:
-#   RUBYGEMS_API_KEY — RubyGems.org API key that can push smbcloud-auth,
-#                         smbcloud-model and smbcloud-email. It must be able to
-#                         push a NEW gem (not scoped to existing gems only), or
-#                         the first smbcloud-email push is refused.
+# Gems are pushed with RubyGems trusted publishing (OIDC), so there is no API
+# key secret. Each gem needs a trusted publisher on rubygems.org for repository
+# smbcloudXYZ/smbcloud-cli, workflow release-sdk-gem.yml, with no environment.
+# A gem that does not exist yet (smbcloud-email) needs a *pending* trusted
+# publisher, created from the owner's profile; the first push turns it into a
+# normal one. See https://guides.rubygems.org/trusted-publishing/
 
 on:
   workflow_dispatch:
@@ -201,6 +202,9 @@ jobs:
     needs: [build-gems, build-source-gem]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -237,12 +241,10 @@ jobs:
         with:
           ruby-version: .ruby-version
 
+      # Exchanges this job's OIDC token for a short-lived RubyGems API key and
+      # exports it as GEM_HOST_API_KEY, which `gem push` reads.
       - name: Configure RubyGems credentials
-        shell: bash
-        run: |
-          mkdir -p "${HOME}/.gem"
-          echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" > "${HOME}/.gem/credentials"
-          chmod 0600 "${HOME}/.gem/credentials"
+        uses: rubygems/configure-rubygems-credentials@v2.1.0
 
       # Push each .gem file individually. A file that is already published (a
       # re-run, or completing a partial release) is skipped; any other failure
