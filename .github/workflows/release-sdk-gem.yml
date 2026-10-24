@@ -34,6 +34,7 @@ jobs:
       fail-fast: false
       matrix:
         gem: [auth, model]
+        name: [linux-x64, linux-arm64, darwin-arm64, darwin-x64]
         include:
           - { name: linux-x64, runner: ubuntu-latest, platform: x86_64-linux }
           - {
@@ -220,21 +221,7 @@ jobs:
           fi
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
-      - name: Check whether release already exists on RubyGems
-        id: rubygems-check
-        shell: bash
-        run: |
-          if curl -fsS \
-            "https://rubygems.org/api/v2/rubygems/smbcloud-${{ matrix.gem }}/versions/${RELEASE_VERSION}.json" \
-            >/dev/null 2>&1; then
-            echo "smbcloud-${{ matrix.gem }} ${RELEASE_VERSION} already exists on RubyGems, skipping publish"
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Download all gem artifacts
-        if: steps.rubygems-check.outputs.exists != 'true'
         uses: actions/download-artifact@v7
         with:
           pattern: "gem-${{ matrix.gem }}-*"
@@ -242,28 +229,31 @@ jobs:
           merge-multiple: true
 
       - name: Setup Ruby
-        if: steps.rubygems-check.outputs.exists != 'true'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
 
       - name: Configure RubyGems credentials
-        if: steps.rubygems-check.outputs.exists != 'true'
         shell: bash
         run: |
           mkdir -p "${HOME}/.gem"
           echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" > "${HOME}/.gem/credentials"
           chmod 0600 "${HOME}/.gem/credentials"
 
-      # Push each .gem file individually. Platform-specific gems that are already
-      # published (e.g. from a re-run) emit a warning and continue rather than
-      # failing the whole job.
+      # Push each .gem file individually. A file that is already published (a
+      # re-run, or completing a partial release) is skipped; any other failure
+      # fails the job.
       - name: Push gems to RubyGems
-        if: steps.rubygems-check.outputs.exists != 'true'
         shell: bash
         run: |
           for gem_file in gems/*.gem; do
             echo "Pushing $(basename "${gem_file}")…"
-            gem push "${gem_file}" \
-              || echo "::warning::$(basename "${gem_file}") may already exist for this version — skipping."
+            if output=$(gem push "${gem_file}" 2>&1); then
+              echo "${output}"
+            elif grep -q "Repushing of gem versions is not allowed" <<<"${output}"; then
+              echo "::notice::$(basename "${gem_file}") is already on RubyGems, skipping."
+            else
+              echo "${output}" >&2
+              exit 1
+            fi
           done
