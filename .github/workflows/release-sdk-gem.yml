@@ -1,18 +1,23 @@
 name: SDK Ruby Gem Release
 
-# Publishes the smbcloud-auth Ruby gem (sdk/gems/auth) to RubyGems.
+# Publishes the smbcloud-auth (sdk/gems/auth) and smbcloud-model
+# (sdk/gems/model) Ruby gems to RubyGems.
 # Builds pre-compiled native gems for the supported Unix platforms, plus a
 # source gem as a fallback for unsupported environments.
 #
 # Required secrets:
-#   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth
+#   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth and
+#                         smbcloud-model
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v0.3.35)"
+        description: "Release version (e.g. v0.3.35)"
         required: true
+      ref:
+        description: "Git ref to build from (defaults to the tag)"
+        required: false
 
 permissions:
   contents: read
@@ -23,11 +28,12 @@ env:
 jobs:
   # ── Build native gems ──────────────────────────────────────────────────────
   build-gems:
-    name: Build gem (${{ matrix.name }})
+    name: Build ${{ matrix.gem }} gem (${{ matrix.name }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
+        gem: [auth, model]
         include:
           - { name: linux-x64, runner: ubuntu-latest, platform: x86_64-linux }
           - {
@@ -50,7 +56,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -104,43 +110,47 @@ jobs:
 
       - name: Resolve the published Rust crate dependencies
         shell: bash
-        run: cargo generate-lockfile --manifest-path sdk/gems/auth/Cargo.toml
+        run: cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
 
       # Scope the Rust cache to the gem's own Cargo workspace so its registry
       # deps are cached independently from the main workspace.
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: sdk-gem-${{ matrix.name }}
-          workspaces: sdk/gems/auth
+          key: sdk-gem-${{ matrix.gem }}-${{ matrix.name }}
+          workspaces: sdk/gems/${{ matrix.gem }}
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
-          working-directory: sdk/gems/auth
+          working-directory: sdk/gems/${{ matrix.gem }}
 
       - name: Build native gem
-        working-directory: sdk/gems/auth
+        working-directory: sdk/gems/${{ matrix.gem }}
         shell: bash
         run: bundle exec rake native gem
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@v7
         with:
-          name: gem-${{ matrix.name }}
-          path: sdk/gems/auth/pkg/*.gem
+          name: gem-${{ matrix.gem }}-${{ matrix.name }}
+          path: sdk/gems/${{ matrix.gem }}/pkg/*.gem
 
   # ── Build source gem (fallback for unsupported platforms) ──────────────────
   build-source-gem:
-    name: Build source gem
+    name: Build ${{ matrix.gem }} source gem
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gem: [auth, model]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -156,13 +166,13 @@ jobs:
       - name: Verify gem version matches tag
         shell: bash
         run: |
-          GEM_VERSION=$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/auth/lib/auth/version.rb)
+          GEM_VERSION=$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)
 
           echo "Gem version : ${GEM_VERSION}"
           echo "Tag version : ${RELEASE_VERSION}"
 
           if [[ "${GEM_VERSION}" != "${RELEASE_VERSION}" ]]; then
-            echo "::error::Version mismatch — bump Auth::VERSION in sdk/gems/auth/lib/auth/version.rb before releasing."
+            echo "::error::Version mismatch — bump VERSION in sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb before releasing."
             exit 1
           fi
 
@@ -171,29 +181,33 @@ jobs:
         with:
           ruby-version: .ruby-version
           bundler-cache: true
-          working-directory: sdk/gems/auth
+          working-directory: sdk/gems/${{ matrix.gem }}
 
       - name: Build source gem
-        working-directory: sdk/gems/auth
+        working-directory: sdk/gems/${{ matrix.gem }}
         run: bundle exec rake build
 
       - name: Upload source gem artifact
         uses: actions/upload-artifact@v7
         with:
-          name: gem-source
-          path: sdk/gems/auth/pkg/*.gem
+          name: gem-${{ matrix.gem }}-source
+          path: sdk/gems/${{ matrix.gem }}/pkg/*.gem
 
   # ── Push all gems to RubyGems ──────────────────────────────────────────────
   push-gems:
-    name: Push to RubyGems
+    name: Push ${{ matrix.gem }} to RubyGems
     needs: [build-gems, build-source-gem]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gem: [auth, model]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
@@ -211,9 +225,9 @@ jobs:
         shell: bash
         run: |
           if curl -fsS \
-            "https://rubygems.org/api/v2/rubygems/smbcloud-auth/versions/${RELEASE_VERSION}.json" \
+            "https://rubygems.org/api/v2/rubygems/smbcloud-${{ matrix.gem }}/versions/${RELEASE_VERSION}.json" \
             >/dev/null 2>&1; then
-            echo "smbcloud-auth ${RELEASE_VERSION} already exists on RubyGems, skipping publish"
+            echo "smbcloud-${{ matrix.gem }} ${RELEASE_VERSION} already exists on RubyGems, skipping publish"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -223,7 +237,7 @@ jobs:
         if: steps.rubygems-check.outputs.exists != 'true'
         uses: actions/download-artifact@v7
         with:
-          pattern: "gem-*"
+          pattern: "gem-${{ matrix.gem }}-*"
           path: gems
           merge-multiple: true
 
