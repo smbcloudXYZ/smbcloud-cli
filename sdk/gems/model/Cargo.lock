@@ -342,9 +342,9 @@ dependencies = [
 
 [[package]]
 name = "magnus"
-version = "0.7.1"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d87ae53030f3a22e83879e666cb94e58a7bdf31706878a0ba48752994146dab"
+checksum = "e76237a607e1dea288dd0ef0c6c8f49037df2152d14bb52b3542c46522d9e6fc"
 dependencies = [
  "magnus-macros",
  "rb-sys",
@@ -354,9 +354,9 @@ dependencies = [
 
 [[package]]
 name = "magnus-macros"
-version = "0.6.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5968c820e2960565f647819f5928a42d6e874551cab9d88d75e3e0660d7f71e3"
+checksum = "47607461fd8e1513cb4f2076c197d8092d921a1ea75bd08af97398f593751892"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -392,7 +392,7 @@ checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
 name = "model"
-version = "0.4.13"
+version = "0.7.5"
 dependencies = [
  "magnus",
  "smbcloud-model",
@@ -507,9 +507,9 @@ dependencies = [
 
 [[package]]
 name = "rb-sys-env"
-version = "0.1.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a35802679f07360454b418a5d1735c89716bde01d35b1560fc953c1415a0b3bb"
+checksum = "cca7ad6a7e21e72151d56fe2495a259b5670e204c3adac41ee7ef676ea08117a"
 
 [[package]]
 name = "regex"
@@ -668,9 +668,9 @@ checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
 
 [[package]]
 name = "smbcloud-model"
-version = "0.4.12"
+version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e395d04033c6b95f1fbe1dff549b62f9a376f782e04a3f7ec6fa47b3f463362f"
+checksum = "e9a960b4ee5fb1615367600f21431f547a7406d10bdde8b7f7fade0d4887e5c6"
 dependencies = [
  "chrono",
  "log",

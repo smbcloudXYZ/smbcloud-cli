@@ -64,6 +64,18 @@ for (const path of [
   check(path, read(path).match(/VERSION\s*=\s*['"]([^'"]+)['"]/)?.[1]);
 }
 
+// The Ruby gems link the smbcloud-* crates from crates.io. Their requirement
+// must be the release's major.minor, or a gem can silently wrap an older crate.
+const [expectedMajor, expectedMinor] = expectedVersion.split(".");
+const expectedRequirement = `${expectedMajor}.${expectedMinor}`;
+for (const path of ["sdk/gems/auth/ext/auth/Cargo.toml", "sdk/gems/model/ext/model/Cargo.toml"]) {
+  for (const match of read(path).matchAll(/^(smbcloud-[\w-]+)\s*=\s*\{\s*version\s*=\s*"([^"]+)"/gm)) {
+    if (match[2] !== expectedRequirement) {
+      mismatches.push(`${path} dependency ${match[1]}: ${match[2]} (expected ${expectedRequirement})`);
+    }
+  }
+}
+
 const npmPackage = JSON.parse(read("npm/smbcloud-cli/package.json"));
 check("npm/smbcloud-cli/package.json", npmPackage.version);
 

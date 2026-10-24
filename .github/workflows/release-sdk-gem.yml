@@ -2,8 +2,13 @@ name: SDK Ruby Gem Release
 
 # Publishes the smbcloud-auth (sdk/gems/auth) and smbcloud-model
 # (sdk/gems/model) Ruby gems to RubyGems.
-# Builds pre-compiled native gems for the supported Unix platforms, plus a
-# source gem as a fallback for unsupported environments.
+# Native gems are cross-compiled on Linux with rb-sys-dock, so the darwin gems
+# get the generic `arm64-darwin` / `x86_64-darwin` platforms (a gem built with a
+# runner's Ruby gets e.g. `arm64-darwin-23`, which only matches that macOS
+# release). Each native gem is fat: one extension per Ruby minor >= 3.1. A
+# source gem covers every other platform and Ruby.
+#
+# Pull requests that touch the gems build everything but publish nothing.
 #
 # Required secrets:
 #   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth and
@@ -18,6 +23,11 @@ on:
       ref:
         description: "Git ref to build from (defaults to the tag)"
         required: false
+  pull_request:
+    paths:
+      - "sdk/gems/auth/**"
+      - "sdk/gems/model/**"
+      - ".github/workflows/release-sdk-gem.yml"
 
 permissions:
   contents: read
@@ -28,30 +38,13 @@ env:
 jobs:
   # ── Build native gems ──────────────────────────────────────────────────────
   build-gems:
-    name: Build ${{ matrix.gem }} gem (${{ matrix.name }})
-    runs-on: ${{ matrix.runner }}
+    name: Build ${{ matrix.gem }} gem (${{ matrix.platform }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         gem: [auth, model]
-        name: [linux-x64, linux-arm64, darwin-arm64, darwin-x64]
-        include:
-          - { name: linux-x64, runner: ubuntu-latest, platform: x86_64-linux }
-          - {
-              name: linux-arm64,
-              runner: ubuntu-24.04-arm,
-              platform: aarch64-linux,
-            }
-          - { name: darwin-arm64, runner: macos-latest, platform: arm64-darwin }
-          - {
-              name: darwin-x64,
-              runner: macos-15-intel,
-              platform: x86_64-darwin,
-            }
-          # Windows is excluded: rb-sys bindgen fails because RubyInstaller is
-          # MinGW-based and its rbconfig emits GCC flags that are incompatible
-          # with the MSVC clang used by bindgen. The source gem provides a
-          # fallback for Windows users (compiled at install time).
+        platform: [x86_64-linux, aarch64-linux, arm64-darwin, x86_64-darwin]
 
     steps:
       - name: Checkout
@@ -62,7 +55,9 @@ jobs:
       - name: Set the release version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            release_version="$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
             release_version="${{ github.event.inputs.tag }}"
@@ -71,6 +66,7 @@ jobs:
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
       - name: Wait for Rust crate dependencies on crates.io
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
           for crate_name in smbcloud-auth-sdk smbcloud-model smbcloud-network; do
@@ -90,10 +86,6 @@ jobs:
             done
           done
 
-      - name: Install system dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y libclang-dev
-
       - name: Read Rust toolchain
         shell: bash
         run: |
@@ -109,17 +101,11 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      # The container build uses this lockfile, so resolve the published
+      # smbcloud-* crates for this release on the host first.
       - name: Resolve the published Rust crate dependencies
         shell: bash
         run: cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
-
-      # Scope the Rust cache to the gem's own Cargo workspace so its registry
-      # deps are cached independently from the main workspace.
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: sdk-gem-${{ matrix.gem }}-${{ matrix.name }}
-          workspaces: sdk/gems/${{ matrix.gem }}
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -128,16 +114,20 @@ jobs:
           bundler-cache: true
           working-directory: sdk/gems/${{ matrix.gem }}
 
-      - name: Build native gem
-        working-directory: sdk/gems/${{ matrix.gem }}
-        shell: bash
-        run: bundle exec rake native gem
+      - name: Cross-compile native gem
+        id: cross-gem
+        uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform }}
+          ruby-versions: ">= 3.1"
+          working-directory: sdk/gems/${{ matrix.gem }}
+          cache-version: ${{ matrix.gem }}
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@v7
         with:
-          name: gem-${{ matrix.gem }}-${{ matrix.name }}
-          path: sdk/gems/${{ matrix.gem }}/pkg/*.gem
+          name: gem-${{ matrix.gem }}-${{ matrix.platform }}
+          path: ${{ steps.cross-gem.outputs.gem-path }}
 
   # ── Build source gem (fallback for unsupported platforms) ──────────────────
   build-source-gem:
@@ -156,7 +146,9 @@ jobs:
       - name: Set the release version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            release_version="$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
             release_version="${{ github.event.inputs.tag }}"
@@ -176,6 +168,12 @@ jobs:
             echo "::error::Version mismatch — bump VERSION in sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb before releasing."
             exit 1
           fi
+
+      # The source gem ships Cargo.lock; resolve it against the release's
+      # published crates rather than shipping the committed lock.
+      - name: Resolve the published Rust crate dependencies
+        shell: bash
+        run: cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -198,6 +196,7 @@ jobs:
   push-gems:
     name: Push ${{ matrix.gem }} to RubyGems
     needs: [build-gems, build-source-gem]
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -213,7 +212,9 @@ jobs:
       - name: Set the release version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            release_version="$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
             release_version="${{ github.event.inputs.tag }}"
