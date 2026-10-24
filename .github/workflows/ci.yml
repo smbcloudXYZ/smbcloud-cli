@@ -8,7 +8,7 @@ name: Tests
 #   - smbcloud-auth-sdk-wasm (wasm32-unknown-unknown cargo check)
 #   - sdk/python  → maturin wheel build  (smbcloud-sdk-auth)
 #   - sdk/npm     → wasm-pack + prepare-package.mjs  (@smbcloud/sdk-auth)
-#   - sdk/gems    → smbcloud-auth and smbcloud-model, cross-built for
+#   - sdk/gems    → smbcloud-auth, smbcloud-model and smbcloud-email, cross-built for
 #                   x86_64-linux, aarch64-linux, arm64-darwin and x86_64-darwin
 #                   against the workspace crates (oldest and newest shipped
 #                   Ruby), then installed and required on native runners; the
@@ -258,6 +258,7 @@ jobs:
             gems:
               - "sdk/gems/auth/**"
               - "sdk/gems/model/**"
+              - "sdk/gems/email/**"
               - "crates/**"
               - "Cargo.toml"
               - "Cargo.lock"
@@ -276,7 +277,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gem: [auth, model]
+        gem: [auth, model, email]
         platform: [x86_64-linux, aarch64-linux, arm64-darwin, x86_64-darwin]
     steps:
       - name: Checkout
@@ -349,7 +350,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gem: [auth, model]
+        gem: [auth, model, email]
         ruby: ["3.1", "4.0"]
         platform: [x86_64-linux, aarch64-linux, arm64-darwin]
         include:
@@ -363,6 +364,8 @@ jobs:
             constant: SmbCloud::Auth
           - gem: model
             constant: Model
+          - gem: email
+            constant: SmbCloud::Email
     steps:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -395,7 +398,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gem: [auth, model]
+        gem: [auth, model, email]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
