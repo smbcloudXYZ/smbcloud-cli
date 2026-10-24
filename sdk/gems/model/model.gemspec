@@ -26,7 +26,7 @@ Gem::Specification.new do |spec|
   spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true).reject do |f|
       (f == gemspec) ||
-        f.start_with?(*%w[bin/ test/ spec/ features/ .git appveyor Gemfile])
+        f.start_with?(*%w[bin/ test/ spec/ features/ .git .ruby-version .rubocop.yml appveyor Gemfile])
     end
   end
   spec.bindir = "exe"
@@ -34,5 +34,8 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.extensions = ["ext/model/extconf.rb"]
 
-  spec.add_dependency "rb_sys", "~> 0.9.91"
+  # 0.9.130 is the first rb_sys that gives darwin bundles a non-empty install
+  # name. Older versions run `install_name_tool -id ""`, which dyld on macOS 15+
+  # rejects, so the extension fails to load.
+  spec.add_dependency "rb_sys", "~> 0.9", ">= 0.9.130"
 end

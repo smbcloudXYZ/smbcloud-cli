@@ -228,14 +228,23 @@ if (
 }
 
 if (
-  updateFile(modelGemCargoTomlPath, (content) =>
-    replaceOrThrow(
+  updateFile(modelGemCargoTomlPath, (content) => {
+    let next = replaceOrThrow(
       content,
       /^version\s*=\s*"[^"]+"/m,
       `version = "${releaseVersion}"`,
       `${modelGemCargoTomlPath} package version`,
-    ),
-  )
+    );
+
+    next = replaceOrThrow(
+      next,
+      /(smbcloud-model\s*=\s*\{\s*version\s*=\s*")([^"]+)("\s*\})/,
+      `$1${rubySdkRequirement}$3`,
+      `${modelGemCargoTomlPath} dependency smbcloud-model`,
+    );
+
+    return next;
+  })
 ) {
   updatedPaths.push(modelGemCargoTomlPath);
 }

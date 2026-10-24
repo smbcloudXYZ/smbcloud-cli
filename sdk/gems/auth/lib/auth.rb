@@ -2,7 +2,14 @@
 
 require 'json'
 require_relative 'auth/version'
-require_relative 'auth/auth'
+# Fat native gems ship one extension per Ruby minor (lib/auth/3.4/auth.bundle);
+# source and single-ABI builds put it directly under lib/auth/.
+begin
+  RUBY_VERSION =~ /(\d+\.\d+)/
+  require_relative "auth/#{Regexp.last_match(1)}/auth"
+rescue LoadError
+  require_relative 'auth/auth'
+end
 
 module Auth
 end
