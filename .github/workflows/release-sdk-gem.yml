@@ -1,7 +1,7 @@
 name: SDK Ruby Gem Release
 
-# Publishes the smbcloud-auth (sdk/gems/auth) and smbcloud-model
-# (sdk/gems/model) Ruby gems to RubyGems.
+# Publishes the smbcloud-auth (sdk/gems/auth), smbcloud-model (sdk/gems/model)
+# and smbcloud-email (sdk/gems/email) Ruby gems to RubyGems.
 # Native gems are cross-compiled on Linux with rb-sys-dock, so the darwin gems
 # get the generic `arm64-darwin` / `x86_64-darwin` platforms (a gem built with a
 # runner's Ruby gets e.g. `arm64-darwin-23`, which only matches that macOS
@@ -11,8 +11,10 @@ name: SDK Ruby Gem Release
 # Pull requests that touch the gems build everything but publish nothing.
 #
 # Required secrets:
-#   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth and
-#                         smbcloud-model
+#   RUBYGEMS_API_KEY — RubyGems.org API key that can push smbcloud-auth,
+#                         smbcloud-model and smbcloud-email. It must be able to
+#                         push a NEW gem (not scoped to existing gems only), or
+#                         the first smbcloud-email push is refused.
 
 on:
   workflow_dispatch:
@@ -27,6 +29,7 @@ on:
     paths:
       - "sdk/gems/auth/**"
       - "sdk/gems/model/**"
+      - "sdk/gems/email/**"
       - ".github/workflows/release-sdk-gem.yml"
 
 permissions:
@@ -43,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gem: [auth, model]
+        gem: [auth, model, email]
         platform: [x86_64-linux, aarch64-linux, arm64-darwin, x86_64-darwin]
 
     steps:
@@ -69,7 +72,7 @@ jobs:
         if: github.event_name != 'pull_request'
         shell: bash
         run: |
-          for crate_name in smbcloud-auth-sdk smbcloud-model smbcloud-network; do
+          for crate_name in smbcloud-auth-sdk smbcloud-email-sdk smbcloud-model smbcloud-network; do
             for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
               if curl -fsS -H "User-Agent: smbcloud-cli-release" "https://crates.io/api/v1/crates/${crate_name}/${RELEASE_VERSION}" >/dev/null 2>&1; then
                 echo "${crate_name} ${RELEASE_VERSION} is available on crates.io"
@@ -136,7 +139,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gem: [auth, model]
+        gem: [auth, model, email]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -201,7 +204,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        gem: [auth, model]
+        gem: [auth, model, email]
 
     steps:
       - name: Checkout

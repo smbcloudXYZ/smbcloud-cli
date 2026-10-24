@@ -68,7 +68,11 @@ for (const path of [
 // must be the release's major.minor, or a gem can silently wrap an older crate.
 const [expectedMajor, expectedMinor] = expectedVersion.split(".");
 const expectedRequirement = `${expectedMajor}.${expectedMinor}`;
-for (const path of ["sdk/gems/auth/ext/auth/Cargo.toml", "sdk/gems/model/ext/model/Cargo.toml"]) {
+for (const path of [
+  "sdk/gems/auth/ext/auth/Cargo.toml",
+  "sdk/gems/email/ext/email/Cargo.toml",
+  "sdk/gems/model/ext/model/Cargo.toml",
+]) {
   for (const match of read(path).matchAll(/^(smbcloud-[\w-]+)\s*=\s*\{\s*version\s*=\s*"([^"]+)"/gm)) {
     if (match[2] !== expectedRequirement) {
       mismatches.push(`${path} dependency ${match[1]}: ${match[2]} (expected ${expectedRequirement})`);

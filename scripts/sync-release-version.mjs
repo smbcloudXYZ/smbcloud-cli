@@ -269,6 +269,9 @@ if (
       /^version\s*=\s*"[^"]+"/m,
       `version = "${releaseVersion}"`,
       `${emailGemCargoTomlPath} package version`,
+    ).replace(
+      /(smbcloud-email-sdk\s*=\s*\{\s*version\s*=\s*")([^"]+)("\s*\})/,
+      `$1${rubySdkRequirement}$3`,
     ),
   )
 ) {
