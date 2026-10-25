@@ -467,6 +467,182 @@ struct SimctlDevice {
     state: String,
     #[serde(rename = "isAvailable")]
     is_available: Option<bool>,
+    #[serde(rename = "deviceTypeIdentifier")]
+    device_type_identifier: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SimctlDeviceTypeList {
+    devicetypes: Vec<SimctlDeviceType>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SimctlDeviceType {
+    identifier: String,
+    #[serde(rename = "bundlePath")]
+    bundle_path: Option<String>,
+}
+
+/// An integrated display of a simulated device. Foldable devices such as the
+/// iPhone Duo have more than one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct SimDisplay {
+    /// The ID `simctl io --display` accepts.
+    pub screen_id: u32,
+    /// The display name from the device type, for example `LCD`.
+    pub name: String,
+    /// `main` for a single-display device; `outer` and `inner` for a device with
+    /// two; `display` otherwise.
+    pub role: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl SimDisplay {
+    /// `screen 1 outer 1398x2034`
+    pub fn describe(&self) -> String {
+        format!(
+            "screen {} {} {}x{}",
+            self.screen_id, self.role, self.width, self.height
+        )
+    }
+}
+
+/// Reads the integrated displays from a device type's `capabilities.plist`,
+/// already converted to JSON. A device type without a `displays` array falls
+/// back to the main screen dimensions as display 1.
+pub fn parse_integrated_displays(capabilities_json: &str) -> Result<Vec<SimDisplay>> {
+    let root: serde_json::Value = serde_json::from_str(capabilities_json)
+        .context("failed to parse device type capabilities JSON")?;
+    let capabilities = root
+        .get("capabilities")
+        .ok_or_else(|| anyhow!("device type capabilities have no 'capabilities' dictionary"))?;
+
+    // (screen ID, name, is primary, width, height)
+    let mut integrated: Vec<(u32, String, bool, u32, u32)> = capabilities
+        .get("displays")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|display| {
+            display
+                .get("displayType")
+                .and_then(serde_json::Value::as_str)
+                == Some("integrated")
+        })
+        .filter_map(|display| {
+            let number = |key: &str| {
+                display
+                    .get(key)?
+                    .as_u64()
+                    .and_then(|n| u32::try_from(n).ok())
+            };
+            Some((
+                number("screenID")?,
+                display
+                    .get("displayName")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                display
+                    .get("deviceName")
+                    .and_then(serde_json::Value::as_str)
+                    == Some("primary"),
+                number("width")?,
+                number("height")?,
+            ))
+        })
+        .collect();
+
+    if integrated.is_empty() {
+        let main = |key: &str| {
+            capabilities
+                .get("ScreenDimensionsCapability")
+                .unwrap_or(capabilities)
+                .get(key)?
+                .as_u64()
+                .and_then(|n| u32::try_from(n).ok())
+        };
+        let (width, height) = main("main-screen-width")
+            .zip(main("main-screen-height"))
+            .ok_or_else(|| anyhow!("device type capabilities list no integrated display"))?;
+        integrated.push((1, String::new(), true, width, height));
+    }
+
+    integrated.sort_by_key(|(screen_id, ..)| *screen_id);
+    let count = integrated.len();
+    Ok(integrated
+        .into_iter()
+        .map(|(screen_id, name, primary, width, height)| SimDisplay {
+            screen_id,
+            name,
+            role: match (count, primary) {
+                (1, _) => "main",
+                (2, true) => "outer",
+                (2, false) => "inner",
+                _ => "display",
+            }
+            .to_string(),
+            width,
+            height,
+        })
+        .collect())
+}
+
+/// Resolves the `display` argument of `screen_capture` against a device's
+/// integrated displays.
+///
+/// `None` selects every display of a foldable device and the only display of any
+/// other, so an unfolded device never yields a lone black frame. `outer`,
+/// `inner` and `all` are matched case-insensitively; a number matches a screen ID.
+pub fn select_displays<'a>(
+    displays: &'a [SimDisplay],
+    selection: Option<&str>,
+) -> Result<Vec<&'a SimDisplay>> {
+    let selection = selection.map(str::trim).filter(|value| !value.is_empty());
+    match selection.map(str::to_ascii_lowercase).as_deref() {
+        None | Some("all") => Ok(displays.iter().collect()),
+        Some(role @ ("outer" | "inner")) => {
+            let found: Vec<_> = displays
+                .iter()
+                .filter(|display| display.role == role)
+                .collect();
+            if found.is_empty() {
+                Err(anyhow!(
+                    "this device has no {role} display; its displays are: {}",
+                    list_displays(displays)
+                ))
+            } else {
+                Ok(found)
+            }
+        }
+        Some(other) => {
+            let screen_id: u32 = other.parse().map_err(|_| {
+                anyhow!(
+                    "unknown display '{other}': use outer, inner, all or a screen ID ({})",
+                    list_displays(displays)
+                )
+            })?;
+            displays
+                .iter()
+                .find(|display| display.screen_id == screen_id)
+                .map(|display| vec![display])
+                .ok_or_else(|| {
+                    anyhow!(
+                        "this device has no display with screen ID {screen_id}; its displays are: {}",
+                        list_displays(displays)
+                    )
+                })
+        }
+    }
+}
+
+fn list_displays(displays: &[SimDisplay]) -> String {
+    displays
+        .iter()
+        .map(SimDisplay::describe)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 pub struct Simctl<'a> {
@@ -548,18 +724,86 @@ impl Simctl<'_> {
         Ok(())
     }
 
-    pub fn screenshot(&self, udid: &str) -> Result<Vec<u8>> {
+    /// Captures a PNG of one display. `display` is a screen ID as `simctl io
+    /// --display` accepts it; `None` captures the primary display.
+    pub fn screenshot(&self, udid: &str, display: Option<&str>) -> Result<Vec<u8>> {
         let temporary_directory = tempfile::tempdir()?;
         let screenshot_path = temporary_directory.path().join("screenshot.png");
         let screenshot_path_string = screenshot_path
             .to_str()
             .ok_or_else(|| anyhow!("screenshot path is not valid UTF-8"))?;
 
-        self.tools
-            .run_xcrun(["simctl", "io", udid, "screenshot", screenshot_path_string])?;
+        let mut args = vec!["simctl", "io", udid, "screenshot"];
+        let display_argument = display.map(|display| format!("--display={display}"));
+        if let Some(display_argument) = &display_argument {
+            args.push(display_argument);
+        }
+        args.push(screenshot_path_string);
+        self.tools.run_xcrun(args)?;
 
         std::fs::read(&screenshot_path)
             .with_context(|| format!("failed to read {}", screenshot_path.display()))
+    }
+
+    /// The integrated displays of a simulator, resolved from its device type and
+    /// cached per device type.
+    pub fn displays(&self, udid: &str) -> Result<Vec<SimDisplay>> {
+        static CACHE: std::sync::OnceLock<std::sync::Mutex<BTreeMap<String, Vec<SimDisplay>>>> =
+            std::sync::OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+
+        let devices: SimctlDeviceList = serde_json::from_str(
+            &self
+                .tools
+                .run_xcrun(["simctl", "list", "devices", "--json"])?,
+        )
+        .context("failed to parse simctl device list JSON")?;
+        let device_type = devices
+            .devices
+            .into_values()
+            .flatten()
+            .find(|device| device.udid == udid)
+            .ok_or_else(|| anyhow!("Apple simulator with UDID '{udid}' was not found"))?
+            .device_type_identifier
+            .ok_or_else(|| anyhow!("simctl reported no device type for simulator '{udid}'"))?;
+
+        if let Some(cached) = cache
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(&device_type).cloned())
+        {
+            return Ok(cached);
+        }
+
+        let device_types: SimctlDeviceTypeList = serde_json::from_str(&self.tools.run_xcrun([
+            "simctl",
+            "list",
+            "devicetypes",
+            "--json",
+        ])?)
+        .context("failed to parse simctl device type list JSON")?;
+        let bundle_path = device_types
+            .devicetypes
+            .into_iter()
+            .find(|candidate| candidate.identifier == device_type)
+            .and_then(|candidate| candidate.bundle_path)
+            .ok_or_else(|| anyhow!("simctl reported no bundle for device type '{device_type}'"))?;
+        let plist = Path::new(&bundle_path).join("Contents/Resources/capabilities.plist");
+        let json = run_command(
+            Path::new("/usr/bin/plutil"),
+            [
+                OsStr::new("-convert"),
+                OsStr::new("json"),
+                OsStr::new("-o"),
+                OsStr::new("-"),
+                plist.as_os_str(),
+            ],
+        )?;
+        let displays = parse_integrated_displays(&json)?;
+        if let Ok(mut cache) = cache.lock() {
+            cache.insert(device_type, displays.clone());
+        }
+        Ok(displays)
     }
 
     pub fn app_container_path(&self, udid: &str, bundle_id: &str) -> Result<PathBuf> {
@@ -1599,6 +1843,26 @@ impl HostInspect {
 
             attempt += 1;
             std::thread::sleep(TEXT_FILE_BUSY_RETRY_DELAY);
+        }
+    }
+
+    /// Set a foldable simulator's hinge by pressing the matching button in its
+    /// Device Hub window. `device` is the simulator's name, which is how Device Hub
+    /// titles the window; `hinge` is `closed`, `partiallyOpen` or `open`. Device
+    /// Hub must be running with that window open, and the process running xcrs
+    /// needs the Accessibility permission.
+    pub fn set_posture(&self, device: &str, hinge: &str) -> Result<()> {
+        let invocation = self.invoke(&[
+            "devicehub-posture".to_string(),
+            "--device".to_string(),
+            device.to_string(),
+            "--posture".to_string(),
+            hinge.to_string(),
+        ])?;
+        if invocation.succeeded() {
+            Ok(())
+        } else {
+            Err(anyhow!("{}", invocation.message()))
         }
     }
 
@@ -2936,5 +3200,126 @@ SERIAL456              no permissions (user denied) usb:0-2 transport_id:3
             ))
             .expect_err("a non-finite position should be rejected");
         assert!(error.to_string().contains("must be a finite number"));
+    }
+
+    /// The `capabilities.displays` array of the iPhone Duo device type, trimmed to
+    /// the fields xcrs reads.
+    const DUO_CAPABILITIES: &str = r#"{
+        "capabilities": {
+            "displays": [
+                {"screenID": 1, "deviceName": "primary", "displayName": "LCD",
+                 "displayType": "integrated", "width": 1398, "height": 2034},
+                {"screenID": 3, "deviceName": "primary-1", "displayName": "LCD-1",
+                 "displayType": "integrated", "width": 2007, "height": 2853},
+                {"screenID": 2, "deviceName": "external-0", "displayName": "TV",
+                 "displayType": "tvOut", "width": 1920, "height": 1080},
+                {"screenID": 4, "deviceName": "wireless0", "displayName": "CarPlay",
+                 "displayType": "carPlay", "width": 800, "height": 480}
+            ]
+        }
+    }"#;
+
+    #[test]
+    fn duo_capabilities_yield_two_integrated_displays() {
+        let displays = parse_integrated_displays(DUO_CAPABILITIES).expect("displays should parse");
+
+        assert_eq!(
+            displays,
+            vec![
+                SimDisplay {
+                    screen_id: 1,
+                    name: "LCD".to_string(),
+                    role: "outer".to_string(),
+                    width: 1398,
+                    height: 2034,
+                },
+                SimDisplay {
+                    screen_id: 3,
+                    name: "LCD-1".to_string(),
+                    role: "inner".to_string(),
+                    width: 2007,
+                    height: 2853,
+                },
+            ]
+        );
+        assert_eq!(displays[0].describe(), "screen 1 outer 1398x2034");
+        assert_eq!(displays[1].describe(), "screen 3 inner 2007x2853");
+    }
+
+    #[test]
+    fn single_display_device_is_main_and_falls_back_to_screen_dimensions() {
+        let with_display = r#"{"capabilities": {"displays": [
+            {"screenID": 1, "deviceName": "primary", "displayName": "LCD",
+             "displayType": "integrated", "width": 1206, "height": 2622}]}}"#;
+        let displays = parse_integrated_displays(with_display).expect("displays should parse");
+        assert_eq!(displays.len(), 1);
+        assert_eq!(displays[0].role, "main");
+
+        let without_displays = r#"{"capabilities": {"ScreenDimensionsCapability": {
+            "main-screen-width": 750, "main-screen-height": 1334}}}"#;
+        let displays = parse_integrated_displays(without_displays).expect("fallback should parse");
+        assert_eq!(displays.len(), 1);
+        assert_eq!(
+            (displays[0].screen_id, displays[0].width, displays[0].height),
+            (1, 750, 1334)
+        );
+    }
+
+    #[test]
+    fn capabilities_without_any_display_are_an_error() {
+        assert!(parse_integrated_displays(r#"{"capabilities": {}}"#).is_err());
+        assert!(parse_integrated_displays("not json").is_err());
+    }
+
+    fn duo_displays() -> Vec<SimDisplay> {
+        parse_integrated_displays(DUO_CAPABILITIES).expect("displays should parse")
+    }
+
+    fn selected_ids(displays: &[SimDisplay], selection: Option<&str>) -> Vec<u32> {
+        select_displays(displays, selection)
+            .expect("selection should resolve")
+            .into_iter()
+            .map(|display| display.screen_id)
+            .collect()
+    }
+
+    #[test]
+    fn display_selection_resolves_roles_ids_and_all() {
+        let displays = duo_displays();
+
+        assert_eq!(selected_ids(&displays, Some("outer")), vec![1]);
+        assert_eq!(selected_ids(&displays, Some("Inner")), vec![3]);
+        assert_eq!(selected_ids(&displays, Some("all")), vec![1, 3]);
+        assert_eq!(selected_ids(&displays, Some("3")), vec![3]);
+    }
+
+    #[test]
+    fn display_selection_defaults_to_all_only_with_more_than_one_display() {
+        let duo = duo_displays();
+        assert_eq!(selected_ids(&duo, None), vec![1, 3]);
+        assert_eq!(selected_ids(&duo, Some("  ")), vec![1, 3]);
+
+        let single = parse_integrated_displays(
+            r#"{"capabilities": {"displays": [
+                {"screenID": 1, "deviceName": "primary", "displayName": "LCD",
+                 "displayType": "integrated", "width": 100, "height": 200}]}}"#,
+        )
+        .expect("displays should parse");
+        assert_eq!(selected_ids(&single, None), vec![1]);
+        assert!(select_displays(&single, Some("inner")).is_err());
+    }
+
+    #[test]
+    fn display_selection_rejects_unknown_values() {
+        let displays = duo_displays();
+
+        let invalid = select_displays(&displays, Some("sideways")).expect_err("invalid name");
+        assert!(invalid
+            .to_string()
+            .contains("outer, inner, all or a screen ID"));
+        assert!(invalid.to_string().contains("screen 3 inner 2007x2853"));
+
+        let missing = select_displays(&displays, Some("7")).expect_err("no such screen");
+        assert!(missing.to_string().contains("no display with screen ID 7"));
     }
 }
