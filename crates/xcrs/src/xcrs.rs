@@ -571,6 +571,11 @@ pub fn parse_integrated_displays(capabilities_json: &str) -> Result<Vec<SimDispl
 
     integrated.sort_by_key(|(screen_id, ..)| *screen_id);
     let count = integrated.len();
+    // With two displays and none flagged `primary`, the lower screen ID is the
+    // outer one, so neither display ends up mislabeled as inner.
+    if count == 2 && !integrated.iter().any(|(_, _, primary, ..)| *primary) {
+        integrated[0].2 = true;
+    }
     Ok(integrated
         .into_iter()
         .map(|(screen_id, name, primary, width, height)| SimDisplay {
@@ -3262,6 +3267,24 @@ SERIAL456              no permissions (user denied) usb:0-2 transport_id:3
         assert_eq!(
             (displays[0].screen_id, displays[0].width, displays[0].height),
             (1, 750, 1334)
+        );
+    }
+
+    #[test]
+    fn two_displays_without_a_primary_flag_still_get_an_outer_and_an_inner() {
+        let json = r#"{"capabilities": {"displays": [
+            {"screenID": 3, "deviceName": "second", "displayName": "B",
+             "displayType": "integrated", "width": 200, "height": 300},
+            {"screenID": 1, "deviceName": "first", "displayName": "A",
+             "displayType": "integrated", "width": 100, "height": 150}]}}"#;
+        let displays = parse_integrated_displays(json).expect("displays should parse");
+
+        assert_eq!(
+            displays
+                .iter()
+                .map(|d| (d.screen_id, d.role.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(1, "outer"), (3, "inner")]
         );
     }
 
