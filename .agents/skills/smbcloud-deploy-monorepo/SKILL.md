@@ -150,7 +150,7 @@ updated_at = "2025-09-20T16:33:05.154Z"
 | `source`            | yes         | local path to the sub-project directory, relative to the monorepo root                      |
 | `path`              | depends     | remote directory on the server, relative to `~/`, required for `nextjs-ssr`, `vite-spa`, and `sveltekit` |
 | `runner`            | yes         | server tier: `0` (NodeJs), `1` (Static), `2` (Ruby), `3` (Swift)                            |
-| `kind`              | depends     | deploy strategy: `"nextjs-ssr"`, `"vite-spa"`, `"sveltekit"`, `"rails"`, or omitted for generic deploy |
+| `kind`              | depends     | deploy strategy: `"nextjs-ssr"`, `"astro-ssr"`, `"vite-spa"`, `"sveltekit"`, `"rails"`, or omitted for generic deploy |
 | `package_manager`   | depends     | `"pnpm"` or `"npm"`, used by `nextjs-ssr`, `vite-spa`, and `sveltekit`; defaults to `"pnpm"` |
 | `pm2_app`           | depends     | PM2 process name — required for `nextjs-ssr`                                                |
 | `port`              | depends     | runtime port — required for `nextjs-ssr`, defaults to `3000` if omitted                     |
@@ -198,6 +198,16 @@ smb deploy --project <name>
 Local build, rsync three directories, then SSH delete + fresh PM2 start (prefer server `ecosystem.config.cjs` when present; falls back to legacy `.js`). The `.next/standalone/` upload should use `--copy-links` so `pnpm` symlinked dependencies land as real files in the deployed tree. If `outputFileTracingRoot` points above the sub-project directory, Next may preserve the sub-project path inside standalone output, and the deploy path must place `.next/static` and `public` under that nested runtime directory. See `smbcloud-deploy-nextjs` skill for details.
 
 Required fields: `kind`, `source`, `path`, `pm2_app`, `package_manager`, `port`
+
+### Strategy: `astro-ssr`
+
+For an Astro app built with the `@astrojs/node` adapter in `mode: 'standalone'`. `output: 'static'` with a few `prerender = false` routes works too, as long as `dist/server/entry.mjs` is produced.
+
+The CLI installs and builds locally, rsyncs `dist/` (mirrored with `--delete`) plus `package.json`, the lockfile and `pnpm-workspace.yaml` to `path`, then over SSH installs production dependencies from the lockfile (`pnpm install --prod --frozen-lockfile`, or `npm ci --omit=dev`) and restarts `<pm2_app>.service` with `systemctl --user`. The server installs the dependencies itself because a macOS `node_modules` does not run on a Linux server.
+
+The unit is created on the server beforehand and owns the app's environment (`PORT`, `HOST` and any secrets via `EnvironmentFile`); nothing from the developer's environment is uploaded. The deploy fails loudly when the unit does not exist. `pm2_app` keeps its name but is the service name here, and there is no pm2 path.
+
+Required fields: `kind`, `source`, `path`, `pm2_app`. Optional: `package_manager` (`pnpm` default, or `npm`).
 
 ### Strategy: `vite-spa`
 

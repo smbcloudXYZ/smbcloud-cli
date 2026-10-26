@@ -6,6 +6,7 @@ use {
         deploy::{
             config::{check_project, credentials, get_config, overlay_server_config},
             git::remote_deployment_setup,
+            process_deploy_astro_ssr::process_deploy_astro_ssr,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
             process_deploy_rust::process_deploy_rust,
@@ -152,6 +153,11 @@ pub async fn process_deploy(
     // Route Next.js SSR projects: pnpm install + build, rsync 8 items, SSH pm2 restart.
     if config.project.kind.as_deref() == Some("nextjs-ssr") {
         return process_deploy_nextjs_ssr(env, config).await;
+    }
+
+    // Route Astro SSR projects (@astrojs/node standalone): build locally, rsync dist/, SSH install + systemd restart.
+    if config.project.kind.as_deref() == Some("astro-ssr") {
+        return process_deploy_astro_ssr(env, config).await;
     }
 
     // Route Rails projects: rsync shared lib, SSH compile native gem, git force-push sub-project.
