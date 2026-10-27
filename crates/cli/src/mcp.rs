@@ -624,7 +624,7 @@ struct DeployConfigUpdateArgs {
     runner: Option<McpRunner>,
     #[serde(default)]
     deployment_method: Option<McpDeploymentMethod>,
-    /// Deployment kind, e.g. `vite-spa`, `sveltekit`, `nextjs-ssr`, `rust`.
+    /// Deployment kind, e.g. `vite-spa`, `sveltekit`, `nextjs-ssr`, `astro-ssr`, `rust`.
     #[serde(default)]
     kind: Option<String>,
     #[serde(default)]
