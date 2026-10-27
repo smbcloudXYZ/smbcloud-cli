@@ -673,6 +673,12 @@ pub struct TapArgs {
     /// Android device serial from `adb devices -l`.
     #[serde(default)]
     pub android_serial: Option<String>,
+    /// Bundle identifier of the app to tap in. Required on Apple targets, ignored on Android.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Backward-compatible alias for `app_id`.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
     /// Horizontal screen coordinate in points (Apple) or pixels (Android).
     pub x: f64,
     /// Vertical screen coordinate in points (Apple) or pixels (Android).
@@ -719,6 +725,12 @@ pub struct SwipeArgs {
     /// Android device serial from `adb devices -l`.
     #[serde(default)]
     pub android_serial: Option<String>,
+    /// Bundle identifier of the app to tap in. Required on Apple targets, ignored on Android.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Backward-compatible alias for `app_id`.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
     /// Swipe start horizontal coordinate.
     pub x1: f64,
     /// Swipe start vertical coordinate.
@@ -1758,7 +1770,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $input_tap_name,
                 title = "Tap (iOS/tvOS/Android)",
                 annotations(title = "Tap (iOS/tvOS/Android)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
-                description = "Purpose: tap the resolved target at screen coordinates. When to use vs siblings: use input_click for macOS and input_spatial_tap for visionOS instead; read coordinates from ui_element_list or ui_describe first. Behavior: for an Apple target, calls ControlKit `device.io.tap`; for Android, runs `adb shell input tap`, rounding x/y to the nearest pixel. Prerequisites: a reachable ControlKit endpoint (Apple) or adb connection (Android). Failure modes: errors if no target can be resolved, if x or y is not a finite number, or if the underlying call fails."
+                description = "Purpose: tap the resolved target at screen coordinates. When to use vs siblings: use input_click for macOS and input_spatial_tap for visionOS instead; read coordinates from ui_element_list or ui_describe first. Behavior: for an Apple target, calls ControlKit `device.io.tap`; for Android, runs `adb shell input tap`, rounding x/y to the nearest pixel. Prerequisites: a reachable ControlKit endpoint (Apple, with the app running and its identifier passed as app_id) or adb connection (Android). Failure modes: errors if no target can be resolved, if an Apple target has no app_id, if x or y is not a finite number, or if the underlying call fails."
             )]
             async fn input_tap(
                 &self,
@@ -1798,11 +1810,12 @@ macro_rules! xcrs_mcp_tools {
                         device.serial
                     }
                     _ => {
+                        let app_id = Self::require_app_id("input_tap", args.app_id, args.bundle_id)?;
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
                         controlkit
                             .call(
                                 "device.io.tap",
-                                ::serde_json::json!({ "x": args.x, "y": args.y }),
+                                ::serde_json::json!({ "bundleId": app_id, "x": args.x, "y": args.y }),
                             )
                             .await
                             .map_err(|error| {
@@ -1878,7 +1891,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $input_swipe_name,
                 title = "Swipe",
                 annotations(title = "Swipe", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
-                description = "Purpose: swipe between two screen coordinates on the resolved target, e.g. to scroll. When to use vs siblings: use input_tap for a single point of contact instead. Behavior: for an Apple target, calls ControlKit `device.io.swipe`; for Android, runs `adb shell input swipe` with duration_ms (default 300, rounding x/y to the nearest pixel). Prerequisites: a reachable ControlKit endpoint (Apple) or adb connection (Android). Failure modes: errors if no target can be resolved, if any coordinate is not a finite number, or (Android) if duration_ms exceeds 10000."
+                description = "Purpose: swipe between two screen coordinates on the resolved target, e.g. to scroll. When to use vs siblings: use input_tap for a single point of contact instead. Behavior: for an Apple target, calls ControlKit `device.io.swipe`; for Android, runs `adb shell input swipe` with duration_ms (default 300, rounding x/y to the nearest pixel). Prerequisites: a reachable ControlKit endpoint (Apple, with the app running and its identifier passed as app_id) or adb connection (Android). Failure modes: errors if no target can be resolved, if an Apple target has no app_id, if any coordinate is not a finite number, or (Android) if duration_ms exceeds 10000."
             )]
             async fn input_swipe(
                 &self,
@@ -1926,11 +1939,13 @@ macro_rules! xcrs_mcp_tools {
                         device.serial
                     }
                     _ => {
+                        let app_id = Self::require_app_id("input_swipe", args.app_id, args.bundle_id)?;
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
                         controlkit
                             .call(
                                 "device.io.swipe",
                                 ::serde_json::json!({
+                                    "bundleId": app_id,
                                     "x1": args.x1,
                                     "y1": args.y1,
                                     "x2": args.x2,

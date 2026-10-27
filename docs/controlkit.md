@@ -111,9 +111,9 @@ expose the same unprefixed tool names.
 | `device_capabilities` | All platforms | Read platform and capability information. |
 | `input_click` | macOS | Click at screen coordinates. |
 | `input_spatial_tap` | visionOS | Perform a spatial tap. |
-| `input_tap` | iOS / tvOS / watchOS, simulator or physical | Perform a touch tap. |
+| `input_tap` | iOS / tvOS / watchOS, simulator or physical | Perform a touch tap. Apple targets need `app_id`, the running app to tap in. |
 | `input_text` | iOS / tvOS, simulator or physical | Type into the focused field. |
-| `input_swipe` | iOS / tvOS, simulator or physical | Swipe between coordinates. |
+| `input_swipe` | iOS / tvOS, simulator or physical | Swipe between coordinates. Apple targets need `app_id`, the running app to swipe in. |
 | `input_button` | iOS / tvOS, simulator or physical | Press a Home or tvOS remote button. |
 | `app_launch`/`app_terminate` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. |
 | `screen_capture` | Simulator or physical | Capture a PNG screenshot. Uses `simctl` for a simulator, or `devicectl device capture screenshot` when a `device` identifier is given. `display` (`outer`, `inner`, `all` or a screen ID) picks a display of a foldable simulator; see [iPhone Duo](#iphone-duo-foldable-simulators). |
