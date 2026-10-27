@@ -116,10 +116,21 @@ expose the same unprefixed tool names.
 | `input_swipe` | iOS / tvOS, simulator or physical | Swipe between coordinates. |
 | `input_button` | iOS / tvOS, simulator or physical | Press a Home or tvOS remote button. |
 | `app_launch`/`app_terminate` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. |
-| `screen_capture` | Simulator or physical | Capture a PNG screenshot. Uses `simctl` for a simulator, or `devicectl device capture screenshot` when a `device` identifier is given. |
+| `screen_capture` | Simulator or physical | Capture a PNG screenshot. Uses `simctl` for a simulator, or `devicectl device capture screenshot` when a `device` identifier is given. `display` (`outer`, `inner`, `all` or a screen ID) picks a display of a foldable simulator; see [iPhone Duo](#iphone-duo-foldable-simulators). |
+| `posture_get` | iOS 27.1+ simulator | Read the hinge status and angle, and which display is live. |
+| `posture_set` | iOS 27.1+ simulator | Fold (`folded`) or unfold (`unfolded`) a foldable simulator. Needs Device Hub and the Accessibility permission. |
 | `ui_describe` | All UI-test runners | Read the accessibility hierarchy for the supplied `bundle_id`. |
 | `ui_element_list` | All UI-test runners | Read actionable elements with tap coordinates for the supplied `bundle_id`. |
 | `ui_tap` | All UI-test runners | Resolve and activate an accessibility element by label, identifier, or value. |
+
+The runner implements these JSON-RPC methods: `device.capabilities`,
+`device.info`, `device.apps.launch`, `device.apps.terminate`, `device.io.tap`,
+`device.io.click`, `device.io.spatial.tap`, `device.io.swipe` (x1, y1, x2, y2,
+optional durationMs; iOS), `device.io.orientation.get`/`set` (`PORTRAIT` or
+`LANDSCAPE`; iOS), `device.io.text`, `device.io.button`, `device.dump.ui`,
+`device.ui.tap` and `device.hinge.get` (iOS 27.1 and later; the runner lists
+`hinge` in its capabilities only on a device that reports one). Calls that name
+an app that is not running fail with an error instead of stopping the runner.
 
 UI introspection requires a recent ControlKit runner that implements
 `device.dump.ui`. The `ui_tap` action requires a runner that implements
@@ -130,6 +141,52 @@ element. On tvOS, that element must already have focus; use `input_button` to
 navigate focus before calling `ui_tap`. All three UI tools require the target
 app's `bundle_id`; this lets XCTest attach to an already-running app instead of
 accidentally reading the ControlKit host app.
+
+### iPhone Duo (foldable simulators)
+
+The iPhone Duo simulator (Xcode 27.1, iOS 27.1) has two integrated displays,
+read from the device type's `capabilities.plist`:
+
+| Screen ID | Role | Size |
+| --- | --- | --- |
+| 1 | outer | 1398x2034 |
+| 3 | inner | 2007x2853 |
+
+Only the display in use shows content. The other one is solid black, so a
+plain capture of display 1 on an unfolded device returns a black frame.
+
+- `device_capabilities` adds `displays` and `foldable` (true when there is
+  more than one integrated display) for simulators.
+- `screen_capture` without `display` captures every display of a foldable
+  device: a text block (`screen 1 outer 1398x2034`) then an image for each.
+  Single-display devices return one image as before. `display` accepts `outer`,
+  `inner`, `all` or a screen ID.
+- `posture_get` calls the runner's `device.hinge.get` and reports `closed`,
+  `partiallyOpen` or `fullyOpen` with the angle in radians (0 closed, pi fully
+  open). `live_display` is the outer display when closed and the inner display
+  otherwise. A device without a hinge reports `unsupported`.
+- `posture_set` has no `simctl` or CoreSimulator equivalent. It presses the
+  `Closed` or `Open` button in the simulator's Device Hub window through macOS
+  accessibility (`xcrs-host-inspect devicehub-posture`), then polls the hinge
+  for up to 5 seconds. It does nothing when the hinge is already in the
+  requested state.
+
+Limits of `posture_set`:
+
+- Device Hub must be running with the simulator's window open. The window is
+  matched by the simulator's name (its title is `<name> – <runtime>`), so two
+  windows with the same name are an error.
+- The app that runs xcrs needs the Accessibility permission (System Settings,
+  Privacy & Security, Accessibility). Without it the call fails with a message
+  saying so.
+- The window does not need to be in front.
+- Device Hub has a `Partially Open` button too, but its angle is not
+  adjustable, so `posture_set` offers only `folded` and `unfolded`.
+- The helper binary is found as for the other host-inspect commands
+  (`XCRS_HOST_INSPECT`, next to `xcrs`, or `.build/` in `xcrs-controlkit`).
+
+Rotating the inner display and inspecting its UI use the same runner methods as
+any other device. Call `posture_get` first to know which display is live.
 
 For a local macOS runner, omit simulator fields and pass `host` and
 `controlkit_port` when needed:

@@ -2051,7 +2051,7 @@ mod tests {
         let tools = SmbMcpServer::cloud_tool_router().list_all();
         let names: Vec<&str> = tools.iter().map(|tool| tool.name.as_ref()).collect();
 
-        const AUTOMATION_TOOL_NAMES: [&str; 19] = [
+        const AUTOMATION_TOOL_NAMES: [&str; 21] = [
             "device_list",
             "device_select",
             "device_capabilities",
@@ -2071,6 +2071,8 @@ mod tests {
             "input_spatial_tap",
             "orientation_get",
             "orientation_set",
+            "posture_get",
+            "posture_set",
         ];
 
         for automation_only in AUTOMATION_TOOL_NAMES {
