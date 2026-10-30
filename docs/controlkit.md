@@ -229,7 +229,8 @@ tool set.
 
 ### Build the helper
 
-Build it once with SwiftPM from the `xcrs-controlkit` checkout:
+The npm, NuGet, PyPI and cargo releases of `xcrs` do not include the helper, so
+build it separately, once, with SwiftPM from the `xcrs-controlkit` checkout:
 
 ```sh
 cd <path-to-xcrs-controlkit>
@@ -239,13 +240,20 @@ swift build -c release
 The CLI uses the first `xcrs-host-inspect` it finds, in this order:
 
 1. the path in the `XCRS_HOST_INSPECT` environment variable,
-2. next to the `xcrs` binary itself, for a release that ships the helper,
+2. next to the `xcrs` binary itself, if you copied the helper there by hand,
 3. `.build/release`, then `.build/debug`, relative to the current directory,
 4. `~/bin`, `/usr/local/bin`, and `/opt/homebrew/bin`.
 
 Because steps 3 are relative, running `xcrs` from inside the checkout finds a
 `swift build` without any further setup. Set `XCRS_HOST_INSPECT` when you have
 several builds and want to choose between them.
+
+An MCP client usually starts `xcrs --mcp` from a directory that is not the
+checkout, so the relative `.build` paths in step 3 will not match. Tools that
+call the helper, such as `posture_set`, then need `XCRS_HOST_INSPECT` in the
+server's environment or the helper installed on one of the paths in step 4.
+When the helper is missing, the error names the variable and every path that
+was searched.
 
 ### Read the screen
 

@@ -1817,8 +1817,13 @@ impl HostInspect {
     /// only fails when the helper could not be started at all.
     pub fn invoke(&self, arguments: &[String]) -> Result<HostInspectInvocation> {
         let output = self.run_helper(arguments).with_context(|| {
+            let searched = host_inspect_candidates()
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
             format!(
-                "failed to run {} (build it with `swift build` in xcrs-controlkit)",
+                "failed to run {} (set XCRS_HOST_INSPECT to the helper, or install it on one of: {searched}; build it with `swift build` in xcrs-controlkit)",
                 self.helper_path.display()
             )
         })?;
@@ -1975,19 +1980,24 @@ impl HostInspect {
     }
 }
 
-fn discover_host_inspect_path() -> PathBuf {
-    let executable = if cfg!(windows) {
+fn host_inspect_executable() -> String {
+    if cfg!(windows) {
         format!("{HOST_INSPECT_HELPER}.exe")
     } else {
         HOST_INSPECT_HELPER.to_string()
-    };
+    }
+}
+
+fn host_inspect_candidates() -> Vec<PathBuf> {
+    let executable = host_inspect_executable();
 
     let mut candidates = Vec::new();
     if let Some(path) = env::var_os("XCRS_HOST_INSPECT") {
         candidates.push(PathBuf::from(path));
     }
-    // A release ships the helper next to the `xcrs` binary; a SwiftPM checkout
-    // leaves it in the build directory.
+    // Releases do not bundle the helper, so this only matches when it was
+    // copied next to the `xcrs` binary by hand; a SwiftPM checkout leaves it
+    // in the build directory.
     if let Some(directory) = env::current_exe()
         .ok()
         .and_then(|path| path.parent().map(Path::to_path_buf))
@@ -2001,11 +2011,14 @@ fn discover_host_inspect_path() -> PathBuf {
     }
     candidates.push(Path::new("/usr/local/bin").join(&executable));
     candidates.push(Path::new("/opt/homebrew/bin").join(&executable));
-
     candidates
+}
+
+fn discover_host_inspect_path() -> PathBuf {
+    host_inspect_candidates()
         .into_iter()
         .find(|path| path.is_file())
-        .unwrap_or_else(|| PathBuf::from(executable))
+        .unwrap_or_else(|| PathBuf::from(host_inspect_executable()))
 }
 
 #[derive(Debug, Clone)]
@@ -3180,6 +3193,8 @@ SERIAL456              no permissions (user denied) usb:0-2 transport_id:3
         let message = error.to_string();
         assert!(message.contains("failed to run /nonexistent/xcrs-host-inspect"));
         assert!(message.contains("swift build"));
+        assert!(message.contains("XCRS_HOST_INSPECT"));
+        assert!(message.contains("/usr/local/bin"));
     }
 
     #[test]
