@@ -140,7 +140,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           pattern: nuget-xcrs-native-*
-          path: nuget/xcrs/native
+          path: packaging/nuget/xcrs/native
           merge-multiple: true
 
       - name: Setup .NET SDK
@@ -151,16 +151,16 @@ jobs:
       - name: Pack .NET tool
         shell: bash
         run: |
-          dotnet pack nuget/xcrs/Xcrs.csproj \
+          dotnet pack packaging/nuget/xcrs/Xcrs.csproj \
             --configuration Release \
-            --output nuget/dist \
+            --output packaging/nuget/dist \
             -p:PackageVersion=${RELEASE_VERSION}
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v7
         with:
           name: nuget-xcrs-package
-          path: nuget/dist/*.nupkg
+          path: packaging/nuget/dist/*.nupkg
 
   smoke-test:
     name: Smoke test (${{ matrix.os }})
@@ -195,7 +195,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: nuget-xcrs-package
-          path: nuget/dist
+          path: packaging/nuget/dist
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
@@ -205,7 +205,7 @@ jobs:
       - name: Install tool from local package
         shell: pwsh
         run: |
-          $packageSource = (Resolve-Path "nuget/dist").Path
+          $packageSource = (Resolve-Path "packaging/nuget/dist").Path
           @"
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
@@ -214,11 +214,11 @@ jobs:
               <add key="local" value="$packageSource" />
             </packageSources>
           </configuration>
-          "@ | Set-Content -Path "nuget/NuGet.Config"
+          "@ | Set-Content -Path "packaging/nuget/NuGet.Config"
 
           dotnet tool install `
             --tool-path ".tool" `
-            --configfile "nuget/NuGet.Config" `
+            --configfile "packaging/nuget/NuGet.Config" `
             --version "$env:RELEASE_VERSION" `
             "$env:NUGET_PACKAGE_ID"
 
@@ -254,7 +254,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           name: nuget-xcrs-package
-          path: nuget/dist
+          path: packaging/nuget/dist
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
@@ -279,7 +279,7 @@ jobs:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         shell: bash
         run: |
-          dotnet nuget push nuget/dist/*.nupkg \
+          dotnet nuget push packaging/nuget/dist/*.nupkg \
             --api-key "${NUGET_API_KEY}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate

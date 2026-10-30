@@ -23,7 +23,7 @@ const platformSuffixes = [
 const products = {
     smb: {
         name: "@smbcloud/cli",
-        // Ownership proof for the MCP Registry: must match `name` in ../../server.json.
+        // Ownership proof for the MCP Registry: must match `name` in ../../../server.json.
         mcpName: "io.github.smbcloudXYZ/smbcloud-cli",
         binName: "smb",
         platformPrefix: "cli",
@@ -60,7 +60,7 @@ const products = {
     },
     xcrs: {
         name: "@smbcloud/xcrs",
-        // Ownership proof for the MCP Registry: must match `name` in ../../server-xcrs.json.
+        // Ownership proof for the MCP Registry: must match `name` in ../../../server-xcrs.json.
         mcpName: "io.github.smbcloudXYZ/xcrs",
         binName: "xcrs",
         platformPrefix: "xcrs",

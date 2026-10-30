@@ -26,9 +26,9 @@ description: Use when creating, debugging, or improving GitHub Actions workflows
 | File                         | Published as                                      |
 | ---------------------------- | ------------------------------------------------- |
 | `README.MD`                  | GitHub repo — canonical brand voice               |
-| `npm/smbcloud-cli/README.md` | npmjs.com — `@smbcloud/cli`                       |
-| `pypi/README.md`             | pypi.org — `smbcloud-cli`                         |
-| `npm/README.md.tmpl`         | npmjs.com — `@smbcloud/cli-*` (platform packages) |
+| `packaging/npm/smbcloud-cli/README.md` | npmjs.com — `@smbcloud/cli`                       |
+| `packaging/pypi/smbcloud-cli/README.md`             | pypi.org — `smbcloud-cli`                         |
+| `packaging/npm/README.md.tmpl`         | npmjs.com — `@smbcloud/cli-*` (platform packages) |
 
 When the main `README.MD` changes its tagline, logo, quick start, or value proposition, update all three distribution READMEs to match.
 
@@ -630,7 +630,7 @@ Every distribution channel README must stay aligned with the main `README.MD`. T
 
 ### Structure per README type
 
-**Wrapper package** (`npm/smbcloud-cli/README.md` → `@smbcloud/cli`, `pypi/README.md` → `smbcloud-cli`):
+**Wrapper package** (`packaging/npm/smbcloud-cli/README.md` → `@smbcloud/cli`, `packaging/pypi/smbcloud-cli/README.md` → `smbcloud-cli`):
 
 1. Logo + tagline + nav links + badges
 2. About section (copy from main README verbatim)
@@ -644,7 +644,7 @@ Every distribution channel README must stay aligned with the main `README.MD`. T
 
 The PyPI README leads with the PyPI badge; the npm README leads with the npm badge. Both include the full badge row.
 
-**Platform binary package** (`npm/README.md.tmpl` → `@smbcloud/cli-darwin-arm64`, etc.):
+**Platform binary package** (`packaging/npm/README.md.tmpl` → `@smbcloud/cli-darwin-arm64`, etc.):
 
 Keep it minimal. Show the logo and tagline for brand recognition, then immediately redirect to `@smbcloud/cli`. Do not repeat install instructions — the user landed on the wrong package.
 
@@ -757,7 +757,7 @@ crates.io rejects curl requests without a `User-Agent` header. Always include `-
 When the main `README.MD` changes its tagline, logo URL, quick start commands, or value proposition, the npm and PyPI READMEs must be updated in the same commit. Stale distribution READMEs show outdated branding on npmjs.com and pypi.org — the highest-visibility surfaces for new users discovering the CLI.
 
 **Platform support table missing new targets**
-When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
+When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `packaging/npm/smbcloud-cli/README.md` and `packaging/pypi/smbcloud-cli/README.md` in the same PR.
 
 **Use workflow-level `env:` for compile-time secrets, not `$GITHUB_ENV` export steps**
 Compile-time secrets like `CLI_CLIENT_SECRET` (read by `env!()`) must be available to every `cargo` invocation across all platforms. Writing to `$GITHUB_ENV` in a separate step is unreliable: it does not propagate into Docker containers, and on Windows runners the default PowerShell shell does not expand `"$GITHUB_ENV"` correctly.
@@ -783,7 +783,7 @@ Fix: add `docker-options: -e CLI_CLIENT_SECRET` to the `Build wheel` step:
   with:
     target: ${{ matrix.build.TARGET }}
     manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
-    working-directory: pypi
+    working-directory: packaging/pypi/smbcloud-cli
     args: --release --locked --compatibility pypi --out dist
     before-script-linux: yum install -y perl-core
     docker-options: -e CLI_CLIENT_SECRET

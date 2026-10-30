@@ -1,6 +1,6 @@
 ---
 name: smbcloud-cli-release
-description: Use when building, packaging, or releasing smbCloud CLI binaries through npm, PyPI, or GitHub Actions CI/CD. Covers the Rust binary release source of truth, the npm wrapper and platform packages, the PyPI `maturin` package under `pypi/`, local publishing with `uv tool install maturin`, and fixes to `.github/workflows/release-npm.yml` or `.github/workflows/release-pypi.yml`.
+description: Use when building, packaging, or releasing smbCloud CLI binaries through npm, PyPI, or GitHub Actions CI/CD. Covers the Rust binary release source of truth, the npm wrapper and platform packages, the PyPI `maturin` package under `packaging/pypi/smbcloud-cli/`, local publishing with `uv tool install maturin`, and fixes to `.github/workflows/release-npm.yml` or `.github/workflows/release-pypi.yml`.
 ---
 
 # smbcloud CLI Release
@@ -25,13 +25,13 @@ Use these files as the release source of truth:
 - SDK npm build script: `sdk/npm/smbcloud-auth/prepare-package.mjs`
 - npm release workflow: `.github/workflows/release-npm.yml`
 - PyPI release workflow: `.github/workflows/release-pypi.yml`
-- npm platform package generator: `npm/scripts/render-platform-package.cjs`
-- npm wrapper package generator: `npm/scripts/render-main-package.cjs`
-- npm wrapper launcher: `npm/smbcloud-cli/src/index.ts`
-- npm wrapper committed package metadata: `npm/smbcloud-cli/package.json`
-- npm wrapper committed lockfile: `npm/smbcloud-cli/package-lock.json`
-- PyPI package metadata: `pypi/pyproject.toml`
-- PyPI package README: `pypi/README.md`
+- npm platform package generator: `packaging/npm/scripts/render-platform-package.cjs`
+- npm wrapper package generator: `packaging/npm/scripts/render-main-package.cjs`
+- npm wrapper launcher: `packaging/npm/smbcloud-cli/src/index.ts`
+- npm wrapper committed package metadata: `packaging/npm/smbcloud-cli/package.json`
+- npm wrapper committed lockfile: `packaging/npm/smbcloud-cli/package-lock.json`
+- PyPI package metadata: `packaging/pypi/smbcloud-cli/pyproject.toml`
+- PyPI package README: `packaging/pypi/smbcloud-cli/README.md`
 - SDK PyPI package metadata: `sdk/python/pyproject.toml`
 - SDK Ruby gem auth version: `sdk/gems/auth/lib/auth/version.rb`
 - SDK Ruby gem auth native extension: `sdk/gems/auth/ext/auth/Cargo.toml`
@@ -48,8 +48,8 @@ When bumping workspace crate versions for a release, always update `sdk/npm/smbc
 
 The npm wrapper package is generated, but its checked-in files still need to match the release version before tagging:
 
-- rerender `npm/smbcloud-cli/package.json` with `node ../scripts/render-main-package.cjs ./package.json <version>`
-- refresh `npm/smbcloud-cli/package-lock.json` with `npm install`
+- rerender `packaging/npm/smbcloud-cli/package.json` with `node ../scripts/render-main-package.cjs ./package.json <version>`
+- refresh `packaging/npm/smbcloud-cli/package-lock.json` with `npm install`
 - commit both files so CI and local packaging agree on the wrapper version and optional dependency versions
 
 The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`):
@@ -132,7 +132,7 @@ PyPI uses one package:
 
 - `smbcloud-cli`
 
-It is built from `pypi/pyproject.toml` with `maturin` and `bindings = "bin"`, so the published wheel installs the native `smb` executable directly.
+It is built from `packaging/pypi/smbcloud-cli/pyproject.toml` with `maturin` and `bindings = "bin"`, so the published wheel installs the native `smb` executable directly.
 
 ## Local npm release workflow
 
@@ -141,7 +141,7 @@ It is built from `pypi/pyproject.toml` with `maturin` and `bindings = "bin"`, so
 1. Confirm npm auth with `npm whoami`.
 2. Confirm the crate version in `crates/cli/Cargo.toml`.
 3. Use the same version string for every npm package in that release.
-4. Rerender `npm/smbcloud-cli/package.json` and refresh `npm/smbcloud-cli/package-lock.json` before tagging if the wrapper version changed.
+4. Rerender `packaging/npm/smbcloud-cli/package.json` and refresh `packaging/npm/smbcloud-cli/package-lock.json` before tagging if the wrapper version changed.
 
 ### Build platform binaries
 
@@ -153,7 +153,7 @@ Build each target first:
 
 ### Generate platform package
 
-From `npm/`:
+From `packaging/npm/`:
 
 - run `node ./scripts/render-platform-package.cjs <pkg> <version> <os> <arch>`
 - create `<pkg>/bin`
@@ -167,7 +167,7 @@ Example:
 ### Publish order
 
 1. Publish each platform package with `npm publish --access public`
-2. Generate `npm/smbcloud-cli/package.json` with `render-main-package.cjs`
+2. Generate `packaging/npm/smbcloud-cli/package.json` with `render-main-package.cjs`
 3. Run `npm install`
 4. Run `npm run build`
 5. Publish `@smbcloud/cli`
@@ -198,7 +198,7 @@ If the shell cannot find `maturin`, use:
 
 ### Build and upload
 
-From `pypi/`:
+From `packaging/pypi/smbcloud-cli/`:
 
 - `maturin build --release --locked --compatibility pypi --out dist`
 - `maturin upload dist/*`

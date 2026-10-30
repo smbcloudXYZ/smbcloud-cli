@@ -237,7 +237,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Build .NET tool launcher
-        run: dotnet build nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release
+        run: dotnet build packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release
 
   # ── Ruby Gems ───────────────────────────────────────────────────────────────
   # Skip the gem jobs when nothing they build from changed.

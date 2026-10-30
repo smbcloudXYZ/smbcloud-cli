@@ -96,7 +96,7 @@ jobs:
         with:
           target: ${{ matrix.build.TARGET }}
           manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
-          working-directory: pypi
+          working-directory: packaging/pypi/smbcloud-cli
           args: --release --locked --compatibility pypi --out dist
           before-script-linux: yum install -y perl-core
           docker-options: -e CLI_CLIENT_SECRET
@@ -105,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.build.NAME }}
-          path: pypi/dist/*
+          path: packaging/pypi/smbcloud-cli/dist/*
 
   build-sdist:
     name: Build source distribution
@@ -148,14 +148,14 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          working-directory: pypi
+          working-directory: packaging/pypi/smbcloud-cli
           args: --out dist
 
       - name: Upload sdist artifact
         uses: actions/upload-artifact@v7
         with:
           name: sdist
-          path: pypi/dist/*
+          path: packaging/pypi/smbcloud-cli/dist/*
 
   publish-pypi:
     name: Publish to PyPI

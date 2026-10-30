@@ -33,6 +33,6 @@ Repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 Issues = "https://github.com/smbcloudXYZ/smbcloud-cli/issues"
 
 [tool.maturin]
-manifest-path = "../crates/xcrs/Cargo.toml"
+manifest-path = "../../../crates/xcrs/Cargo.toml"
 bindings = "bin"
 strip = true

@@ -12,19 +12,20 @@
 .env
 
 # Generated npm release artifacts
-/npm/cli-*/
+/packaging/npm/cli-*/
+/packaging/npm/xcrs-*/
 
 # Generated Python release artifacts
-/pypi/dist/
-/pypi/.venv/
+/packaging/pypi/*/dist/
+/packaging/pypi/*/.venv/
 /sdk/python/dist/
 /sdk/python/.venv/
 
 # Generated .NET / NuGet build outputs
-/nuget/dist/
-/nuget/**/bin/
-/nuget/**/obj/
-/nuget/smbcloud-cli/native/
+/packaging/nuget/dist/
+/packaging/nuget/**/bin/
+/packaging/nuget/**/obj/
+/packaging/nuget/smbcloud-cli/native/
 
 # smbCloud deploy config — carries workspace/app IDs; keep out of this public repo
 /.smb/
