@@ -18,8 +18,8 @@ const modelGemCargoTomlPath = resolve(repoRoot, "sdk/gems/model/ext/model/Cargo.
 const emailGemVersionPath = resolve(repoRoot, "sdk/gems/email/lib/email/version.rb");
 const emailGemCargoTomlPath = resolve(repoRoot, "sdk/gems/email/ext/email/Cargo.toml");
 const emailGemLockPath = resolve(repoRoot, "sdk/gems/email/Gemfile.lock");
-const mcpServerJsonPath = resolve(repoRoot, "server.json");
-const xcrsMcpServerJsonPath = resolve(repoRoot, "server-xcrs.json");
+const mcpServerJsonPath = resolve(repoRoot, "packaging/mcp/server.json");
+const xcrsMcpServerJsonPath = resolve(repoRoot, "packaging/mcp/server-xcrs.json");
 
 function readText(path) {
   return readFileSync(path, "utf8");

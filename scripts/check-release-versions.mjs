@@ -97,7 +97,7 @@ const npmXcrsLock = JSON.parse(read("packaging/npm/xcrs/package-lock.json"));
 check("packaging/npm/xcrs/package-lock.json", npmXcrsLock.version);
 check("packaging/npm/xcrs/package-lock.json packages root", npmXcrsLock.packages?.[""]?.version);
 
-for (const path of ["server.json", "server-xcrs.json"]) {
+for (const path of ["packaging/mcp/server.json", "packaging/mcp/server-xcrs.json"]) {
   const server = JSON.parse(read(path));
   check(path, server.version);
   for (const [index, packageEntry] of (server.packages ?? []).entries()) {
