@@ -5,7 +5,7 @@
   <br>smbCloud CLI
 </h1>
   <p align="center">
-    Deploy with smbCloud from your terminal.
+    smbCloud Mail, Auth, Deploy and GresIQ from your terminal, your scripts and your agents.
     <br />
     <br />
     <a href="https://smbcloud.xyz/">Website</a>

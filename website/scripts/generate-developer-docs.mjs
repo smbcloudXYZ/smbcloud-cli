@@ -34,6 +34,12 @@ const MANIFEST = {
     title: 'CLI',
     pages: [
       {
+        src: 'install.md',
+        slug: 'install',
+        title: 'Install',
+        description: 'Every way to install the smbCloud CLI (smb): Homebrew, npm, Cargo, .NET, pip, shell and PowerShell.'
+      },
+      {
         src: 'cli-install.md',
         slug: 'native',
         title: 'Native (Cargo)',
