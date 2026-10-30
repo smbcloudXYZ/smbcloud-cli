@@ -17,10 +17,8 @@
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/issues">Issues</a>
   </p>
   <p align="center">
-    <a href="https://crates.io/crates/smbcloud-cli"><img alt="Crates.io" src="https://img.shields.io/crates/v/smbcloud-cli"></a>
     <a href="https://www.npmjs.com/package/@smbcloud/cli"><img alt="npm" src="https://img.shields.io/npm/v/@smbcloud/cli"></a>
     <a href="https://www.nuget.org/packages/SmbCloud.Cli"><img alt="NuGet" src="https://img.shields.io/nuget/v/SmbCloud.Cli"></a>
-    <a href="https://github.com/smbcloudXYZ/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew"></a>
     <a href="https://pypi.org/project/smbcloud-cli/"><img alt="PyPI" src="https://img.shields.io/pypi/v/smbcloud-cli"></a>
     <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="License" src="https://img.shields.io/github/license/smbcloudXYZ/smbcloud-cli"></a>
   </p>
@@ -30,15 +28,15 @@
 
 **`smb`** is the command-line interface for [smbCloud](https://smbcloud.xyz/).
 
-Install it with `pip`, then run the native `smb` binary for your platform.
+Install it with npm, then run the native `smb` binary for your platform.
 
 ## Install
 
 ```sh
-pip install smbcloud-cli
+npm install -g @smbcloud/cli
 ```
 
-This package installs the native `smb` executable for your platform. You do not need Node.js or Docker.
+This package downloads the right pre-built native binary for your platform.
 
 ## Quick Start
 
@@ -59,16 +57,16 @@ brew tap smbcloudXYZ/tap && brew trust --tap smbcloudXYZ/tap
 brew install cli
 ```
 
-### npm
-
-```sh
-npm install -g @smbcloud/cli
-```
-
 ### .NET tool
 
 ```sh
 dotnet tool install --global SmbCloud.Cli
+```
+
+### pip
+
+```sh
+pip install smbcloud-cli
 ```
 
 ### Shell (macOS / Linux)
@@ -82,8 +80,6 @@ curl -fsSL https://raw.githubusercontent.com/smbcloudXYZ/smbcloud-cli/main/insta
 ```powershell
 irm https://raw.githubusercontent.com/smbcloudXYZ/smbcloud-cli/main/install-windows.sh | iex
 ```
-
-Or grab a pre-built binary from the [Releases](https://github.com/smbcloudXYZ/smbcloud-cli/releases) page.
 
 ## Documentation
 
@@ -101,11 +97,11 @@ This package ships pre-built native binaries for:
 
 ## Source & Issues
 
-This package ships the native `smb` binary through PyPI.
+This package ships the native `smb` binary through npm.
 Source code and issue tracker:
 [github.com/smbcloudXYZ/smbcloud-cli](https://github.com/smbcloudXYZ/smbcloud-cli).
 
-See the [smbCloud documentation](https://smbcloud.xyz/posts) for setup and deployment guides.
+You can find the main install and deploy guides in the [smbCloud CLI docs](https://smbcloud.xyz/posts).
 
 ## License
 
@@ -113,4 +109,4 @@ See the [smbCloud documentation](https://smbcloud.xyz/posts) for setup and deplo
 
 ## Copyright
 
-© 2026 [Splitfire AB](https://5mb.app) ([smbCloud](https://smbcloud.xyz)).
+© 2026 Seto Elkahfi ([smbCloud](https://smbcloud.xyz)). Distributed by [Splitfire AB](https://5mb.app).

@@ -80,22 +80,22 @@ for (const path of [
   }
 }
 
-const npmPackage = JSON.parse(read("npm/smbcloud-cli/package.json"));
-check("npm/smbcloud-cli/package.json", npmPackage.version);
+const npmPackage = JSON.parse(read("packaging/npm/smbcloud-cli/package.json"));
+check("packaging/npm/smbcloud-cli/package.json", npmPackage.version);
 
 const sdkNpmPackage = JSON.parse(read("sdk/npm/smbcloud-auth/package.json"));
 check("sdk/npm/smbcloud-auth/package.json", sdkNpmPackage.version);
 
-const npmLock = JSON.parse(read("npm/smbcloud-cli/package-lock.json"));
-check("npm/smbcloud-cli/package-lock.json", npmLock.version);
-check("npm/smbcloud-cli/package-lock.json packages root", npmLock.packages?.[""]?.version);
+const npmLock = JSON.parse(read("packaging/npm/smbcloud-cli/package-lock.json"));
+check("packaging/npm/smbcloud-cli/package-lock.json", npmLock.version);
+check("packaging/npm/smbcloud-cli/package-lock.json packages root", npmLock.packages?.[""]?.version);
 
-const npmXcrsPackage = JSON.parse(read("npm/xcrs/package.json"));
-check("npm/xcrs/package.json", npmXcrsPackage.version);
+const npmXcrsPackage = JSON.parse(read("packaging/npm/xcrs/package.json"));
+check("packaging/npm/xcrs/package.json", npmXcrsPackage.version);
 
-const npmXcrsLock = JSON.parse(read("npm/xcrs/package-lock.json"));
-check("npm/xcrs/package-lock.json", npmXcrsLock.version);
-check("npm/xcrs/package-lock.json packages root", npmXcrsLock.packages?.[""]?.version);
+const npmXcrsLock = JSON.parse(read("packaging/npm/xcrs/package-lock.json"));
+check("packaging/npm/xcrs/package-lock.json", npmXcrsLock.version);
+check("packaging/npm/xcrs/package-lock.json packages root", npmXcrsLock.packages?.[""]?.version);
 
 for (const path of ["server.json", "server-xcrs.json"]) {
   const server = JSON.parse(read(path));
@@ -106,12 +106,12 @@ for (const path of ["server.json", "server-xcrs.json"]) {
 }
 
 check(
-  "nuget/smbcloud-cli/SmbCloud.Cli.csproj",
-  read("nuget/smbcloud-cli/SmbCloud.Cli.csproj").match(/<PackageVersion>([^<]+)<\/PackageVersion>/)?.[1],
+  "packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj",
+  read("packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj").match(/<PackageVersion>([^<]+)<\/PackageVersion>/)?.[1],
 );
 check(
-  "nuget/xcrs/Xcrs.csproj",
-  read("nuget/xcrs/Xcrs.csproj").match(/<PackageVersion>([^<]+)<\/PackageVersion>/)?.[1],
+  "packaging/nuget/xcrs/Xcrs.csproj",
+  read("packaging/nuget/xcrs/Xcrs.csproj").match(/<PackageVersion>([^<]+)<\/PackageVersion>/)?.[1],
 );
 check(
   "sdk/gems/email/Gemfile.lock",

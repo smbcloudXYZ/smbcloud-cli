@@ -108,7 +108,7 @@ jobs:
           # naming convention.
 
           # Move to the npm directory
-          cd npm
+          cd packaging/npm
           # set the binary name, this is from the rust Cargo.toml file
           cargo_bin="xcrs"
           node_pkg_prefix="xcrs"
@@ -136,7 +136,7 @@ jobs:
           if [ "${{ matrix.build.OS }}" = "windows-2022" ]; then
             cargo_bin="${cargo_bin}.exe"
           fi
-          cp "../target/${{ matrix.build.TARGET }}/release/${cargo_bin}" "${node_pkg}/bin"
+          cp "../../target/${{ matrix.build.TARGET }}/release/${cargo_bin}" "${node_pkg}/bin"
           # publish the package
           cd "${node_pkg}"
           npm_package_name="@smbcloud/${node_pkg}"
@@ -177,7 +177,7 @@ jobs:
       - name: Publish the package
         shell: bash
         run: |
-          cd npm/xcrs
+          cd packaging/npm/xcrs
 
           node ../scripts/render-main-package.cjs "./package.json" "${{ env.RELEASE_VERSION }}" xcrs
 

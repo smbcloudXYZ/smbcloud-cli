@@ -18,8 +18,8 @@ For running and configuring the server itself, see [MCP Server](./mcp.md).
 | --- | --- |
 | smbCloud server metadata | [`server.json`](../server.json) at the repo root |
 | XCRS server metadata | [`server-xcrs.json`](../server-xcrs.json) at the repo root |
-| npm ownership proof | `mcpName` in the generated `@smbcloud/cli` `package.json` (`npm/scripts/render-main-package.cjs`) |
-| NuGet ownership proof | `<!-- mcp-name: ... -->` in `nuget/smbcloud-cli/README.md` |
+| npm ownership proof | `mcpName` in the generated `@smbcloud/cli` `package.json` (`packaging/npm/scripts/render-main-package.cjs`) |
+| NuGet ownership proof | `<!-- mcp-name: ... -->` in `packaging/nuget/smbcloud-cli/README.md` |
 | Cargo ownership proof | Visible `mcp-name: ...` text in `crates/xcrs/README.md` |
 | Publishing | `.github/workflows/release-mcp-registry.yml` |
 

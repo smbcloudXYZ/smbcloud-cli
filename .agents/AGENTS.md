@@ -81,12 +81,16 @@ of these is still a broken CI run:
 | `smbcloud-auth-sdk-wasm` | that crate, or `smbcloud-auth-sdk` it wraps | `cargo check --package smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown` |
 | Python SDK | `sdk/python`, or `smbcloud-auth-sdk` | `cd sdk/python && maturin build --release --locked --out dist` |
 | npm/WASM SDK | `sdk/npm/smbcloud-auth`, or `smbcloud-auth-sdk` | `cd sdk/npm/smbcloud-auth && node ./prepare-package.mjs` (needs `wasm-pack` installed) |
-| NuGet .NET tool | `nuget/smbcloud-cli` | `dotnet build nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release` |
+| NuGet .NET tool | `packaging/nuget/smbcloud-cli` | `dotnet build packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release` |
 | Ruby gem | `sdk/gems/auth`, or `smbcloud-auth-sdk` | `cd sdk/gems/auth && bundle exec rake compile` |
 
 The last four jobs need their own toolchain (maturin/PyO3, wasm-pack + Node, the .NET SDK,
 Ruby/bundler) — if it isn't installed, say so explicitly rather than skipping the check
 silently, so the user knows it wasn't verified.
+
+Distribution that isn't a Rust crate lives under `packaging/`, one directory per channel
+(`npm`, `nuget`, `pypi`, `winget`, `windows`). Channels that ship more than one package, such
+as `npm`, `nuget` and `pypi`, split into `smbcloud-cli/` and `xcrs/` subdirectories.
 
 `smbcloud-auth-sdk-wasm` targets `wasm32-unknown-unknown` and cannot build or test on the host — it is always excluded from workspace clippy/test and checked separately: `cargo check -p smbcloud-auth-sdk-wasm --target wasm32-unknown-unknown`.
 
