@@ -34,6 +34,11 @@ pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
             .to_string(),
     );
 
+    // Bind before opening the browser so a busy port is reported to the user
+    // instead of leaving them waiting on a callback that can never arrive.
+    let listener = TcpListener::bind(format!("127.0.0.1:{}", GH_OAUTH_REDIRECT_PORT))
+        .map_err(|e| anyhow!("Could not listen on port {GH_OAUTH_REDIRECT_PORT}: {e}"))?;
+
     let rx = match open::that(build_github_oauth_url()) {
         Ok(_) => {
             let (tx, rx): (Sender<String>, Receiver<String>) = mpsc::channel();
@@ -42,7 +47,7 @@ pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
                 tx, rx
             );
             tokio::spawn(async move {
-                setup_oauth_callback_server(tx);
+                setup_oauth_callback_server(listener, tx);
             });
             rx
         }
@@ -68,25 +73,35 @@ pub async fn authorize_github(env: &Environment) -> Result<SmbAuthorization> {
     }
 }
 
-fn setup_oauth_callback_server(tx: Sender<String>) {
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", GH_OAUTH_REDIRECT_PORT)).unwrap();
+fn setup_oauth_callback_server(listener: TcpListener, tx: Sender<String>) {
     for stream in listener.incoming() {
-        let stream = stream.unwrap();
-        handle_connection(stream, tx.clone());
+        let result = stream
+            .map_err(anyhow::Error::from)
+            .and_then(|stream| handle_connection(stream, tx.clone()));
+        if let Err(e) = result {
+            debug!("OAuth callback connection failed: {e}");
+        }
     }
 }
 
-fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
+fn handle_connection(mut stream: TcpStream, tx: Sender<String>) -> Result<()> {
     let buf_reader = BufReader::new(&stream);
-    let request_line = &buf_reader.lines().next().unwrap().unwrap();
+    let request_line = buf_reader
+        .lines()
+        .next()
+        .ok_or_else(|| anyhow!("OAuth callback connection closed without a request."))??;
 
     debug!("Request: {:#?}", request_line);
 
-    let code_regex = Regex::new(r"code=([^&]*)").unwrap();
+    let code_regex = Regex::new(r"code=([^&]*)")?;
 
-    let (status_line, contents) = match code_regex.captures(request_line) {
-        Some(group) => {
-            let code = group.get(1).unwrap().as_str();
+    let code = code_regex
+        .captures(&request_line)
+        .and_then(|group| group.get(1));
+
+    let (status_line, contents) = match code {
+        Some(code) => {
+            let code = code.as_str();
             debug!("Code: {:#?}", code);
             debug!("Sending code to channel...");
             debug!("Channel: {:#?}", tx);
@@ -137,8 +152,9 @@ fn handle_connection(mut stream: TcpStream, tx: Sender<String>) {
 
     debug!("Contents: {:#?}", contents);
     let response = format!("{status_line}\r\n\r\n{contents}");
-    stream.write_all(response.as_bytes()).unwrap();
-    stream.flush().unwrap();
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    Ok(())
 }
 
 pub async fn process_connect_github(env: Environment, code: String) -> Result<SmbAuthorization> {
