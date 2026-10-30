@@ -16,8 +16,8 @@ For running and configuring the server itself, see [MCP Server](./mcp.md).
 
 | Piece | Where |
 | --- | --- |
-| smbCloud server metadata | [`server.json`](../server.json) at the repo root |
-| XCRS server metadata | [`server-xcrs.json`](../server-xcrs.json) at the repo root |
+| smbCloud server metadata | [`server.json`](../packaging/mcp/server.json) in `packaging/mcp/` |
+| XCRS server metadata | [`server-xcrs.json`](../packaging/mcp/server-xcrs.json) in `packaging/mcp/` |
 | npm ownership proof | `mcpName` in the generated `@smbcloud/cli` `package.json` (`packaging/npm/scripts/render-main-package.cjs`) |
 | NuGet ownership proof | `<!-- mcp-name: ... -->` in `packaging/nuget/smbcloud-cli/README.md` |
 | Cargo ownership proof | Visible `mcp-name: ...` text in `crates/xcrs/README.md` |
@@ -105,10 +105,10 @@ Rarely needed, but if Actions is unavailable:
 ```sh
 brew install mcp-publisher
 mcp-publisher login github        # device flow, needs push access to smbcloudXYZ
-mcp-publisher publish             # reads ./server.json
+(cd packaging/mcp && mcp-publisher publish)   # reads ./server.json
 ```
 
-The release workflow publishes `server.json`, then temporarily swaps in
-`server-xcrs.json` and publishes the standalone entry as well. Versions are
+The release workflow publishes `packaging/mcp/server.json`, then temporarily swaps in
+`packaging/mcp/server-xcrs.json` and publishes the standalone entry as well. Versions are
 immutable — republishing the same version is rejected. Fixing a bad listing
 means shipping a new patch version.

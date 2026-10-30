@@ -34,14 +34,14 @@ jobs:
       - name: Check the server metadata is consistent
         shell: bash
         run: |
-          server_name="$(jq -r '.name' server.json)"
+          server_name="$(jq -r '.name' packaging/mcp/server.json)"
           echo "Server name: ${server_name}"
 
           remote_url="https://api.smbcloud.xyz/v1/mcp"
           if ! jq -e --arg url "${remote_url}" \
             'any(.remotes[]?; .type == "streamable-http" and .url == $url)' \
-            server.json >/dev/null; then
-            echo "server.json is missing the Streamable HTTP remote ${remote_url}." >&2
+            packaging/mcp/server.json >/dev/null; then
+            echo "packaging/mcp/server.json is missing the Streamable HTTP remote ${remote_url}." >&2
             exit 1
           fi
           echo "MCP_REMOTE_URL=${remote_url}" >> "$GITHUB_ENV"
@@ -53,7 +53,7 @@ jobs:
           # NuGet proves ownership through an `mcp-name:` marker in the package README.
           grep -q "mcp-name: ${server_name}" packaging/nuget/smbcloud-cli/README.md
 
-          xcrs_server_name="$(jq -r '.name' server-xcrs.json)"
+          xcrs_server_name="$(jq -r '.name' packaging/mcp/server-xcrs.json)"
           grep -q "mcp-name: ${xcrs_server_name}" crates/xcrs/README.md
 
       - name: Verify the hosted MCP endpoint
@@ -114,8 +114,8 @@ jobs:
         run: |
           jq --arg v "${RELEASE_VERSION}" \
             '.version = $v | .packages |= map(.version = $v)' \
-            server.json > server.tmp
-          mv server.tmp server.json
+            packaging/mcp/server.json > packaging/mcp/server.tmp
+          mv packaging/mcp/server.tmp packaging/mcp/server.json
 
           xcrs_version="$(sed -n 's/^version = "\(.*\)"/\1/p' crates/xcrs/Cargo.toml | head -n 1)"
           if [ "${xcrs_version}" != "${RELEASE_VERSION}" ]; then
@@ -124,10 +124,10 @@ jobs:
           fi
           jq --arg v "${xcrs_version}" \
             '.version = $v | .packages |= map(.version = $v) | .description |= if length > 100 then .[0:97] + "..." else . end' \
-            server-xcrs.json > server-xcrs.tmp
-          mv server-xcrs.tmp server-xcrs.json
-          cat server.json
-          cat server-xcrs.json
+            packaging/mcp/server-xcrs.json > packaging/mcp/server-xcrs.tmp
+          mv packaging/mcp/server-xcrs.tmp packaging/mcp/server-xcrs.json
+          cat packaging/mcp/server.json
+          cat packaging/mcp/server-xcrs.json
 
       - name: Verify the published packages carry the ownership marker
         shell: bash
@@ -136,7 +136,7 @@ jobs:
           # listed package and looking for a marker naming this server. Checking
           # the sources isn't enough: a package published before the marker
           # landed will still be missing it. Both comparisons are case-sensitive.
-          server_name="$(jq -r '.name' server.json)"
+          server_name="$(jq -r '.name' packaging/mcp/server.json)"
 
           # npm is queryable within seconds of publishing, but the npm release
           # workflow runs in parallel with the NuGet one that triggers this, so
@@ -169,7 +169,7 @@ jobs:
               echo "SmbCloud.Cli ${RELEASE_VERSION} is indexed."
               break
             fi
-            if [ "${attempt}" -eq 20 ]; then
+            if [ "${attempt}" -eq 60 ]; then
               echo "SmbCloud.Cli ${RELEASE_VERSION} is still not indexed on nuget.org after 30 minutes." >&2
               exit 1
             fi
@@ -185,8 +185,8 @@ jobs:
           fi
           rm package.nupkg
 
-          xcrs_server_name="$(jq -r '.name' server-xcrs.json)"
-          xcrs_version="$(jq -r '.version' server-xcrs.json)"
+          xcrs_server_name="$(jq -r '.name' packaging/mcp/server-xcrs.json)"
+          xcrs_version="$(jq -r '.version' packaging/mcp/server-xcrs.json)"
           for attempt in $(seq 1 20); do
             if curl -fsSL -H "User-Agent: smbcloudXYZ/smbcloud-cli release-workflow" "https://crates.io/api/v1/crates/xcrs/${xcrs_version}" >/dev/null; then
               echo "xcrs ${xcrs_version} is indexed on crates.io."
@@ -219,10 +219,12 @@ jobs:
 
       - name: Publish
         shell: bash
+        # mcp-publisher reads ./server.json, so the xcrs swap below stays in this folder.
+        working-directory: packaging/mcp
         run: |
           publish_or_skip() {
             local out
-            out="$(./mcp-publisher publish 2>&1)" && { echo "${out}"; return 0; }
+            out="$("${GITHUB_WORKSPACE}/mcp-publisher" publish 2>&1)" && { echo "${out}"; return 0; }
             echo "${out}"
             if echo "${out}" | grep -q "duplicate version"; then
               echo "Version already published — skipping."
@@ -237,7 +239,7 @@ jobs:
       - name: Verify the server is listed
         shell: bash
         run: |
-          server_name="$(jq -r '.name' server.json)"
+          server_name="$(jq -r '.name' packaging/mcp/server.json)"
           curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=${server_name}" | jq .
-          xcrs_server_name="$(jq -r '.name' server-xcrs.json)"
+          xcrs_server_name="$(jq -r '.name' packaging/mcp/server-xcrs.json)"
           curl -fsSL "https://registry.modelcontextprotocol.io/v0.1/servers?search=${xcrs_server_name}" | jq .

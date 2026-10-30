@@ -106,7 +106,7 @@ make patch | make minor | make major | make custom VERSION=0.x.y
 
 It commits `Release <version>` and tags `v<version>` locally; pushing is manual. Crate publishing is separate and manual (`cargo workspaces publish`, see `docs/development.md`). The per-target release workflows (`release-*.yml`) build the distributable artifacts.
 
-`server.json` and `server-xcrs.json` (the MCP Registry listings) are version-synced by the same Makefile step, and `release-nuget.yml` triggers `release-mcp-registry.yml` once its publish job succeeds — the listings need the npm, NuGet, and Cargo packages live at their recorded versions, and the registry validates their metadata against the real packages. See `docs/mcp-registry.md`.
+`packaging/mcp/server.json` and `packaging/mcp/server-xcrs.json` (the MCP Registry listings) are version-synced by the same Makefile step, and `release-nuget.yml` triggers `release-mcp-registry.yml` once its publish job succeeds — the listings need the npm, NuGet, and Cargo packages live at their recorded versions, and the registry validates their metadata against the real packages. See `docs/mcp-registry.md`.
 
 ---
 
