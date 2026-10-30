@@ -94,12 +94,20 @@ pub(crate) async fn create_new_project(
         Runner::Swift,
         Runner::Rust,
     ];
-    let runner = Select::with_theme(&ColorfulTheme::default())
+    let selection = Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)
         .interact_on_opt(&Term::stderr())
-        .map(|i| runners[i.unwrap()])
-        .unwrap();
+        .map_err(|_| ErrorResponse::Error {
+            error_code: ErrorCode::InputError,
+            message: ErrorCode::InputError.message(None).to_string(),
+        })?;
+    let Some(runner) = selection.and_then(|index| runners.get(index).copied()) else {
+        return Err(ErrorResponse::Error {
+            error_code: ErrorCode::Cancel,
+            message: ErrorCode::Cancel.message(None).to_string(),
+        });
+    };
 
     let access_token = match get_smb_token(env) {
         Ok(token) => token,

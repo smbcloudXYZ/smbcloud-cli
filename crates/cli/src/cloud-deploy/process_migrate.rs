@@ -251,7 +251,9 @@ pub async fn process_migrate(env: Environment) -> Result<CommandResult> {
     let mut failed = 0usize;
 
     for project in &to_migrate {
-        let frontend_app_id = project.frontend_app_id.as_deref().unwrap();
+        let Some(frontend_app_id) = project.frontend_app_id.as_deref() else {
+            continue;
+        };
 
         println!(
             "\n  Migrating '{}' (frontend_app_id: {})...",

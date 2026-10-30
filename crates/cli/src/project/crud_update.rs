@@ -56,12 +56,14 @@ pub async fn process_project_update(env: Environment, project_id: String) -> Res
         Runner::Swift,
         Runner::Rust,
     ];
-    let runner = Select::with_theme(&ColorfulTheme::default())
+    let selection = Select::with_theme(&ColorfulTheme::default())
         .items(&runners)
         .default(0)
         .interact_on_opt(&Term::stderr())
-        .map(|i| runners[i.unwrap()])
-        .unwrap();
+        .map_err(|_| anyhow!("Invalid runner."))?;
+    let Some(runner) = selection.and_then(|index| runners.get(index).copied()) else {
+        return Err(anyhow!("Cancelled."));
+    };
 
     let spinner = Spinner::new(
         spinners::Spinners::SimpleDotsScrolling,
