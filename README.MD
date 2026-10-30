@@ -12,6 +12,7 @@
   <a href="https://www.nuget.org/packages/SmbCloud.Cli"><img alt="NuGet" src="https://img.shields.io/nuget/v/SmbCloud.Cli"></a>
   <a href="https://github.com/smbcloudXYZ/homebrew-tap"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew"></a>
   <a href="https://pypi.org/project/smbcloud-cli/"><img alt="PyPI" src="https://img.shields.io/pypi/v/smbcloud-cli"></a>
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.smbcloudXYZ/smbcloud-cli"><img alt="MCP server" src="https://badge.mcpx.dev?type=server&features=resources,tools" title="MCP server with features"></a>
   <a href="https://github.com/smbcloudXYZ/smbcloud-cli/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/smbcloudXYZ/smbcloud-cli/ci.yml?label=ci"></a>
   <a href="https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/LICENSE"><img alt="Apache-2.0 License" src="https://img.shields.io/badge/license-Apache%202.0-blue.svg"></a>
 </p>
