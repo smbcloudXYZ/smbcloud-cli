@@ -33,7 +33,8 @@ For building and starting the native runners, see
 
    This writes a token to `~/.smb/token` (`~/.smb-dev/token` in the `dev`
    environment). Every MCP tool call reuses that token; there's nothing
-   client-specific to configure for auth.
+   client-specific to configure for auth. A terminal session and an agent session share the same
+   token and the same selected tenant and project (`smb tenant use`, `smb project use`).
 
 ## Connect your client
 
@@ -91,6 +92,21 @@ Add the same shape to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json`
     "smbcloud": {
       "command": "smb",
       "args": ["--mcp"]
+    }
+  }
+}
+```
+
+### Without a global install
+
+If `smb` is not on your `PATH`, run it through npm instead:
+
+```json
+{
+  "mcpServers": {
+    "smbcloud": {
+      "command": "npx",
+      "args": ["@smbcloud/cli", "--mcp"]
     }
   }
 }
