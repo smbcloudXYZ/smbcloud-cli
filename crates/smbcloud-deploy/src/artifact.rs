@@ -9,10 +9,12 @@ use crate::{error::DeployError, report::Reporter, transport::Transport};
 use anyhow::{anyhow, bail, Context};
 use ignore::WalkBuilder;
 use reqwest::blocking::{Body, Client};
+use reqwest::header::AUTHORIZATION;
 use sha2::{Digest, Sha256};
 use smbcloud_model::artifact_deployment::{
     ArtifactDeployment, ArtifactFile, CreateArtifactDeployment,
 };
+use smbcloud_network::network::bearer_value;
 use std::{
     fs::File,
     io::Read,
@@ -256,7 +258,7 @@ impl HttpsArtifactTransport {
         };
         let response = http
             .post(self.url(""))
-            .bearer_auth(&self.token)
+            .header(AUTHORIZATION, bearer_value(&self.token))
             .json(&body)
             .send()
             .context("creating the deployment")?;
@@ -277,7 +279,7 @@ impl HttpsArtifactTransport {
                 File::open(source).with_context(|| format!("opening {}", source.display()))?;
             let result = http
                 .put(self.url(&format!("/{id}/blobs/{sha256}")))
-                .bearer_auth(&self.token)
+                .header(AUTHORIZATION, bearer_value(&self.token))
                 .header("Content-Type", "application/octet-stream")
                 .body(Body::sized(file, size))
                 .send();
@@ -345,7 +347,7 @@ impl HttpsArtifactTransport {
     fn finalize(&self, http: &Client, id: &str) -> anyhow::Result<ArtifactDeployment> {
         let response = http
             .post(self.url(&format!("/{id}/finalize")))
-            .bearer_auth(&self.token)
+            .header(AUTHORIZATION, bearer_value(&self.token))
             .send()
             .context("finalizing the deployment")?;
         read_json(response, "finalizing the deployment")
@@ -356,7 +358,7 @@ impl HttpsArtifactTransport {
         loop {
             let response = http
                 .get(self.url(&format!("/{id}")))
-                .bearer_auth(&self.token)
+                .header(AUTHORIZATION, bearer_value(&self.token))
                 .send()
                 .context("reading the deployment status")?;
             let deployment: ArtifactDeployment =
@@ -660,6 +662,55 @@ mod tests {
             .await;
 
         let (_, result) = ship(transport(&server), dir.path().to_path_buf()).await;
+
+        result.unwrap();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_stored_login_header_still_sends_one_bearer() {
+        let dir = tempfile::tempdir().unwrap();
+        write(dir.path(), "a.txt", "hello");
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/apps/app1/artifact_deployments"))
+            .and(header("authorization", "Bearer jwt.value"))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(
+                    serde_json::json!({"id":"d1","status":"uploading","missing":[]}),
+                ),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/apps/app1/artifact_deployments/d1/finalize"))
+            .and(header("authorization", "Bearer jwt.value"))
+            .respond_with(
+                ResponseTemplate::new(202)
+                    .set_body_json(serde_json::json!({"id":"d1","status":"queued"})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1/apps/app1/artifact_deployments/d1"))
+            .and(header("authorization", "Bearer jwt.value"))
+            .respond_with(Statuses(Mutex::new(vec!["live"])))
+            .mount(&server)
+            .await;
+
+        let login = HttpsArtifactTransport::new(
+            server.uri(),
+            "app1".into(),
+            "Bearer jwt.value".into(),
+            None,
+        )
+        .with_timing(
+            Duration::from_millis(5),
+            Duration::from_secs(5),
+            Duration::from_millis(1),
+        );
+        let (_, result) = ship(login, dir.path().to_path_buf()).await;
 
         result.unwrap();
     }

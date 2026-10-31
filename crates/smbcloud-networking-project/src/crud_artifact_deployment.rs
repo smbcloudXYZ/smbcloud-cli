@@ -2,7 +2,10 @@ use {
     crate::url_builder::build_artifact_deployments_url,
     reqwest::Client,
     smbcloud_model::{artifact_deployment::ArtifactDeployment, error_codes::ErrorResponse},
-    smbcloud_network::{environment::Environment, network::request},
+    smbcloud_network::{
+        environment::Environment,
+        network::{bearer_value, request},
+    },
     smbcloud_networking::{constants::SMB_USER_AGENT, smb_client::SmbClient},
 };
 
@@ -20,7 +23,7 @@ pub async fn list_artifact_deployments(
             app_id,
             None,
         ))
-        .header("Authorization", format!("Bearer {access_token}"))
+        .header("Authorization", bearer_value(access_token))
         .header("User-agent", SMB_USER_AGENT);
     request(builder).await
 }
@@ -41,7 +44,7 @@ pub async fn rollback_artifact_deployment(
             app_id,
             Some(&format!("{deployment_id}/rollback")),
         ))
-        .header("Authorization", format!("Bearer {access_token}"))
+        .header("Authorization", bearer_value(access_token))
         .header("User-agent", SMB_USER_AGENT);
     request(builder).await
 }

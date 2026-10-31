@@ -58,6 +58,11 @@ off access.
   `vite-spa` and `sveltekit`, the current directory for plain static).
 - `--dry-run` prints the app, the file list and the total size, then stops
   before uploading.
+- `--dry-run` and `--prebuilt` apply only to apps published over HTTPS. On an app
+  that deploys over SSH they exit 1 before any build, rsync or ssh. If the
+  deploy config cannot be read, the command fails; it never falls back to SSH.
+- `SMB_TOKEN` set to an empty string is an error under `--ci`; unset it to use
+  the login token.
 - `.gitignore` and `.smbignore` inside the shipped directory are honoured.
   `.git` and `.smb` are never uploaded, and symlinks are refused.
 
@@ -136,8 +141,11 @@ smb --ci deploy --project aircraftshubweb
 ## Behind a proxy
 
 `smb` honours `HTTPS_PROXY` and `NO_PROXY` (and the lowercase forms). A deploy
-contacts `api.smbcloud.xyz` on port 443 and nothing else, so an egress
-allowlist with that one host is enough. If the host cannot be reached, the
+over HTTPS contacts `api.smbcloud.xyz` on port 443 and nothing else, so an
+egress allowlist with that one host is enough. That holds for the HTTPS path
+only; the SSH paths connect to the server tier directly. The host needs
+`ca-certificates` to verify the TLS connection, and the Linux release binary
+needs glibc 2.35 or newer and `zlib1g`. If the host cannot be reached, the
 command exits with a network error; run with `RUST_LOG=debug` to see whether
 the connection, a timeout, or the proxy failed.
 

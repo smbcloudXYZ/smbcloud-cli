@@ -9,6 +9,20 @@ use {
     },
 };
 
+/// The value of an `Authorization` header for a bearer token.
+///
+/// The login flow stores the whole header value (`Bearer <jwt>`), while deploy
+/// tokens are stored bare. Strips one leading `Bearer ` (any case) and adds
+/// exactly one, so callers never send `Bearer Bearer <jwt>`.
+pub fn bearer_value(token: &str) -> String {
+    let token = token.trim();
+    let bare = match token.get(..7) {
+        Some(prefix) if prefix.eq_ignore_ascii_case("bearer ") => token[7..].trim_start(),
+        _ => token,
+    };
+    format!("Bearer {bare}")
+}
+
 //use std::time::Duration;
 #[cfg(debug_assertions)]
 const LOG_RESPONSE_BODY: bool = true; // You know what to do here.
@@ -375,5 +389,18 @@ mod tests {
             callers.is_empty(),
             "preflight still called from {callers:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod bearer_tests {
+    use super::bearer_value;
+
+    #[test]
+    fn adds_one_prefix() {
+        assert_eq!(bearer_value("Bearer x"), "Bearer x");
+        assert_eq!(bearer_value("bearer x"), "Bearer x");
+        assert_eq!(bearer_value("x"), "Bearer x");
+        assert_eq!(bearer_value("smb_deploy_abc"), "Bearer smb_deploy_abc");
     }
 }

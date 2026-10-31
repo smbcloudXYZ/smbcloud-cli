@@ -6,7 +6,9 @@ use {
         deploy::{
             config::{check_project, credentials, get_config, overlay_server_config},
             git::remote_deployment_setup,
-            process_deploy_artifact::{env_token, is_artifact, process_deploy_artifact, TOKEN_ENV},
+            process_deploy_artifact::{
+                env_token, env_token_is_blank, is_artifact, process_deploy_artifact, TOKEN_ENV,
+            },
             process_deploy_astro_ssr::process_deploy_astro_ssr,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
@@ -24,6 +26,7 @@ use {
     smbcloud_auth::me::me,
     smbcloud_deploy::Transport,
     smbcloud_model::{
+        deploy_config::DeployConfig,
         error_codes::{ErrorCode, ErrorResponse},
         project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
         runner::Runner,
@@ -138,6 +141,38 @@ fn deploy_config_error_message(error: &ErrorResponse, app_id: &str) -> String {
     }
 }
 
+/// Where a logged-in deploy goes.
+#[derive(Debug)]
+enum Route {
+    Artifact(Box<DeployConfig>),
+    Legacy,
+}
+
+/// Decides the login-path route from the app's deploy config read.
+///
+/// `remote` is `None` when the project has no `frontend_app_id`. A failed read
+/// is an error and never falls back to the SSH paths, which ship for real.
+/// The SSH paths also refuse `--dry-run` and `--prebuilt`, since they would
+/// ignore them.
+fn route(
+    app_id: Option<&str>,
+    remote: Option<Result<DeployConfig, ErrorResponse>>,
+    options: DeployOptions,
+) -> Result<Route> {
+    match remote {
+        Some(Err(e)) => Err(anyhow!(fail_message(&deploy_config_error_message(
+            &e,
+            app_id.unwrap_or("")
+        )))),
+        Some(Ok(remote)) if is_artifact(&remote) => Ok(Route::Artifact(Box::new(remote))),
+        _ if options.dry_run || options.prebuilt => Err(anyhow!(fail_message(
+            "--dry-run/--prebuilt only apply to apps published over HTTPS \
+             (publish_target = artifact). This app deploys over SSH, so nothing was run."
+        ))),
+        _ => Ok(Route::Legacy),
+    }
+}
+
 /// `SMB_TOKEN` carries an app-scoped deploy token. It can reach only the
 /// artifact routes of its own app, so there is no `me`, no project check and no
 /// SSH key on this path; an app that is not published as an artifact is
@@ -189,6 +224,12 @@ pub async fn process_deploy(
     if let Some(token) = env_token() {
         return process_deploy_with_token(env, project_name, options, token).await;
     }
+    if crate::ci::is_ci() && env_token_is_blank() {
+        return Err(anyhow!(fail_message(&format!(
+            "{TOKEN_ENV} is set but empty. Provision the deploy token, or unset the variable \
+             to use the login token."
+        ))));
+    }
 
     // Check credentials.
     let is_logged_in = is_logged_in(env).await?;
@@ -223,12 +264,13 @@ pub async fn process_deploy(
 
     // Apps the server publishes as artifacts deploy over HTTPS: no SSH key,
     // no host pinning, no `me`. Everything else keeps the SSH paths below.
-    if let Some(app_id) = config.project.frontend_app_id.clone() {
-        if let Ok(remote) = get_app_deploy_config(env, client(), &access_token, &app_id).await {
-            if is_artifact(&remote) {
-                return process_deploy_artifact(env, config, remote, access_token, options).await;
-            }
-        }
+    let app_id = config.project.frontend_app_id.clone();
+    let remote = match app_id.as_deref() {
+        Some(id) => Some(get_app_deploy_config(env, client(), &access_token, id).await),
+        None => None,
+    };
+    if let Route::Artifact(remote) = route(app_id.as_deref(), remote, options)? {
+        return process_deploy_artifact(env, config, *remote, access_token, options).await;
     }
     eprintln!("{SSH_DEPRECATION}");
 
@@ -516,5 +558,72 @@ mod tests {
     fn other_errors_keep_the_generic_message() {
         let message = deploy_config_error_message(&error(ErrorCode::NetworkError), "7");
         assert!(message.starts_with("Could not read the app's deploy config:"));
+    }
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::*;
+
+    fn cfg(target: Option<&str>) -> DeployConfig {
+        serde_json::from_value(serde_json::json!({
+            "id": "1", "name": "site", "runner": 1,
+            "deployment_method": 0, "publish_target": target,
+        }))
+        .unwrap()
+    }
+
+    fn refused() -> ErrorResponse {
+        ErrorResponse::Error {
+            error_code: ErrorCode::Unauthorized,
+            message: "no".into(),
+        }
+    }
+
+    fn dry() -> DeployOptions {
+        DeployOptions {
+            dry_run: true,
+            prebuilt: false,
+        }
+    }
+
+    #[test]
+    fn artifact_apps_route_to_https() {
+        let r = route(Some("a"), Some(Ok(cfg(Some("artifact")))), dry()).unwrap();
+        assert!(matches!(r, Route::Artifact(_)));
+    }
+
+    #[test]
+    fn dry_run_never_yields_a_legacy_route() {
+        for remote in [
+            None,
+            Some(Ok(cfg(None))),
+            Some(Ok(cfg(Some("legacy_ssh")))),
+            Some(Err(refused())),
+        ] {
+            assert!(route(Some("a"), remote, dry()).is_err());
+        }
+        let prebuilt = DeployOptions {
+            dry_run: false,
+            prebuilt: true,
+        };
+        assert!(route(None, None, prebuilt).is_err());
+    }
+
+    #[test]
+    fn a_failed_read_never_falls_back() {
+        let none = DeployOptions::default();
+        let err = route(Some("a"), Some(Err(refused())), none).unwrap_err();
+        assert!(err.to_string().contains("refused"));
+    }
+
+    #[test]
+    fn legacy_routes_only_without_flags() {
+        let none = DeployOptions::default();
+        assert!(matches!(route(None, None, none).unwrap(), Route::Legacy));
+        assert!(matches!(
+            route(Some("a"), Some(Ok(cfg(Some("legacy_ssh")))), none).unwrap(),
+            Route::Legacy
+        ));
     }
 }
