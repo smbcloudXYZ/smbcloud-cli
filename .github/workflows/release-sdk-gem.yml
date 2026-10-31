@@ -9,8 +9,9 @@ name: SDK Ruby Gem Release
 # source gem covers every other platform and Ruby.
 #
 # Pull requests that touch this workflow build everything but publish nothing.
-# Gem and crate changes are covered by ci.yml, which builds against the
-# workspace crates.
+# They build against the workspace crates, so they work before the release's
+# crates are on crates.io. Dispatch runs resolve the published crates. Gem and
+# crate changes are covered by ci.yml.
 #
 # Gems are pushed with RubyGems trusted publishing (OIDC), so there is no API
 # key secret. Each gem needs a trusted publisher on rubygems.org for repository
@@ -113,9 +114,29 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      # Pull request runs patch every smbcloud-* dependency to its crate in
+      # this checkout, so the dry run works before the release's crates are on
+      # crates.io. Cargo reads .cargo/config.toml from the current directory,
+      # hence the lockfile is generated from inside the gem directory.
+      - name: Use workspace Rust crates for the dry run
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mkdir -p sdk/gems/${{ matrix.gem }}/.cargo
+          {
+            echo "[patch.crates-io]"
+            awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
+              name = $1
+              gsub(/[[:space:]]/, "", name)
+              print name " = { path = \"../../../crates/" name "\" }"
+            }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
+          } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
+          (cd sdk/gems/${{ matrix.gem }} && cargo generate-lockfile)
+
       # The container build uses this lockfile, so resolve the published
       # smbcloud-* crates for this release on the host first.
       - name: Resolve the published Rust crate dependencies
+        if: github.event_name != 'pull_request'
         shell: bash
         run: cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
 
@@ -181,9 +202,27 @@ jobs:
             exit 1
           fi
 
+      # Pull request runs resolve against the workspace crates, so the lock in
+      # the dry-run source gem has path dependencies. That gem is never pushed.
+      - name: Use workspace Rust crates for the dry run
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mkdir -p sdk/gems/${{ matrix.gem }}/.cargo
+          {
+            echo "[patch.crates-io]"
+            awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
+              name = $1
+              gsub(/[[:space:]]/, "", name)
+              print name " = { path = \"../../../crates/" name "\" }"
+            }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
+          } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
+          (cd sdk/gems/${{ matrix.gem }} && cargo generate-lockfile)
+
       # The source gem ships Cargo.lock; resolve it against the release's
       # published crates rather than shipping the committed lock.
       - name: Resolve the published Rust crate dependencies
+        if: github.event_name != 'pull_request'
         shell: bash
         run: cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
 
