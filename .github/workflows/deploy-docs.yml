@@ -1,7 +1,9 @@
 name: Deploy docs
 
 # Deploys the docs website (website/, the `docs` sub-project in the monorepo's
-# .smb config) to smbCloud via the smbcloud-deploy-action.
+# .smb config) to smbCloud via the smbcloud-deploy-action. It runs on pushes to
+# `main`, so the published docs track released versions rather than the
+# integration branch.
 #
 # `smb deploy` builds the Next.js site on the runner before rsyncing it, so this
 # job sets up Node + pnpm first. The site's prebuild step generates
@@ -37,7 +39,7 @@ name: Deploy docs
 
 on:
   push:
-    branches: [development]
+    branches: [main]
     paths:
       - 'website/**'
       - 'docs/**'

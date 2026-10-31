@@ -10,7 +10,7 @@ help:
 release:
 	@test -n "$(BUMP)" || (echo "BUMP is required" && exit 1)
 	@if [ "$(BUMP)" = "custom" ] && [ -z "$(VERSION)" ]; then echo "VERSION is required for custom releases"; exit 1; fi
-	@case "$$(git branch --show-current)" in development|release/v*) ;; *) echo "Releases must be prepared on development or a release/v<version> branch"; exit 1;; esac
+	@case "$$(git branch --show-current)" in release/v*) ;; *) echo "Releases must be prepared on a release/v<version> branch. Branch off development for a minor or major release, or off main for a patch."; exit 1;; esac
 	@if [ -n "$$(git status --short --untracked-files=all)" ]; then echo "Working tree must be clean before running a release"; exit 1; fi
 	@if [ "$(BUMP)" = "custom" ]; then \
 		cargo workspaces version custom "$(VERSION)" --yes --no-git-commit --force "*"; \
@@ -25,17 +25,10 @@ release:
 	release_branch=$$(git branch --show-current); \
 	git add -A; \
 	git commit -m "Release $$release_version"; \
-	if [ "$$release_branch" = "development" ]; then \
-		git tag "v$$release_version"; \
-		echo "Release $$release_version prepared locally."; \
-		echo "Next: git push origin development && git push origin v$$release_version"; \
-	else \
-		echo "Release $$release_version prepared on $$release_branch (not tagged)."; \
-		echo "The tag belongs on development, on the merge commit."; \
-		echo "Next: git push origin $$release_branch"; \
-		echo "  CI green: git checkout development && git merge --no-ff $$release_branch"; \
-		echo "  then:     git tag v$$release_version && git push origin development && git push origin v$$release_version"; \
-	fi
+	echo "Release $$release_version prepared on $$release_branch (not tagged)."; \
+	echo "Next: git push origin $$release_branch"; \
+	echo "  CI green: merge $$release_branch into development and main with --no-ff"; \
+	echo "  then:     git checkout main && git pull && git tag -a v$$release_version -m \"v$$release_version\" && git push origin v$$release_version"
 
 sync-release-metadata:
 	@node ./scripts/sync-release-version.mjs
