@@ -24,6 +24,7 @@ use {
     smbcloud_auth::me::me,
     smbcloud_deploy::Transport,
     smbcloud_model::{
+        error_codes::{ErrorCode, ErrorResponse},
         project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
         runner::Runner,
     },
@@ -121,6 +122,22 @@ fn select_project(config: Config, project_name: Option<String>) -> Result<Config
     }
 }
 
+/// Words a failed deploy config read for the `SMB_TOKEN` path. A refused token
+/// and a missing app are the two failures a CI job hits after a rotation or a
+/// config typo; anything else keeps the generic message.
+fn deploy_config_error_message(error: &ErrorResponse, app_id: &str) -> String {
+    let ErrorResponse::Error { error_code, .. } = error;
+    match error_code {
+        ErrorCode::Unauthorized => {
+            "The deploy token was refused: it is revoked, expired, or for another app.".to_string()
+        }
+        ErrorCode::ProjectNotFound => {
+            format!("No app {app_id}: check frontend_app_id in .smb/config.toml.")
+        }
+        _ => format!("Could not read the app's deploy config: {error}"),
+    }
+}
+
 /// `SMB_TOKEN` carries an app-scoped deploy token. It can reach only the
 /// artifact routes of its own app, so there is no `me`, no project check and no
 /// SSH key on this path; an app that is not published as an artifact is
@@ -140,11 +157,7 @@ async fn process_deploy_with_token(
     })?;
     let remote = get_app_deploy_config(env, client(), &token, &app_id)
         .await
-        .map_err(|e| {
-            anyhow!(fail_message(&format!(
-                "Could not read the app's deploy config: {e}"
-            )))
-        })?;
+        .map_err(|e| anyhow!(fail_message(&deploy_config_error_message(&e, &app_id))))?;
     if !is_artifact(&remote) {
         return Err(anyhow!(fail_message(&format!(
             "{TOKEN_ENV} deploy tokens only work for apps published over HTTPS \
@@ -469,5 +482,39 @@ async fn git_deploy(
             })
         }
         Err(e) => Err(anyhow!(fail_message(&e.to_string()))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn error(error_code: ErrorCode) -> ErrorResponse {
+        ErrorResponse::Error {
+            error_code,
+            message: String::new(),
+        }
+    }
+
+    #[test]
+    fn refused_token_message() {
+        assert_eq!(
+            deploy_config_error_message(&error(ErrorCode::Unauthorized), "7"),
+            "The deploy token was refused: it is revoked, expired, or for another app."
+        );
+    }
+
+    #[test]
+    fn missing_app_message() {
+        assert_eq!(
+            deploy_config_error_message(&error(ErrorCode::ProjectNotFound), "7"),
+            "No app 7: check frontend_app_id in .smb/config.toml."
+        );
+    }
+
+    #[test]
+    fn other_errors_keep_the_generic_message() {
+        let message = deploy_config_error_message(&error(ErrorCode::NetworkError), "7");
+        assert!(message.starts_with("Could not read the app's deploy config:"));
     }
 }
