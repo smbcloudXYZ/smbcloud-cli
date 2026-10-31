@@ -16,7 +16,7 @@ use {
         project::{crud_create::process_project_init, process::process_project},
         tenant::process::process_tenant,
     },
-    smbcloud_network::{environment::Environment, network::check_internet_connection},
+    smbcloud_network::environment::Environment,
     std::{
         fs::{create_dir_all, OpenOptions},
         path::PathBuf,
@@ -184,30 +184,6 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Cli::command().print_help()?;
         println!();
         std::process::exit(0);
-    }
-
-    // Check if the command requires internet connection
-    let needs_internet = match &cli.command {
-        Some(Commands::Me {})
-        | Some(Commands::Deploy { .. })
-        | Some(Commands::Login {})
-        | Some(Commands::Logout {})
-        | Some(Commands::Account { .. })
-        | Some(Commands::Mail { .. })
-        | Some(Commands::Auth { .. })
-        | Some(Commands::Project { .. })
-        | Some(Commands::Tenant { .. })
-        | Some(Commands::Migrate {}) => true,
-        Some(Commands::ControlKit { .. }) => false,
-        Some(Commands::Init {}) => true,
-        None => unreachable!("handled above: bare invocation prints help and exits"),
-    };
-
-    // Check internet connectivity for commands that need it
-    if needs_internet && !check_internet_connection().await {
-        return Err(anyhow!(
-            "No internet connection. Please check your network settings and try again."
-        ));
     }
 
     match cli.command {
