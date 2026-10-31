@@ -733,8 +733,8 @@ Three files must be bumped together for each gem in `sdk/gems/`:
 
 After bumping, regenerate lockfiles with `cargo generate-lockfile` and `bundle lock` inside each gem directory. The `release-sdk-gem` workflow checks `Auth::VERSION` against the tag and fails on mismatch.
 
-**Tagging a release on a feature branch instead of `development`**
-Always tag on `development` (the mainline branch). Tagging on a feature branch leaves `development` without the release commit, making git history confusing and future releases error-prone. Merge the feature branch into `development` first, then tag. If a tag was already placed on the wrong commit, move it with `git tag -f v<version>` and `git push origin v<version> --force`.
+**Tagging a release on a feature branch instead of `main`**
+Always tag on `main`, on the merge commit of the release branch. Tagging on a feature or release branch leaves `main` without the release commit, making git history confusing and future releases error-prone. Merge the release branch into `development` and `main` first, then tag `main`. If a tag was already placed on the wrong commit, move it with `git tag -fa v<version> -m "v<version>"` and `git push origin v<version> --force`.
 
 **"Re-run all jobs" on an old workflow run rebuilds from the old commit**
 GitHub Actions workflow re-runs always use the commit the run was originally dispatched with. If you moved a tag after the run was created, the re-run still checks out the old commit. Use "Re-run failed jobs" only when the code on that commit is correct and only an external issue (e.g. missing trusted publisher) caused the failure. If the code itself was fixed, dispatch a fresh run instead: `gh workflow run <workflow>.yml -f tag=v<version>`.

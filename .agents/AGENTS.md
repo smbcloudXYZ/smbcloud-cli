@@ -98,13 +98,13 @@ as `npm`, `nuget` and `pypi`, split into `smbcloud-cli/` and `xcrs/` subdirector
 
 ## Releases
 
-Releases are prepared on the `development` branch with a clean tree via the Makefile, which drives `cargo workspaces` to bump every crate in lockstep, then syncs the package-manager manifests (npm/nuget/pypi) and regenerates the SDK lockfiles:
+`main` is the default branch and carries the release tags; `development` is the integration branch that pull requests target. Releases are prepared on a `release/v<version>` branch with a clean tree via the Makefile, which drives `cargo workspaces` to bump every crate in lockstep, then syncs the package-manager manifests (npm/nuget/pypi) and regenerates the SDK lockfiles:
 
 ```sh
 make patch | make minor | make major | make custom VERSION=0.x.y
 ```
 
-It commits `Release <version>` and tags `v<version>` locally; pushing is manual. Crate publishing is separate and manual (`cargo workspaces publish`, see `docs/development.md`). The per-target release workflows (`release-*.yml`) build the distributable artifacts.
+Minor and major releases branch off `development`; patch releases branch off `main` and cherry-pick the fix. The Makefile refuses to run on any other branch. It commits `Release <version>` without tagging. After CI is green, merge the release branch into `development` and `main` with `--no-ff`, then tag the `main` merge commit with an annotated tag and push it. The tag push triggers `release-crate.yml`, which publishes the crates and fans out to the per-target workflows (`release-*.yml`). See the `smbcloud-cli-release` skill and `docs/development.md`.
 
 `packaging/mcp/server.json` and `packaging/mcp/server-xcrs.json` (the MCP Registry listings) are version-synced by the same Makefile step, and `release-nuget.yml` triggers `release-mcp-registry.yml` once its publish job succeeds — the listings need the npm, NuGet, and Cargo packages live at their recorded versions, and the registry validates their metadata against the real packages. See `docs/mcp-registry.md`.
 

@@ -60,39 +60,62 @@ The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`,
 - `ext/<gem>/Cargo.toml` — the native extension crate version AND the `smbcloud-*` dependency version constraints (e.g. `"0.3"` → `"0.4"`)
 - Regenerate `Cargo.lock` with `cargo generate-lockfile` and `Gemfile.lock` with `bundle lock` inside the gem directory
 
-## Release branch convention
+## Branches and releases
 
-Every release is prepared on a dedicated branch named **`release/v<version>`**, branched
-off `development`. Never prepare a release directly on `development`, and never tag a
-release on the `release/*` (or any feature) branch.
+Branch roles:
 
-Reasoning:
+- `main` is the default branch. It only receives release merges and patch cherry-picks,
+  and every release tag lives on a `main` commit.
+- `development` is the integration branch. Feature and fix branches start from it and
+  pull requests target it.
+- `feature/<slug>` and `fix/<slug>` hold day-to-day work.
+- `release/v<version>` holds a single release. `make patch|minor|major|custom` only runs
+  on these branches.
 
-- The release-prep commits (version bump, lockfiles, generated metadata) can be reviewed
-  and run through CI in isolation before they touch the mainline.
-- The release commit history stays clean and linear on the default branch.
-- `cargo workspaces publish --allow-branch "*"` accepts any branch, but downstream
-  workflows dispatch from the tag ref, so the tagged commit must contain all intended changes.
-- Tagging on a feature branch leaves `development` without the release commit and makes git
-  history confusing.
+Never prepare a release directly on `development` or `main`, and never tag on a
+`release/*` or feature branch. The release-prep commits (version bump, lockfiles,
+generated metadata) are reviewed and run through CI on their own branch first, and
+downstream workflows dispatch from the tag ref, so the tagged commit must contain every
+intended change.
 
-Workflow:
+### Feature flow
 
-1. Branch off an up-to-date `development`: `git checkout development && git pull && git checkout -b release/v<version>`.
-2. Prepare the release on that branch — `make patch|minor|major|custom VERSION=<version>`
-   (see the version-sync rules above; `make` commits `Release <version>` on the branch).
+1. `git checkout development && git pull && git checkout -b feature/<slug>`.
+2. Open the pull request against `development`.
+
+### Minor or major release
+
+1. Branch off an up-to-date `development`:
+   `git checkout development && git pull && git checkout -b release/v<version>`.
+2. Prepare the release: `make minor|major|custom VERSION=<version>` (see the version-sync
+   rules above; `make` commits `Release <version>` on the branch). Run it through `rv`
+   if the Ruby gem lockfiles are regenerated: `rv run make minor`.
 3. Push the branch and let CI run: `git push origin release/v<version>`.
-4. **Only when CI is green**, merge into `development` with `--no-ff`:
-   `git checkout development && git merge --no-ff release/v<version>`.
-5. Delete the release branch (local and remote):
+4. **Only when CI is green**, merge into both branches with `--no-ff`
+   (open one pull request per target and use the merge-commit method, or merge locally):
+   `development` first, then `main`.
+5. Tag the `main` merge commit with an annotated tag and push it:
+   `git checkout main && git pull && git tag -a v<version> -m "v<version>" && git push origin v<version>`.
+   The tag push triggers `release-crate.yml` and the full publish chain.
+6. Delete the release branch (local and remote):
    `git branch -d release/v<version> && git push origin --delete release/v<version>`.
-6. Tag on `development`: `git tag v<version>`.
-7. Push both: `git push origin development && git push origin v<version>` — the tag push
-   triggers `release-crate.yml` and the full publish chain.
 
-If a tag was placed on the wrong commit (e.g. before a last-minute fix), move it:
+### Patch release
 
-1. Merge the fix into `development`.
+1. Land the fix on `development` through a normal pull request.
+2. Branch off `main`: `git checkout main && git pull && git checkout -b release/v<version>`.
+3. Cherry-pick the fix: `git cherry-pick -x <fix-commit>`.
+4. `make patch`, push the branch and wait for CI.
+5. Merge the release branch into `main` with `--no-ff`, then tag `main` as above.
+6. Merge the release branch back into `development` with `--no-ff`. This carries the
+   version bump; the fix is already there.
+7. Delete the release branch.
+
+### Moving a misplaced tag
+
+If a tag was placed on the wrong commit (for example before a last-minute fix):
+
+1. Merge the fix into `main`.
 2. Recreate the annotated tag on the correct commit: `git tag -fa v<version> -m "v<version>"`.
 3. Force-push the tag: `git push origin v<version> --force`.
 
@@ -101,7 +124,8 @@ When verifying the remote tag, remember that annotated tags have two refs. `git 
 - `refs/tags/v<version>` — the tag object
 - `refs/tags/v<version>^{}` — the peeled commit
 
-The peeled `^{}` ref is the one that must match the intended release commit.
+The peeled `^{}` ref is the one that must match the intended release commit, which is the
+`main` merge commit.
 
 The `release-crate.yml` orchestrator triggers on `push.tags: "v*.*.*"`, so the force-push will re-trigger the full release chain.
 
