@@ -1,21 +1,49 @@
 name: SDK Ruby Gem Release
 
-# Publishes the smbcloud-auth Ruby gem (sdk/gems/auth) to RubyGems.
-# Builds pre-compiled native gems for the supported Unix platforms, plus a
-# source gem as a fallback for unsupported environments.
+# Publishes the smbcloud-auth (sdk/gems/auth), smbcloud-model (sdk/gems/model)
+# and smbcloud-email (sdk/gems/email) Ruby gems to RubyGems.
+# Native gems are cross-compiled on Linux with rb-sys-dock, so the darwin gems
+# get the generic `arm64-darwin` / `x86_64-darwin` platforms (a gem built with a
+# runner's Ruby gets e.g. `arm64-darwin-23`, which only matches that macOS
+# release). Each native gem is fat: one extension per Ruby minor >= 3.1. A
+# source gem covers every other platform and Ruby.
 #
-# Required secrets:
-#   RUBYGEMS_API_KEY — RubyGems.org API key with push access to smbcloud-auth
+# Pull requests that touch this workflow build everything but publish nothing.
+# They build against the workspace crates, so they work before the release's
+# crates are on crates.io. Dispatch runs resolve the published crates. Gem and
+# crate changes are covered by ci.yml.
+#
+# Gems are pushed with RubyGems trusted publishing (OIDC), so there is no API
+# key secret. Each gem needs a trusted publisher on rubygems.org for repository
+# smbcloudXYZ/smbcloud-cli, workflow release-sdk-gem.yml, with no environment.
+# A gem that does not exist yet (smbcloud-email) needs a *pending* trusted
+# publisher, created from the owner's profile; the first push turns it into a
+# normal one, and must assert that account as `owner` (see the credentials
+# step). The filename is matched from the OIDC `job_workflow_ref` claim, so
+# publishers registered to a workflow that merely dispatches this one do not
+# match. See https://guides.rubygems.org/trusted-publishing/
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v0.3.35)"
+        description: "Release version (e.g. v0.3.35)"
         required: true
+      ref:
+        description: "Git ref to build from (defaults to the tag)"
+        required: false
+  pull_request:
+    paths:
+      - ".github/workflows/release-sdk-gem.yml"
 
 permissions:
   contents: read
+
+# PR dry runs cancel their superseded runs. A release for a tag is serialized
+# and never cancelled halfway through push-gems.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || inputs.tag }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -23,39 +51,26 @@ env:
 jobs:
   # ── Build native gems ──────────────────────────────────────────────────────
   build-gems:
-    name: Build gem (${{ matrix.name }})
-    runs-on: ${{ matrix.runner }}
+    name: Build ${{ matrix.gem }} gem (${{ matrix.platform }})
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - { name: linux-x64, runner: ubuntu-latest, platform: x86_64-linux }
-          - {
-              name: linux-arm64,
-              runner: ubuntu-24.04-arm,
-              platform: aarch64-linux,
-            }
-          - { name: darwin-arm64, runner: macos-latest, platform: arm64-darwin }
-          - {
-              name: darwin-x64,
-              runner: macos-15-intel,
-              platform: x86_64-darwin,
-            }
-          # Windows is excluded: rb-sys bindgen fails because RubyInstaller is
-          # MinGW-based and its rbconfig emits GCC flags that are incompatible
-          # with the MSVC clang used by bindgen. The source gem provides a
-          # fallback for Windows users (compiled at install time).
+        gem: [auth, model, email]
+        platform: [x86_64-linux, aarch64-linux, arm64-darwin, x86_64-darwin]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            release_version="$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
             release_version="${{ github.event.inputs.tag }}"
@@ -64,9 +79,10 @@ jobs:
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
       - name: Wait for Rust crate dependencies on crates.io
+        if: github.event_name != 'pull_request'
         shell: bash
         run: |
-          for crate_name in smbcloud-auth-sdk smbcloud-model smbcloud-network; do
+          for crate_name in smbcloud-auth-sdk smbcloud-email-sdk smbcloud-model smbcloud-network; do
             for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
               if curl -fsS -H "User-Agent: smbcloud-cli-release" "https://crates.io/api/v1/crates/${crate_name}/${RELEASE_VERSION}" >/dev/null 2>&1; then
                 echo "${crate_name} ${RELEASE_VERSION} is available on crates.io"
@@ -83,10 +99,6 @@ jobs:
             done
           done
 
-      - name: Install system dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update -q && sudo apt-get install -y libclang-dev
-
       - name: Read Rust toolchain
         shell: bash
         run: |
@@ -102,50 +114,74 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
-      - name: Resolve the published Rust crate dependencies
+      # Pull request runs patch every smbcloud-* dependency to its crate in
+      # this checkout, so the dry run works before the release's crates are on
+      # crates.io. Cargo reads .cargo/config.toml from the current directory,
+      # hence the lockfile is generated from inside the gem directory.
+      - name: Use workspace Rust crates for the dry run
+        if: github.event_name == 'pull_request'
         shell: bash
-        run: cargo generate-lockfile --manifest-path sdk/gems/auth/Cargo.toml
+        run: |
+          mkdir -p sdk/gems/${{ matrix.gem }}/.cargo
+          {
+            echo "[patch.crates-io]"
+            awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
+              name = $1
+              gsub(/[[:space:]]/, "", name)
+              print name " = { path = \"../../../crates/" name "\" }"
+            }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
+          } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
+          (cd sdk/gems/${{ matrix.gem }} && cargo generate-lockfile)
 
-      # Scope the Rust cache to the gem's own Cargo workspace so its registry
-      # deps are cached independently from the main workspace.
-      - name: Setup Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: sdk-gem-${{ matrix.name }}
-          workspaces: sdk/gems/auth
+      # The container build uses this lockfile, so resolve the published
+      # smbcloud-* crates for this release on the host first.
+      - name: Resolve the published Rust crate dependencies
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
-          working-directory: sdk/gems/auth
+          working-directory: sdk/gems/${{ matrix.gem }}
 
-      - name: Build native gem
-        working-directory: sdk/gems/auth
-        shell: bash
-        run: bundle exec rake native gem
+      - name: Cross-compile native gem
+        id: cross-gem
+        uses: oxidize-rb/actions/cross-gem@v1
+        with:
+          platform: ${{ matrix.platform }}
+          ruby-versions: ">= 3.1"
+          working-directory: sdk/gems/${{ matrix.gem }}
+          cache-version: ${{ matrix.gem }}
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@v7
         with:
-          name: gem-${{ matrix.name }}
-          path: sdk/gems/auth/pkg/*.gem
+          name: gem-${{ matrix.gem }}-${{ matrix.platform }}
+          path: ${{ steps.cross-gem.outputs.gem-path }}
 
   # ── Build source gem (fallback for unsupported platforms) ──────────────────
   build-source-gem:
-    name: Build source gem
+    name: Build ${{ matrix.gem }} source gem
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        gem: [auth, model, email]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            release_version="$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
             release_version="${{ github.event.inputs.tag }}"
@@ -156,49 +192,83 @@ jobs:
       - name: Verify gem version matches tag
         shell: bash
         run: |
-          GEM_VERSION=$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/auth/lib/auth/version.rb)
+          GEM_VERSION=$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)
 
           echo "Gem version : ${GEM_VERSION}"
           echo "Tag version : ${RELEASE_VERSION}"
 
           if [[ "${GEM_VERSION}" != "${RELEASE_VERSION}" ]]; then
-            echo "::error::Version mismatch — bump Auth::VERSION in sdk/gems/auth/lib/auth/version.rb before releasing."
+            echo "::error::Version mismatch — bump VERSION in sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb before releasing."
             exit 1
           fi
+
+      # Pull request runs resolve against the workspace crates, so the lock in
+      # the dry-run source gem has path dependencies. That gem is never pushed.
+      - name: Use workspace Rust crates for the dry run
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mkdir -p sdk/gems/${{ matrix.gem }}/.cargo
+          {
+            echo "[patch.crates-io]"
+            awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
+              name = $1
+              gsub(/[[:space:]]/, "", name)
+              print name " = { path = \"../../../crates/" name "\" }"
+            }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
+          } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
+          (cd sdk/gems/${{ matrix.gem }} && cargo generate-lockfile)
+
+      # The source gem ships Cargo.lock; resolve it against the release's
+      # published crates rather than shipping the committed lock.
+      - name: Resolve the published Rust crate dependencies
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
           bundler-cache: true
-          working-directory: sdk/gems/auth
+          working-directory: sdk/gems/${{ matrix.gem }}
 
       - name: Build source gem
-        working-directory: sdk/gems/auth
+        working-directory: sdk/gems/${{ matrix.gem }}
         run: bundle exec rake build
 
       - name: Upload source gem artifact
         uses: actions/upload-artifact@v7
         with:
-          name: gem-source
-          path: sdk/gems/auth/pkg/*.gem
+          name: gem-${{ matrix.gem }}-source
+          path: sdk/gems/${{ matrix.gem }}/pkg/*.gem
 
   # ── Push all gems to RubyGems ──────────────────────────────────────────────
   push-gems:
-    name: Push to RubyGems
+    name: Push ${{ matrix.gem }} to RubyGems
     needs: [build-gems, build-source-gem]
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        gem: [auth, model, email]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
+          ref: ${{ inputs.ref || inputs.tag || github.ref }}
 
       - name: Set the release version
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            release_version="$(sed -n "s/.*VERSION = '\(.*\)'/\1/p" sdk/gems/${{ matrix.gem }}/lib/${{ matrix.gem }}/version.rb)"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             release_version="${GITHUB_REF_NAME#v}"
           else
             release_version="${{ github.event.inputs.tag }}"
@@ -206,50 +276,59 @@ jobs:
           fi
           echo "RELEASE_VERSION=${release_version}" >> "$GITHUB_ENV"
 
-      - name: Check whether release already exists on RubyGems
-        id: rubygems-check
-        shell: bash
-        run: |
-          if curl -fsS \
-            "https://rubygems.org/api/v2/rubygems/smbcloud-auth/versions/${RELEASE_VERSION}.json" \
-            >/dev/null 2>&1; then
-            echo "smbcloud-auth ${RELEASE_VERSION} already exists on RubyGems, skipping publish"
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Download all gem artifacts
-        if: steps.rubygems-check.outputs.exists != 'true'
         uses: actions/download-artifact@v7
         with:
-          pattern: "gem-*"
+          pattern: "gem-${{ matrix.gem }}-*"
           path: gems
           merge-multiple: true
 
       - name: Setup Ruby
-        if: steps.rubygems-check.outputs.exists != 'true'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: .ruby-version
 
+      # Exchanges this job's OIDC token for a short-lived RubyGems API key and
+      # exports it as GEM_HOST_API_KEY, which `gem push` reads. This is done by
+      # hand rather than with rubygems/configure-rubygems-credentials because
+      # that action has no input for `owner`, which RubyGems requires on the
+      # first push of a gem that only has a pending trusted publisher. The
+      # value is the immutable ID of the RubyGems account that created the
+      # pending publisher; it is ignored for gems that already exist. It comes
+      # from the RUBYGEMS_OWNER_ID repo variable so a new gem whose pending
+      # publisher belongs to a different account can be set without editing
+      # this file; the fallback is the account that created the current ones.
       - name: Configure RubyGems credentials
-        if: steps.rubygems-check.outputs.exists != 'true'
         shell: bash
+        env:
+          RUBYGEMS_OWNER_ID: ${{ vars.RUBYGEMS_OWNER_ID || '160848' }}
         run: |
-          mkdir -p "${HOME}/.gem"
-          echo ":rubygems_api_key: ${{ secrets.RUBYGEMS_API_KEY }}" > "${HOME}/.gem/credentials"
-          chmod 0600 "${HOME}/.gem/credentials"
+          oidc_token="$(curl --silent --show-error --fail \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=rubygems.org" | jq -r '.value')"
+          echo "::add-mask::${oidc_token}"
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST https://rubygems.org/api/v1/oidc/trusted_publisher/exchange_token \
+            --header "Content-Type: application/json" \
+            --data "$(jq -n --arg jwt "${oidc_token}" --arg owner "${RUBYGEMS_OWNER_ID}" '{jwt: $jwt, owner: $owner}')")"
+          api_key="$(jq -r '.rubygems_api_key' <<<"${response}")"
+          echo "::add-mask::${api_key}"
+          echo "GEM_HOST_API_KEY=${api_key}" >> "$GITHUB_ENV"
 
-      # Push each .gem file individually. Platform-specific gems that are already
-      # published (e.g. from a re-run) emit a warning and continue rather than
-      # failing the whole job.
+      # Push each .gem file individually. A file that is already published (a
+      # re-run, or completing a partial release) is skipped; any other failure
+      # fails the job.
       - name: Push gems to RubyGems
-        if: steps.rubygems-check.outputs.exists != 'true'
         shell: bash
         run: |
           for gem_file in gems/*.gem; do
             echo "Pushing $(basename "${gem_file}")…"
-            gem push "${gem_file}" \
-              || echo "::warning::$(basename "${gem_file}") may already exist for this version — skipping."
+            if output=$(gem push "${gem_file}" 2>&1); then
+              echo "${output}"
+            elif grep -q "Repushing of gem versions is not allowed" <<<"${output}"; then
+              echo "::notice::$(basename "${gem_file}") is already on RubyGems, skipping."
+            else
+              echo "${output}" >&2
+              exit 1
+            fi
           done

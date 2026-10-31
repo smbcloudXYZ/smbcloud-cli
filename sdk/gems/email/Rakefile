@@ -9,6 +9,8 @@ GEMSPEC = Gem::Specification.load('email.gemspec')
 
 RbSys::ExtensionTask.new('email', GEMSPEC) do |ext|
   ext.lib_dir = 'lib/email'
+  ext.cross_compile = true
+  ext.cross_platform = %w[x86_64-linux aarch64-linux arm64-darwin x86_64-darwin]
 end
 
 task default: :compile

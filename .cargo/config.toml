@@ -1,0 +1,7 @@
+# Link the MSVC C runtime statically on Windows. Without this the binary
+# imports VCRUNTIME140.dll and the UCRT api-ms-win-crt-*.dll set, and on a
+# machine without the Visual C++ Redistributable it dies at load time with
+# STATUS_DLL_NOT_FOUND (0xC0000135) before main runs. winget ships smb as a
+# portable exe, so there is no installer to bring the runtime along.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

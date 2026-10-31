@@ -9,6 +9,8 @@ GEMSPEC = Gem::Specification.load('model.gemspec')
 
 RbSys::ExtensionTask.new('model', GEMSPEC) do |ext|
   ext.lib_dir = 'lib/model'
+  ext.cross_compile = true
+  ext.cross_platform = %w[x86_64-linux aarch64-linux arm64-darwin x86_64-darwin]
 end
 
 task default: :compile

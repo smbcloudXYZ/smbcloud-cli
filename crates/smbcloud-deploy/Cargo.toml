@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-deploy"
-version = "0.7.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["keypair34 <216233964+keypair34@users.noreply.github.com>, Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "smbCloud build and deploy engine: UI-agnostic, reusable by the CLI, CI, and the server-side git receiver."
@@ -14,9 +14,17 @@ categories = ["development-tools", "development-tools::build-utils"]
 
 [dependencies]
 anyhow = { workspace = true }
+ignore = { workspace = true }
+reqwest = { workspace = true, features = ["blocking", "json", "rustls-tls-native-roots"] }
+serde = { workspace = true, features = ["derive"] }
+sha2 = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-utils = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+wiremock = { workspace = true }

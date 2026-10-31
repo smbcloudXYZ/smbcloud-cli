@@ -106,7 +106,7 @@ fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
 ///
 /// The returned snippet references the shell var `$PM2_APP` (set earlier in the
 /// deploy script). `port` is only used by the pm2 path.
-fn restart_stanza(process_manager: Option<&str>, port: u16) -> Result<String> {
+pub(super) fn restart_stanza(process_manager: Option<&str>, port: u16) -> Result<String> {
     let use_systemd = match process_manager.map(str::trim) {
         None | Some("") => false,
         Some(m) if m.eq_ignore_ascii_case("pm2") => false,
@@ -877,7 +877,7 @@ EOF
 
 /// Mark the in-flight deployment record as Failed.
 /// Called on any early-return error path so the dashboard reflects reality.
-async fn mark_failed(
+pub(super) async fn mark_failed(
     deploy_ref: &str,
     created_deployment: &Option<smbcloud_model::project::Deployment>,
     config: &Config,

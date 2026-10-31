@@ -2,7 +2,14 @@
 
 require 'json'
 require_relative 'email/version'
-require_relative 'email/email'
+# Fat native gems ship one extension per Ruby minor (lib/email/3.4/email.bundle);
+# source and single-ABI builds put it directly under lib/email/.
+begin
+  RUBY_VERSION =~ /(\d+\.\d+)/
+  require_relative "email/#{Regexp.last_match(1)}/email"
+rescue LoadError
+  require_relative 'email/email'
+end
 
 module Email
 end

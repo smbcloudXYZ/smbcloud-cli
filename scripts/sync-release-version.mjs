@@ -4,12 +4,12 @@ import { resolve } from "node:path";
 const repoRoot = resolve(import.meta.dirname, "..");
 const cliCargoTomlPath = resolve(repoRoot, "crates/cli/Cargo.toml");
 const workspaceCargoTomlPath = resolve(repoRoot, "Cargo.toml");
-const npmCliPackageJsonPath = resolve(repoRoot, "npm/smbcloud-cli/package.json");
-const npmCliPackageLockPath = resolve(repoRoot, "npm/smbcloud-cli/package-lock.json");
-const nugetCliProjectPath = resolve(repoRoot, "nuget/smbcloud-cli/SmbCloud.Cli.csproj");
-const npmXcrsPackageJsonPath = resolve(repoRoot, "npm/xcrs/package.json");
-const npmXcrsPackageLockPath = resolve(repoRoot, "npm/xcrs/package-lock.json");
-const nugetXcrsProjectPath = resolve(repoRoot, "nuget/xcrs/Xcrs.csproj");
+const npmCliPackageJsonPath = resolve(repoRoot, "packaging/npm/smbcloud-cli/package.json");
+const npmCliPackageLockPath = resolve(repoRoot, "packaging/npm/smbcloud-cli/package-lock.json");
+const nugetCliProjectPath = resolve(repoRoot, "packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj");
+const npmXcrsPackageJsonPath = resolve(repoRoot, "packaging/npm/xcrs/package.json");
+const npmXcrsPackageLockPath = resolve(repoRoot, "packaging/npm/xcrs/package-lock.json");
+const nugetXcrsProjectPath = resolve(repoRoot, "packaging/nuget/xcrs/Xcrs.csproj");
 const sdkNpmPackageJsonPath = resolve(repoRoot, "sdk/npm/smbcloud-auth/package.json");
 const authGemVersionPath = resolve(repoRoot, "sdk/gems/auth/lib/auth/version.rb");
 const authGemCargoTomlPath = resolve(repoRoot, "sdk/gems/auth/ext/auth/Cargo.toml");
@@ -18,8 +18,8 @@ const modelGemCargoTomlPath = resolve(repoRoot, "sdk/gems/model/ext/model/Cargo.
 const emailGemVersionPath = resolve(repoRoot, "sdk/gems/email/lib/email/version.rb");
 const emailGemCargoTomlPath = resolve(repoRoot, "sdk/gems/email/ext/email/Cargo.toml");
 const emailGemLockPath = resolve(repoRoot, "sdk/gems/email/Gemfile.lock");
-const mcpServerJsonPath = resolve(repoRoot, "server.json");
-const xcrsMcpServerJsonPath = resolve(repoRoot, "server-xcrs.json");
+const mcpServerJsonPath = resolve(repoRoot, "packaging/mcp/server.json");
+const xcrsMcpServerJsonPath = resolve(repoRoot, "packaging/mcp/server-xcrs.json");
 
 function readText(path) {
   return readFileSync(path, "utf8");
@@ -228,14 +228,23 @@ if (
 }
 
 if (
-  updateFile(modelGemCargoTomlPath, (content) =>
-    replaceOrThrow(
+  updateFile(modelGemCargoTomlPath, (content) => {
+    let next = replaceOrThrow(
       content,
       /^version\s*=\s*"[^"]+"/m,
       `version = "${releaseVersion}"`,
       `${modelGemCargoTomlPath} package version`,
-    ),
-  )
+    );
+
+    next = replaceOrThrow(
+      next,
+      /(smbcloud-model\s*=\s*\{\s*version\s*=\s*")([^"]+)("\s*\})/,
+      `$1${rubySdkRequirement}$3`,
+      `${modelGemCargoTomlPath} dependency smbcloud-model`,
+    );
+
+    return next;
+  })
 ) {
   updatedPaths.push(modelGemCargoTomlPath);
 }
@@ -260,6 +269,9 @@ if (
       /^version\s*=\s*"[^"]+"/m,
       `version = "${releaseVersion}"`,
       `${emailGemCargoTomlPath} package version`,
+    ).replace(
+      /(smbcloud-email-sdk\s*=\s*\{\s*version\s*=\s*")([^"]+)("\s*\})/,
+      `$1${rubySdkRequirement}$3`,
     ),
   )
 ) {

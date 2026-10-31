@@ -1,6 +1,8 @@
 pub mod config;
 mod git;
 pub mod process_deploy;
+pub mod process_deploy_artifact;
+pub mod process_deploy_astro_ssr;
 pub mod process_deploy_nextjs_ssr;
 pub mod process_deploy_rails;
 pub mod process_deploy_rust;

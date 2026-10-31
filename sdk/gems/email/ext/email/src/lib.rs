@@ -2,10 +2,16 @@ use magnus::{function, prelude::*, Error, Ruby};
 use smbcloud_email_sdk::{EmailClient, EmailCredentials, Environment, SendEmail};
 use tokio::runtime::Runtime;
 
+// Every helper here runs on the Ruby thread that called into the extension
+// (tokio's `block_on` stays on the calling thread), so the handle is available.
+fn ruby() -> Ruby {
+    Ruby::get().expect("smbcloud-email called outside a Ruby thread")
+}
+
 fn parse_environment(value: String) -> Result<Environment, Error> {
     value.parse().map_err(|_| {
         Error::new(
-            magnus::exception::arg_error(),
+            ruby().exception_arg_error(),
             format!("invalid environment `{value}`, expected `dev` or `production`"),
         )
     })
@@ -17,7 +23,7 @@ where
 {
     let runtime = Runtime::new().map_err(|err| {
         Error::new(
-            magnus::exception::runtime_error(),
+            ruby().exception_runtime_error(),
             format!("failed to initialize tokio runtime: {err}"),
         )
     })?;
@@ -25,7 +31,7 @@ where
 }
 
 fn runtime_error(message: impl std::fmt::Display) -> Error {
-    Error::new(magnus::exception::runtime_error(), message.to_string())
+    Error::new(ruby().exception_runtime_error(), message.to_string())
 }
 
 fn client(environment: Environment, api_key: &str) -> EmailClient {
@@ -37,7 +43,7 @@ fn client(environment: Environment, api_key: &str) -> EmailClient {
 fn send_json(environment: String, api_key: String, message_json: String) -> Result<String, Error> {
     let env = parse_environment(environment)?;
     let message: SendEmail = serde_json::from_str(&message_json)
-        .map_err(|err| Error::new(magnus::exception::arg_error(), format!("invalid message: {err}")))?;
+        .map_err(|err| Error::new(ruby().exception_arg_error(), format!("invalid message: {err}")))?;
 
     with_runtime(|runtime| {
         match runtime.block_on(client(env, &api_key).send(&message)) {

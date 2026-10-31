@@ -6,9 +6,3 @@
 members = ["./ext/email"]
 resolver = "2"
 
-# For local development, build the native extension against the in-repo SDK crate
-# rather than the published one. The release tooling publishes smbcloud-email-sdk
-# first, after which the version dependency in ext/email/Cargo.toml resolves from
-# crates.io and this patch is a no-op.
-[patch.crates-io]
-smbcloud-email-sdk = { path = "../../../crates/smbcloud-email-sdk" }

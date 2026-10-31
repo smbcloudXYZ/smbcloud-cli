@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-gresiq-sdk"
-version = "0.7.0"
+version = "1.1.0"
 edition = "2021"
 description = "Rust client for the smbCloud GresIQ REST gateway — API-key auth, app management, and model assignment for Onde Inference."
 license = "Apache-2.0"
@@ -24,3 +24,6 @@ serde_json = { workspace = true }
 smbcloud-network = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "net", "io-util"] }

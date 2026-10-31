@@ -95,14 +95,14 @@ jobs:
         with:
           target: ${{ matrix.build.TARGET }}
           manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
-          working-directory: pypi-xcrs
+          working-directory: packaging/pypi/xcrs
           args: --release --locked --compatibility pypi --out dist
 
       - name: Upload wheel artifact
         uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.build.NAME }}
-          path: pypi-xcrs/dist/*
+          path: packaging/pypi/xcrs/dist/*
 
   build-sdist:
     name: Build source distribution
@@ -145,14 +145,14 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          working-directory: pypi-xcrs
+          working-directory: packaging/pypi/xcrs
           args: --out dist
 
       - name: Upload sdist artifact
         uses: actions/upload-artifact@v7
         with:
           name: sdist
-          path: pypi-xcrs/dist/*
+          path: packaging/pypi/xcrs/dist/*
 
   publish-pypi:
     name: Publish to PyPI

@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auth app</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --border: #e2e2e2;
+    --accent: #2563eb;
+    --ok: #15803d;
+    --fail: #b91c1c;
+    --busy: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1b1b;
+      --fg: #ececec;
+      --muted: #9a9a9a;
+      --border: #333333;
+      --accent: #60a5fa;
+      --ok: #4ade80;
+      --fail: #f87171;
+      --busy: #fbbf24;
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ffffff; --fg: #1a1a1a; --muted: #6b6b6b; --border: #e2e2e2;
+    --accent: #2563eb; --ok: #15803d; --fail: #b91c1c; --busy: #b45309;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #1b1b1b; --fg: #ececec; --muted: #9a9a9a; --border: #333333;
+    --accent: #60a5fa; --ok: #4ade80; --fail: #f87171; --busy: #fbbf24;
+  }
+  body {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; }
+  button {
+    font: inherit;
+    color: var(--fg);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .card h2 { margin: 0 0 2px; font-size: 14px; }
+  .card .sub { display: block; color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+  .field { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .field .label { width: 110px; color: var(--muted); font-size: 12px; flex: none; }
+  .field .value { flex: 1; min-width: 0; word-break: break-all; }
+  .field .value.empty { color: var(--muted); }
+  code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .checks { margin: 12px 0 0; padding: 0; list-style: none; }
+  .checks li { padding: 6px 0; border-top: 1px solid var(--border); }
+  .checks .state { font-weight: 500; }
+  .ok { color: var(--ok); }
+  .todo { color: var(--busy); }
+  .off { color: var(--muted); }
+  h3 { margin: 14px 0 0; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .message { padding: 24px 8px; text-align: center; color: var(--muted); }
+  .message.error { color: var(--fail); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Auth app</h1>
+</header>
+<div id="content" class="message">Waiting for data…</div>
+<script>
+(function () {
+  "use strict";
+
+  var nextId = 1;
+  var pending = {};
+  var contentEl = document.getElementById("content");
+
+  function send(message) {
+    window.parent.postMessage(Object.assign({ jsonrpc: "2.0" }, message), "*");
+  }
+
+  function request(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = nextId++;
+      pending[id] = { resolve: resolve, reject: reject };
+      send({ id: id, method: method, params: params });
+    });
+  }
+
+  function notify(method, params) {
+    send({ method: method, params: params });
+  }
+
+  function applyHostContext(context) {
+    if (!context) return;
+    if (context.theme === "light" || context.theme === "dark") {
+      document.documentElement.setAttribute("data-theme", context.theme);
+    }
+    var variables = context.styles && context.styles.variables;
+    if (variables) {
+      Object.keys(variables).forEach(function (name) {
+        if (variables[name]) document.documentElement.style.setProperty(name, variables[name]);
+      });
+    }
+  }
+
+  function showMessage(text, isError) {
+    contentEl.className = "message" + (isError ? " error" : "");
+    contentEl.textContent = text;
+  }
+
+  // The sandboxed frame may not be granted clipboard-write, so fall back to a
+  // transient textarea and execCommand.
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).catch(function () { return fallbackCopy(text); });
+    }
+    return fallbackCopy(text);
+  }
+
+  function fallbackCopy(text) {
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement("textarea");
+      area.value = text;
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      var copied = false;
+      try { copied = document.execCommand("copy"); } catch (error) { copied = false; }
+      document.body.removeChild(area);
+      if (copied) resolve(); else reject(new Error("copy failed"));
+    });
+  }
+
+  function copyButton(getText) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Copy";
+    button.addEventListener("click", function () {
+      copyText(getText()).then(function () {
+        button.textContent = "Copied";
+      }, function () {
+        button.textContent = "Copy failed";
+      }).then(function () {
+        setTimeout(function () { button.textContent = "Copy"; }, 1500);
+      });
+    });
+    return button;
+  }
+
+  function field(label, valueNode, buttons) {
+    var row = document.createElement("div");
+    row.className = "field";
+    var labelEl = document.createElement("span");
+    labelEl.className = "label";
+    labelEl.textContent = label;
+    var valueEl = document.createElement("span");
+    valueEl.className = "value";
+    valueEl.appendChild(valueNode);
+    row.appendChild(labelEl);
+    row.appendChild(valueEl);
+    (buttons || []).forEach(function (button) { row.appendChild(button); });
+    return row;
+  }
+
+  function code(text) {
+    var el = document.createElement("code");
+    el.textContent = text;
+    return el;
+  }
+
+  function plain(text, empty) {
+    var el = document.createElement("span");
+    if (empty) el.className = "empty";
+    el.textContent = text;
+    return el;
+  }
+
+  function secretField(secret) {
+    if (!secret) return field("Client secret", plain("Not shown. The secret is only returned when the app is created.", true));
+    var shown = false;
+    var value = code("••••••••••••");
+    var reveal = document.createElement("button");
+    reveal.type = "button";
+    reveal.textContent = "Reveal";
+    reveal.addEventListener("click", function () {
+      shown = !shown;
+      value.textContent = shown ? secret : "••••••••••••";
+      reveal.textContent = shown ? "Hide" : "Reveal";
+    });
+    return field("Client secret", value, [reveal, copyButton(function () { return secret; })]);
+  }
+
+  function check(state, label, detail) {
+    var item = document.createElement("li");
+    var mark = document.createElement("span");
+    mark.className = "state " + state;
+    mark.textContent = state === "ok" ? "Done" : state === "todo" ? "To do" : "Off";
+    item.appendChild(mark);
+    item.appendChild(document.createTextNode(" " + label));
+    if (detail) {
+      var sub = document.createElement("span");
+      sub.className = "sub";
+      sub.style.marginBottom = "0";
+      sub.textContent = detail;
+      item.appendChild(sub);
+    }
+    return item;
+  }
+
+  function appleChecks(app) {
+    var list = document.createElement("ul");
+    list.className = "checks";
+    if (!app.apple_oauth_enabled) {
+      list.appendChild(check("off", "Sign in with Apple is not enabled"));
+      return list;
+    }
+    list.appendChild(check("ok", "Sign in with Apple enabled"));
+    list.appendChild(check(
+      app.apple_oauth_client_id ? "ok" : "todo",
+      "Services ID",
+      app.apple_oauth_client_id || "Not set"
+    ));
+    list.appendChild(check(
+      app.apple_oauth_secret_present ? "ok" : "todo",
+      "Client secret stored"
+    ));
+    list.appendChild(check(
+      app.apple_oauth_configured ? "ok" : "todo",
+      "Credentials complete"
+    ));
+    return list;
+  }
+
+  function render(app) {
+    var card = document.createElement("div");
+    card.className = "card";
+    var name = document.createElement("h2");
+    name.textContent = app.name || "Auth app";
+    card.appendChild(name);
+    if (app.project_id !== null && app.project_id !== undefined) {
+      var project = document.createElement("span");
+      project.className = "sub";
+      project.textContent = "Project " + app.project_id;
+      card.appendChild(project);
+    }
+    card.appendChild(field("Client ID", code(app.id), [copyButton(function () { return app.id; })]));
+    card.appendChild(secretField(app.secret));
+    card.appendChild(field(
+      "Support email",
+      app.support_email ? plain(app.support_email) : plain("Not set", true)
+    ));
+    var heading = document.createElement("h3");
+    heading.textContent = "Providers";
+    card.appendChild(heading);
+    card.appendChild(appleChecks(app));
+    contentEl.className = "";
+    contentEl.replaceChildren(card);
+  }
+
+  function renderResult(result) {
+    if (!result) return;
+    if (result.isError) {
+      var first = result.content && result.content[0];
+      showMessage((first && first.text) || "The Auth app request failed.", true);
+      return;
+    }
+    var data = result.structuredContent;
+    if (!data || !data.auth_app) {
+      showMessage("No Auth app data in the tool result.", true);
+      return;
+    }
+    render(data.auth_app);
+  }
+
+  window.addEventListener("message", function (event) {
+    if (event.source !== window.parent) return;
+    var message = event.data;
+    if (!message || message.jsonrpc !== "2.0") return;
+
+    if (message.method === undefined && message.id !== undefined) {
+      var entry = pending[message.id];
+      if (!entry) return;
+      delete pending[message.id];
+      if (message.error) entry.reject(message.error);
+      else entry.resolve(message.result);
+      return;
+    }
+
+    var params = message.params || {};
+    switch (message.method) {
+      case "ui/notifications/tool-result":
+        renderResult(params);
+        break;
+      case "ui/notifications/host-context-changed":
+        applyHostContext(params);
+        break;
+      case "ui/resource-teardown":
+        send({ id: message.id, result: {} });
+        break;
+    }
+  });
+
+  request("ui/initialize", {
+    appInfo: { name: "smbcloud-auth-app", version: "1.0.0" },
+    appCapabilities: {},
+    protocolVersion: "2026-01-26"
+  }).then(function (result) {
+    applyHostContext(result && result.hostContext);
+    notify("ui/notifications/initialized", {});
+  }).catch(function () {
+    showMessage("Could not reach the host.", true);
+  });
+})();
+</script>
+</body>
+</html>

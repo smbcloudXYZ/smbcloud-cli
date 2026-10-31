@@ -38,6 +38,7 @@ yarn-error.log*
 # (run on predev/prebuild). ../docs is the source of truth; index.mdx is hand-written.
 /content/developer/_meta.js
 /content/developer/cli/_meta.js
+/content/developer/cli/install.mdx
 /content/developer/cli/native.mdx
 /content/developer/cli/homebrew.mdx
 /content/developer/cli/npm.mdx

@@ -1,6 +1,6 @@
 use {
     anyhow::{anyhow, Result},
-    clap::Parser,
+    clap::{CommandFactory, Parser},
     console::style,
     smbcloud_cli::{
         account::{login::process_login, logout::process_logout, me::process_me, process_account},
@@ -8,12 +8,15 @@ use {
         cli::{Cli, CommandResult, Commands},
         cloud_auth::process::process_cloud_auth,
         controlkit::process_controlkit,
-        deploy::{process_deploy::process_deploy, process_migrate::process_migrate},
+        deploy::{
+            process_deploy::{process_deploy, DeployOptions},
+            process_migrate::process_migrate,
+        },
         mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
         tenant::process::process_tenant,
     },
-    smbcloud_network::{environment::Environment, network::check_internet_connection},
+    smbcloud_network::environment::Environment,
     std::{
         fs::{create_dir_all, OpenOptions},
         path::PathBuf,
@@ -172,34 +175,32 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         setup_logging(cli.environment, None)?;
     }
 
-    // Check if the command requires internet connection
-    let needs_internet = match &cli.command {
-        Some(Commands::Me {})
-        | Some(Commands::Deploy { .. })
-        | Some(Commands::Login {})
-        | Some(Commands::Logout {})
-        | Some(Commands::Account { .. })
-        | Some(Commands::Mail { .. })
-        | Some(Commands::Auth { .. })
-        | Some(Commands::Project { .. })
-        | Some(Commands::Tenant { .. })
-        | Some(Commands::Migrate {})
-        | None => true,
-        Some(Commands::ControlKit { .. }) => false,
-        Some(Commands::Init {}) => true,
-    };
-
-    // Check internet connectivity for commands that need it
-    if needs_internet && !check_internet_connection().await {
-        return Err(anyhow!(
-            "No internet connection. Please check your network settings and try again."
-        ));
+    // Bare `smb` with no subcommand prints help and exits cleanly. Deploy is a
+    // deliberate action, so we don't want to run it implicitly — and winget's
+    // installer validation launches the exe with no arguments and treats a
+    // non-zero exit as a failure, which an implicit deploy (no config, no
+    // login, no network) would always trigger.
+    if cli.command.is_none() {
+        Cli::command().print_help()?;
+        println!();
+        std::process::exit(0);
     }
 
     match cli.command {
         Some(Commands::Me {}) => process_me(cli.environment).await,
         Some(Commands::Init {}) => process_project_init(cli.environment, true).await,
-        Some(Commands::Deploy { project }) => process_deploy(cli.environment, project).await,
+        Some(Commands::Deploy {
+            project,
+            dry_run,
+            prebuilt,
+        }) => {
+            process_deploy(
+                cli.environment,
+                project,
+                DeployOptions { dry_run, prebuilt },
+            )
+            .await
+        }
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
         Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,
@@ -209,6 +210,6 @@ async fn run(cli: Cli) -> Result<CommandResult> {
         Some(Commands::Tenant { command }) => process_tenant(cli.environment, command).await,
         Some(Commands::ControlKit { command }) => process_controlkit(command).await,
         Some(Commands::Migrate {}) => process_migrate(cli.environment).await,
-        None => process_deploy(cli.environment, None).await,
+        None => unreachable!("handled above: bare invocation prints help and exits"),
     }
 }

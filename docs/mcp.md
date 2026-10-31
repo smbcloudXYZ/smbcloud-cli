@@ -5,8 +5,8 @@ assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
 MCP-capable client — can send transactional email and manage your smbCloud
 projects, tenants, Mail apps, and Auth apps directly, without you leaving the
 chat to run `smb` commands by hand.
-Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 31
-tools covering the account, project, tenant, Mail, and Auth surfaces.
+Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 41
+tools covering the account, project, deploy, tenant, Mail, and Auth surfaces.
 
 Cross-platform mobile and TV app testing is exposed as a separate, focused MCP
 profile through `xcrs --mcp` or `smb --mcp --scope automation`. Keeping cloud
@@ -33,7 +33,8 @@ For building and starting the native runners, see
 
    This writes a token to `~/.smb/token` (`~/.smb-dev/token` in the `dev`
    environment). Every MCP tool call reuses that token; there's nothing
-   client-specific to configure for auth.
+   client-specific to configure for auth. A terminal session and an agent session share the same
+   token and the same selected tenant and project (`smb tenant use`, `smb project use`).
 
 ## Connect your client
 
@@ -96,6 +97,21 @@ Add the same shape to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json`
 }
 ```
 
+### Without a global install
+
+If `smb` is not on your `PATH`, run it through npm instead:
+
+```json
+{
+  "mcpServers": {
+    "smbcloud": {
+      "command": "npx",
+      "args": ["@smbcloud/cli", "--mcp"]
+    }
+  }
+}
+```
+
 ### Any other MCP client
 
 If your client's config isn't listed above, it almost certainly still takes a
@@ -128,6 +144,7 @@ whichever tenant is currently selected. Two tools manage that selection:
   selected, `project_create` targets it instead of your personal tenant.
 - **`project_use`** — selects a project for the session. Tools with an
   optional `project_id` (Mail apps, Auth apps) default to it when omitted.
+  Pass `frontend_app_id` to select one of the project's frontend apps too.
 
 Both persist to `~/.smb/config.toml` (`~/.smb-dev/config.toml` in `dev`) — the
 same file `smb tenant use` / `smb project use` write from the terminal. Switch
@@ -154,11 +171,73 @@ not a separate MCP-specific shape.
 | --- | --- | --- |
 | `project_list` | _(none)_ | The user's projects. |
 | `project_show` | `id` | A single project by ID. |
-| `project_use` | `id` | The selected project. Persists the selection (see above). |
+| `project_use` | `id`, `frontend_app_id` (optional, must belong to the project) | The selected project. Persists the selection (see above). |
 | `project_create` | `name`, `description` (optional) | The created project. Targets the selected tenant, if any. |
-| `project_update` | `id`, `description` | The updated project (runner preserved). |
+| `project_update` | `id`, `description`, `runner` (optional) | The updated project. The runner is kept when omitted. |
 | `project_delete` | `id` | Confirmation. **Destructive and irreversible.** |
-| `deployments` | `project_id` | A project's deployments. |
+| `deployments` | `project_id` | A project's deployments. On MCP Apps hosts it also renders a dashboard (see below). |
+| `deployment_show` | `project_id`, `id` | A single deployment. |
+
+### Frontend apps, deploy repos, and deploy config
+
+A project holds a deploy repo (the git repository or monorepo root) and the
+frontend apps that ship from it. `runner` is one of `node_js`, `static`, `ruby`,
+`swift`, `rust`.
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `frontend_app_list` | `project_id` | The project's frontend apps. |
+| `frontend_app_show` | `id` | A single frontend app. |
+| `frontend_app_new` | `project_id`, `name`, `source_path` (optional), `runner` (optional, default `node_js`) | The created frontend app. |
+| `deploy_repo_new` | `project_id`, `repository`, `repo_kind` (`single_app` or `monorepo`), `runner` (optional) | The created repo. A single-app repo embeds the app it creates. |
+| `deploy_config_show` | `frontend_app_id` | The app's server-side deploy config. |
+| `deploy_config_update` | `frontend_app_id`, plus any of `runner`, `deployment_method` (`git` or `rsync`), `kind`, `source_path`, `remote_path`, `package_manager`, `pm2_app`, `port`, `output_path`, `build_command`, `install_command`, `binary_name`, `build_target`, `shared_lib_path` | The updated config. Only the fields passed change. |
+
+### Local tools (`project_init`, `deploy`, `migrate`)
+
+These act on a directory on the machine running `smb --mcp`, so each takes an
+explicit absolute `cwd`. They never prompt: anything the interactive CLI would
+ask is an argument, or the call fails with a message saying what is missing.
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `project_init` | `cwd`, `name`, `description` (optional), `repository`, `repo_kind`, `runner`, `apps` (`name`, `source_path`, `runner`), `overwrite` (all optional) | The project, its first app, and the written config path. Writes `<cwd>/.smb/config.toml`. Refuses to replace an existing config unless `overwrite` is true. |
+| `deploy` | `cwd`, `project` (optional monorepo sub-project) | `{ success, exit_code, output_tail }`. |
+| `migrate` | `cwd` | `{ success, exit_code, output_tail }`. |
+
+`deploy` and `migrate` need an existing `.smb/config.toml` in `cwd` (run
+`project_init` first). `deploy` builds locally, pushes to the server, and
+restarts the app, so it can take minutes; the call returns when it finishes.
+
+Both run the `smb` binary itself as a child process in `cwd` with `--ci`,
+rather than in the MCP process. The deploy paths use paths relative to the
+working directory and print progress to stdout, which in an MCP session is the
+JSON-RPC channel. `output_tail` is the last 200 lines of combined output with
+colors and spinner frames removed. The call is flagged as an error when the
+command exits non-zero.
+
+#### Interactive views (MCP Apps)
+
+Three tools declare an [MCP Apps](https://modelcontextprotocol.io/extensions/apps) view.
+Hosts that support the extension, such as Claude and ChatGPT, render it in a sandboxed frame
+next to the result:
+
+- `deployments` → `ui://smbcloud/deployments.html`: a table of deployments with status, app,
+  commit, and created/updated times, newest first, plus a **Refresh** button.
+- `mail_message_list` → `ui://smbcloud/inbox.html`: the inbox as a table (from, subject,
+  preview, received, forward status). Click a row to open the message, which calls
+  `mail_message_show`; **Back** returns to the list and **Refresh** reloads it. Only the
+  plain-text body is shown, never `html_body`.
+
+- `auth_app_show` and `auth_app_new` → `ui://smbcloud/auth-app.html`: a setup card with the
+  client ID (copy), the client secret (masked, with Reveal and Copy), the support email, and a
+  Sign in with Apple checklist. The secret is only present when the API returns it.
+
+List views show the newest 50 rows. Other clients see the same JSON result as before. Each
+view is a single self-contained HTML document that makes no network requests; Refresh and
+drill-in go back through the host with a `tools/call`. Tool `_meta` carries the view URI
+under both `ui.resourceUri` and the legacy `ui/resourceUri` key, since older hosts read only
+the flat one.
 
 ### Tenants
 
@@ -333,7 +412,7 @@ prefix.
 
 The CLI's own `project delete`, `tenant delete`, and similar commands ask for
 confirmation on a terminal — some require typing the resource's name back.
-**MCP tools skip that entirely.** MCP is a non-interactive protocol, so a
+**MCP tools skip that entirely.** Destructive tools carry the `destructiveHint` annotation so clients can prompt you, but the server itself does not ask. MCP is a non-interactive protocol, so a
 `*_delete` tool call executes immediately the moment the client sends it. The
 calling agent — and the person directing it — is responsible for confirming
 intent before invoking a destructive tool, exactly as with any other
@@ -343,29 +422,15 @@ If you want a harder guardrail, keep destructive operations out of an agent's
 reach at the client level (most MCP clients let you allow/deny individual
 tools per server) rather than relying on the server to ask twice.
 
-## Not exposed as tools (yet)
+## Not exposed as tools
 
-`deploy` and `migrate` are **deliberately not** MCP tools. Both are tightly
-coupled to the local working directory in ways a stdio tool call can't satisfy
-cleanly:
+These stay in the terminal on purpose:
 
-- **`deploy`** reads `.smb/config.toml` (running interactive `setup_project`
-  when it is missing), builds the app locally, then uploads over rsync and
-  restarts over SSH. It depends on the caller's current directory, local build
-  toolchains, and on-disk SSH keys, and it streams long-running progress — none
-  of which map onto a single non-interactive tool call. For automated deploys,
-  use the headless CLI path instead (`smb --ci deploy`, see
-  [CI / non-interactive deploys](./ci.md)), which is what CI and the deploy
-  action already drive.
-- **`migrate`** pushes local `.smb/config.toml` deploy fields up to the server,
-  so it is meaningless without a project directory to read from.
-
-Exposing either as a tool would mean designing an explicit, directory-free
-contract — e.g. accepting the full deploy configuration as arguments and
-returning streamed progress as structured events — rather than wrapping the
-existing directory-coupled handlers. That's intentionally left for a later
-pass; the tools above cover the account, project, tenant, Mail, and Auth
-surface that's well-defined over stdio today.
+- **`login`, `signup`, `logout`, `account forgot`.** They take credentials or
+  end the session, and a password should not pass through a chat. Tools that
+  need a session tell you to run `smb login`.
+- **`control-kit`.** Device automation lives in its own profile
+  (`--scope automation`, above).
 
 ## Talking to it directly
 
@@ -409,7 +474,7 @@ Yes, and vice versa — `tenant_use`/`project_use` write to the same
 `~/.smb/config.toml` the CLI itself reads, so the two stay in sync.
 
 **Is the MCP server safe to point an autonomous agent at?**
-Every write tool — including every `*_delete` tool — executes immediately with
+Every write tool, including every `*_delete` tool and `deploy`, executes immediately with
 no confirmation prompt, since MCP is non-interactive by design. Treat tool
 access the way you'd treat handing someone your terminal with `smb` already
 logged in: fine for a trusted agent you're directing, not something to expose

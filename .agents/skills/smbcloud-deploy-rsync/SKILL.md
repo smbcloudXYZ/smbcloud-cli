@@ -15,6 +15,18 @@ Applies to:
 - reproducing command semantics like `rsync -a source/ host:path/`
 - SSH key and remote destination handling for smbCloud runners
 
+## Static sites no longer use this path
+
+Apps whose server record has `publish_target = artifact` (plain static,
+`vite-spa`, `sveltekit`) deploy over HTTPS instead: `process_deploy_artifact.rs`
+builds a manifest with `smbcloud_deploy::build_manifest`, and
+`HttpsArtifactTransport` uploads the missing blobs and waits for the deployment
+to go live. That path reads no SSH key, resolves no host and calls no `me`; its
+only credential is `SMB_TOKEN` (an app-scoped deploy token) or the login token.
+The MCP `deploy` tool goes through the same command. Everything on this page
+applies to the apps still on `publish_target = legacy_ssh`, which print a
+deprecation note. Do not add new kinds to the SSH path.
+
 ## Scope boundary
 
 This skill is for the generic rsync deploy implementation in `smbcloud-cli`.

@@ -5,9 +5,13 @@
 //! `device_capabilities`, `app_install_launch`, `screen_capture`, `app_launch`,
 //! `app_terminate`, `url_open`, `ui_describe`, `ui_element_list`, `input_tap`,
 //! `input_text`, `input_swipe`, `input_button`, `input_click`, `input_spatial_tap`,
-//! `orientation_get`, and `orientation_set`. Each name is supplied by the embedder
+//! `orientation_get`, `orientation_set`, `posture_get`, and `posture_set`. Each name is supplied by the embedder
 //! through [`xcrs_mcp_tools`] so the standalone crate and CLI profile share one
 //! implementation and one public contract.
+//!
+//! `screen_capture` takes a `display` for foldable simulators such as iPhone Duo,
+//! which have an outer and an inner display; `posture_get` and `posture_set` read
+//! and change the fold state.
 //!
 //! Targets are Apple simulators, Apple ControlKit hosts (physical/remote devices or
 //! a local macOS runner), or Android devices reachable through adb. A target can be
@@ -336,9 +340,104 @@ impl Orientation {
     }
 }
 
+/// The fold state `posture_set` can request on a foldable simulator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Posture {
+    /// Hinge closed: the outer display is live.
+    Folded,
+    /// Hinge fully open: the inner display is live.
+    Unfolded,
+}
+
+impl Posture {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Folded => "folded",
+            Self::Unfolded => "unfolded",
+        }
+    }
+
+    /// The Device Hub hinge button that sets this posture.
+    pub fn hinge_button(self) -> &'static str {
+        match self {
+            Self::Folded => "closed",
+            Self::Unfolded => "open",
+        }
+    }
+
+    /// Whether a runner's `device.hinge.get` status means this posture.
+    pub fn matches_hinge_status(self, status: &str) -> bool {
+        status
+            == match self {
+                Self::Folded => "closed",
+                Self::Unfolded => "fullyOpen",
+            }
+    }
+}
+
+/// The display that shows content for a runner hinge status: the outer display
+/// when the hinge is closed, the inner display otherwise. `None` when the status
+/// is unknown or the device does not have an outer and an inner display.
+pub fn live_display<'a>(
+    hinge_status: &str,
+    displays: &'a [crate::SimDisplay],
+) -> Option<&'a crate::SimDisplay> {
+    let role = match hinge_status {
+        "closed" => "outer",
+        "partiallyOpen" | "fullyOpen" => "inner",
+        _ => return None,
+    };
+    displays.iter().find(|display| display.role == role)
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PostureGetArgs {
+    /// Exact Apple simulator name. Omit to use the target selected with
+    /// `device_select`.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Apple simulator UDID. Omit to use the target selected with `device_select`.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// ControlKit host of a physical device or remote runner. Omit for a local
+    /// simulator.
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Local ControlKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub controlkit_port: Option<u16>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PostureSetArgs {
+    /// Exact Apple simulator name. Omit to use the target selected with
+    /// `device_select`.
+    #[serde(default)]
+    pub simulator_name: Option<String>,
+    /// Apple simulator UDID. Omit to use the target selected with `device_select`.
+    #[serde(default)]
+    pub simulator_udid: Option<String>,
+    /// Local ControlKit JSON-RPC port. Defaults to 12004.
+    #[serde(default)]
+    pub controlkit_port: Option<u16>,
+    /// `folded` closes the hinge so the outer display is live; `unfolded` opens it
+    /// fully so the inner display is live.
+    pub posture: Posture,
+}
+
 /// Static, hand-maintained capability description for Android targets. Unlike
 /// Apple's `device.capabilities` ControlKit call, adb has no capability-discovery
 /// RPC, so this mirrors exactly the actions `AndroidDebugBridge` implements.
+///
+/// This is the adb-only baseline, and the semantic UI actions it reports as
+/// `false` (`ui_describe`, `ui_element_list`, `ui_tap`) are the ones that only
+/// XCRS AndroidKit can provide. The `device_capabilities` handler starts from
+/// this value and, when it reaches AndroidKit via its `device.info` call,
+/// upgrades exactly those three to `true` and records an `androidkit` object;
+/// when the call fails, it leaves them `false` and records the setup hint
+/// instead. So a `false` here means "not available over adb alone", not "never
+/// available on this target".
 pub fn android_capabilities() -> serde_json::Value {
     serde_json::json!({
         "screen_capture": true,
@@ -460,9 +559,54 @@ pub struct ScreenCaptureArgs {
     /// field.
     #[serde(default)]
     pub device: Option<String>,
+    /// Which display of an Apple simulator to capture: `outer`, `inner`, `all`, or
+    /// a screen ID from `device_capabilities`. Omit it to capture every display of
+    /// a foldable device (such as iPhone Duo), or the only display of any other.
+    /// Only valid for Apple simulators.
+    #[serde(default)]
+    pub display: Option<String>,
     /// Android device serial from `adb devices -l`.
     #[serde(default)]
     pub android_serial: Option<String>,
+}
+
+/// Capture the requested displays of a simulator as MCP content. A selection of
+/// more than one display yields a text label followed by an image per display;
+/// a single display yields just the image, as it always has.
+pub fn capture_simulator(
+    udid: &str,
+    display: Option<&str>,
+) -> Result<Vec<rmcp::model::ContentBlock>> {
+    let tools = crate::XcodeCommandLineTools::new();
+    let simctl = tools.simctl();
+
+    let displays = match simctl.displays(udid) {
+        Ok(displays) => displays,
+        // Without display metadata only the primary display can be captured.
+        Err(_) if display.is_none() => {
+            let screenshot = simctl.screenshot(udid, None)?;
+            return Ok(vec![rmcp::model::ContentBlock::image(
+                crate::encode_base64(screenshot),
+                "image/png",
+            )]);
+        }
+        Err(error) => return Err(error),
+    };
+
+    let selected = crate::select_displays(&displays, display)?;
+    let labelled = selected.len() > 1;
+    let mut content = Vec::new();
+    for entry in selected {
+        let screenshot = simctl.screenshot(udid, Some(&entry.screen_id.to_string()))?;
+        if labelled {
+            content.push(rmcp::model::ContentBlock::text(entry.describe()));
+        }
+        content.push(rmcp::model::ContentBlock::image(
+            crate::encode_base64(screenshot),
+            "image/png",
+        ));
+    }
+    Ok(content)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -529,6 +673,12 @@ pub struct TapArgs {
     /// Android device serial from `adb devices -l`.
     #[serde(default)]
     pub android_serial: Option<String>,
+    /// Bundle identifier of the app to tap in. Required on Apple targets, ignored on Android.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Backward-compatible alias for `app_id`.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
     /// Horizontal screen coordinate in points (Apple) or pixels (Android).
     pub x: f64,
     /// Vertical screen coordinate in points (Apple) or pixels (Android).
@@ -575,6 +725,12 @@ pub struct SwipeArgs {
     /// Android device serial from `adb devices -l`.
     #[serde(default)]
     pub android_serial: Option<String>,
+    /// Bundle identifier of the app to tap in. Required on Apple targets, ignored on Android.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Backward-compatible alias for `app_id`.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
     /// Swipe start horizontal coordinate.
     pub x1: f64,
     /// Swipe start vertical coordinate.
@@ -740,7 +896,9 @@ macro_rules! xcrs_mcp_tools {
         $input_click_name:literal,
         $input_spatial_tap_name:literal,
         $orientation_get_name:literal,
-        $orientation_set_name:literal
+        $orientation_set_name:literal,
+        $posture_get_name:literal,
+        $posture_set_name:literal
     ) => {
         #[::rmcp::tool_router(router = xcrs_tool_router, vis = "pub(crate)")]
         impl $server {
@@ -1050,6 +1208,8 @@ macro_rules! xcrs_mcp_tools {
                                     object.insert("androidkit".to_string(), ::serde_json::json!({ "available": true, "info": info }));
                                 }
                                 Err(error) => {
+                                    object.insert("ui_describe".to_string(), ::serde_json::json!(false));
+                                    object.insert("ui_element_list".to_string(), ::serde_json::json!(false));
                                     object.insert("ui_tap".to_string(), ::serde_json::json!(false));
                                     object.insert("androidkit".to_string(), ::serde_json::json!({
                                         "available": false,
@@ -1074,12 +1234,23 @@ macro_rules! xcrs_mcp_tools {
                             .map_err(|error| {
                                 ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
                             })?;
+                        let displays = simulator.as_ref().and_then(|simulator| {
+                            $crate::XcodeCommandLineTools::new()
+                                .simctl()
+                                .displays(&simulator.udid)
+                                .ok()
+                        });
+                        let mut payload = ::serde_json::json!({
+                            "platform": "apple",
+                            "simulator": simulator,
+                            "capabilities": result,
+                        });
+                        if let (Some(displays), Some(object)) = (displays, payload.as_object_mut()) {
+                            object.insert("foldable".to_string(), ::serde_json::json!(displays.len() > 1));
+                            object.insert("displays".to_string(), ::serde_json::json!(displays));
+                        }
                         Ok(::rmcp::model::CallToolResult::success(vec![
-                            ::rmcp::model::ContentBlock::json(&::serde_json::json!({
-                                "platform": "apple",
-                                "simulator": simulator,
-                                "capabilities": result,
-                            }))?,
+                            ::rmcp::model::ContentBlock::json(&payload)?,
                         ]))
                     }
                 }
@@ -1129,7 +1300,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $screen_capture_name,
                 title = "Capture screenshot",
                 annotations(title = "Capture screenshot", read_only_hint = true, idempotent_hint = true),
-                description = "Purpose: capture a PNG screenshot of the resolved target's current screen. When to use vs siblings: use this for a pixel image; use ui_describe or ui_element_list instead when you need element coordinates or labels rather than pixels. Behavior: for an Apple simulator, captures through `simctl io screenshot`; for a paired physical Apple device, pass its CoreDevice identifier as `device` to capture through `devicectl` (this bypasses simulator/host/android_serial resolution entirely and is mutually exclusive with them); for an Android device, captures through `adb exec-out screencap`. Prerequisites: the target must be booted/connected and, for simulators, `simctl` must be able to reach it. Failure modes: returns an error if `device` is combined with any other target field, if the resolved target is an Apple ControlKit host (screenshot over ControlKit is not implemented; use `device` or select a simulator instead), or if the underlying capture command fails."
+                description = "Purpose: capture a PNG screenshot of the resolved target's current screen. When to use vs siblings: use this for a pixel image; use ui_describe or ui_element_list instead when you need element coordinates or labels rather than pixels. Behavior: for an Apple simulator, captures through `simctl io screenshot`; a foldable simulator such as iPhone Duo has two displays (outer and inner), and only the one currently in use shows content, so by default every display is captured, each preceded by a text block naming it (for example `screen 1 outer 1398x2034`), and `display` (`outer`, `inner`, `all` or a screen ID) narrows that; for a paired physical Apple device, pass its CoreDevice identifier as `device` to capture through `devicectl` (this bypasses simulator/host/android_serial resolution entirely and is mutually exclusive with them); for an Android device, captures through `adb exec-out screencap`. Prerequisites: the target must be booted/connected and, for simulators, `simctl` must be able to reach it. Failure modes: returns an error if `device` is combined with any other target field, if `display` is given for a physical device or an Android device or names a display the simulator does not have, if the resolved target is an Apple ControlKit host (screenshot over ControlKit is not implemented; use `device` or select a simulator instead), or if the underlying capture command fails."
             )]
             async fn screen_capture(
                 &self,
@@ -1143,6 +1314,12 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::ErrorData,
             > {
                 if let Some(device) = &args.device {
+                    if args.display.is_some() {
+                        return Err(::rmcp::model::ErrorData::invalid_request(
+                            "display only applies to Apple simulators, not to a physical device.",
+                            None,
+                        ));
+                    }
                     if args.simulator_name.is_some()
                         || args.simulator_udid.is_some()
                         || args.host.is_some()
@@ -1174,17 +1351,27 @@ macro_rules! xcrs_mcp_tools {
                     args.controlkit_port,
                     args.android_serial,
                 )?;
-                let screenshot = match &target {
+                let content = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
+                        if args.display.is_some() {
+                            return Err(::rmcp::model::ErrorData::invalid_request(
+                                "display only applies to Apple simulators, not to Android devices.",
+                                None,
+                            ));
+                        }
                         let device = Self::android_device_for(serial.clone()).await?;
                         let device_serial = device.serial.clone();
-                        Self::run_android_blocking(move || {
+                        let screenshot = Self::run_android_blocking(move || {
                             $crate::AndroidDebugBridge::new().screenshot(&device_serial)
                         })
                             .await
                             .map_err(|error| {
                                 ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
-                            })?
+                            })?;
+                        vec![::rmcp::model::ContentBlock::image(
+                            $crate::encode_base64(screenshot),
+                            "image/png",
+                        )]
                     }
                     $crate::mcp::SelectedTarget::AppleSimulator {
                         simulator_name,
@@ -1192,9 +1379,7 @@ macro_rules! xcrs_mcp_tools {
                         ..
                     } => {
                         let simulator = Self::simulator_for(simulator_name, simulator_udid)?;
-                        $crate::XcodeCommandLineTools::new()
-                            .simctl()
-                            .screenshot(&simulator.udid)
+                        $crate::mcp::capture_simulator(&simulator.udid, args.display.as_deref())
                             .map_err(|error| {
                                 ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
                             })?
@@ -1208,12 +1393,7 @@ macro_rules! xcrs_mcp_tools {
                         ));
                     }
                 };
-                Ok(::rmcp::model::CallToolResult::success(vec![
-                    ::rmcp::model::ContentBlock::image(
-                        $crate::encode_base64(screenshot),
-                        "image/png",
-                    ),
-                ]))
+                Ok(::rmcp::model::CallToolResult::success(content))
             }
 
             #[::rmcp::tool(
@@ -1590,7 +1770,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $input_tap_name,
                 title = "Tap (iOS/tvOS/Android)",
                 annotations(title = "Tap (iOS/tvOS/Android)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
-                description = "Purpose: tap the resolved target at screen coordinates. When to use vs siblings: use input_click for macOS and input_spatial_tap for visionOS instead; read coordinates from ui_element_list or ui_describe first. Behavior: for an Apple target, calls ControlKit `device.io.tap`; for Android, runs `adb shell input tap`, rounding x/y to the nearest pixel. Prerequisites: a reachable ControlKit endpoint (Apple) or adb connection (Android). Failure modes: errors if no target can be resolved, if x or y is not a finite number, or if the underlying call fails."
+                description = "Purpose: tap the resolved target at screen coordinates. When to use vs siblings: use input_click for macOS and input_spatial_tap for visionOS instead; read coordinates from ui_element_list or ui_describe first. Behavior: for an Apple target, calls ControlKit `device.io.tap`; for Android, runs `adb shell input tap`, rounding x/y to the nearest pixel. Prerequisites: a reachable ControlKit endpoint (Apple, with the app running and its identifier passed as app_id) or adb connection (Android). Failure modes: errors if no target can be resolved, if an Apple target has no app_id, if x or y is not a finite number, or if the underlying call fails."
             )]
             async fn input_tap(
                 &self,
@@ -1630,11 +1810,12 @@ macro_rules! xcrs_mcp_tools {
                         device.serial
                     }
                     _ => {
+                        let app_id = Self::require_app_id("input_tap", args.app_id, args.bundle_id)?;
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
                         controlkit
                             .call(
                                 "device.io.tap",
-                                ::serde_json::json!({ "x": args.x, "y": args.y }),
+                                ::serde_json::json!({ "bundleId": app_id, "x": args.x, "y": args.y }),
                             )
                             .await
                             .map_err(|error| {
@@ -1710,7 +1891,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $input_swipe_name,
                 title = "Swipe",
                 annotations(title = "Swipe", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
-                description = "Purpose: swipe between two screen coordinates on the resolved target, e.g. to scroll. When to use vs siblings: use input_tap for a single point of contact instead. Behavior: for an Apple target, calls ControlKit `device.io.swipe`; for Android, runs `adb shell input swipe` with duration_ms (default 300, rounding x/y to the nearest pixel). Prerequisites: a reachable ControlKit endpoint (Apple) or adb connection (Android). Failure modes: errors if no target can be resolved, if any coordinate is not a finite number, or (Android) if duration_ms exceeds 10000."
+                description = "Purpose: swipe between two screen coordinates on the resolved target, e.g. to scroll. When to use vs siblings: use input_tap for a single point of contact instead. Behavior: for an Apple target, calls ControlKit `device.io.swipe`; for Android, runs `adb shell input swipe` with duration_ms (default 300, rounding x/y to the nearest pixel). Prerequisites: a reachable ControlKit endpoint (Apple, with the app running and its identifier passed as app_id) or adb connection (Android). Failure modes: errors if no target can be resolved, if an Apple target has no app_id, if any coordinate is not a finite number, or (Android) if duration_ms exceeds 10000."
             )]
             async fn input_swipe(
                 &self,
@@ -1758,11 +1939,13 @@ macro_rules! xcrs_mcp_tools {
                         device.serial
                     }
                     _ => {
+                        let app_id = Self::require_app_id("input_swipe", args.app_id, args.bundle_id)?;
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
                         controlkit
                             .call(
                                 "device.io.swipe",
                                 ::serde_json::json!({
+                                    "bundleId": app_id,
                                     "x1": args.x1,
                                     "y1": args.y1,
                                     "x2": args.x2,
@@ -2024,6 +2207,142 @@ macro_rules! xcrs_mcp_tools {
                     )),
                 ]))
             }
+
+            #[::rmcp::tool(
+                name = $posture_get_name,
+                title = "Get fold posture",
+                annotations(title = "Get fold posture", read_only_hint = true, idempotent_hint = true),
+                description = "Purpose: report whether a foldable simulator (such as iPhone Duo) is folded or unfolded, and which display is live. When to use vs siblings: use this before screen_capture or ui_element_list on a foldable to know which display shows content; use posture_set to change it. Behavior: calls the runner's ControlKit `device.hinge.get` and returns its status (`closed`, `partiallyOpen`, `fullyOpen`, or `unsupported` on a device without a hinge) and angle in radians (0 closed, pi fully open), plus `live_display`: the outer display when closed, the inner display otherwise. Prerequisites: a reachable ControlKit runner built with hinge support, running on iOS 27.1 or later. Failure modes: errors if no target can be resolved, if the target is Android, or if the runner is unreachable or outdated."
+            )]
+            async fn posture_get(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::PostureGetArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let target = Self::dispatch_apple_target(
+                    $posture_get_name,
+                    args.simulator_name,
+                    args.simulator_udid,
+                    args.host,
+                    args.controlkit_port,
+                )?;
+                let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
+                let hinge = controlkit
+                    .call("device.hinge.get", ::serde_json::json!({}))
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                let status = hinge
+                    .get("status")
+                    .and_then(::serde_json::Value::as_str)
+                    .unwrap_or("unsupported");
+                let live_display = simulator.as_ref().and_then(|simulator| {
+                    let displays = $crate::XcodeCommandLineTools::new()
+                        .simctl()
+                        .displays(&simulator.udid)
+                        .ok()?;
+                    $crate::mcp::live_display(status, &displays).cloned()
+                });
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::json(&::serde_json::json!({
+                        "simulator": simulator,
+                        "hinge": hinge,
+                        "live_display": live_display,
+                    }))?,
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $posture_set_name,
+                title = "Set fold posture",
+                annotations(title = "Set fold posture", read_only_hint = false, destructive_hint = false, idempotent_hint = true),
+                description = "Purpose: fold or unfold a foldable simulator (such as iPhone Duo). When to use vs siblings: use this to switch which display is live; use posture_get to read the current state. Behavior: reads the hinge through ControlKit, and if it is not already in the requested posture presses the matching hinge button (Closed or Open) in the simulator's Device Hub window through macOS accessibility, then polls `device.hinge.get` for up to 5 seconds until the hinge reports the new state. Prerequisites: Device Hub running with the simulator's window open (simctl and the Simulator app have no fold control), the Accessibility permission granted to the app running xcrs, and a ControlKit runner with hinge support. The window is found by the simulator's name, so keep a single Device Hub window per name. Failure modes: errors if the target is not an Apple simulator, if the device reports no hinge, if Device Hub or its window is missing, if Accessibility access is denied, or if the hinge does not change within the timeout."
+            )]
+            async fn posture_set(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::PostureSetArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let target = Self::dispatch_apple_target(
+                    $posture_set_name,
+                    args.simulator_name,
+                    args.simulator_udid,
+                    None,
+                    args.controlkit_port,
+                )?;
+                let (Some(simulator), controlkit) = Self::controlkit_for_target(&target)? else {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        concat!($posture_set_name, " only works on Apple simulators."),
+                        None,
+                    ));
+                };
+                let read_status = || async {
+                    let hinge = controlkit
+                        .call("device.hinge.get", ::serde_json::json!({}))
+                        .await
+                        .map_err(|error| {
+                            ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                        })?;
+                    Ok::<_, ::rmcp::model::ErrorData>(
+                        hinge
+                            .get("status")
+                            .and_then(::serde_json::Value::as_str)
+                            .unwrap_or("unsupported")
+                            .to_string(),
+                    )
+                };
+
+                let current = read_status().await?;
+                if current == "unsupported" {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        format!("{} has no hinge, so it cannot be folded.", simulator.name),
+                        None,
+                    ));
+                }
+                if !args.posture.matches_hinge_status(&current) {
+                    $crate::HostInspect::new()
+                        .set_posture(&simulator.name, args.posture.hinge_button())
+                        .map_err(|error| {
+                            ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                        })?;
+                    let deadline = ::std::time::Instant::now() + ::std::time::Duration::from_secs(5);
+                    loop {
+                        ::tokio::time::sleep(::std::time::Duration::from_millis(250)).await;
+                        if args.posture.matches_hinge_status(&read_status().await?) {
+                            break;
+                        }
+                        if ::std::time::Instant::now() >= deadline {
+                            return Err(::rmcp::model::ErrorData::internal_error(
+                                format!(
+                                    "Device Hub accepted the {} request but the hinge did not change within 5 seconds.",
+                                    args.posture.as_str()
+                                ),
+                                None,
+                            ));
+                        }
+                    }
+                }
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Set {} to {}.",
+                        simulator.name,
+                        args.posture.as_str()
+                    )),
+                ]))
+            }
         }
     };
 }
@@ -2048,7 +2367,9 @@ xcrs_mcp_tools!(
     "input_click",
     "input_spatial_tap",
     "orientation_get",
-    "orientation_set"
+    "orientation_set",
+    "posture_get",
+    "posture_set"
 );
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]
@@ -2087,6 +2408,73 @@ pub async fn serve() -> Result<()> {
 mod tests {
     use super::*;
 
+    fn duo_displays() -> Vec<crate::SimDisplay> {
+        let display = |screen_id, role: &str, width, height| crate::SimDisplay {
+            screen_id,
+            name: String::new(),
+            role: role.to_string(),
+            width,
+            height,
+        };
+        vec![
+            display(1, "outer", 1398, 2034),
+            display(3, "inner", 2007, 2853),
+        ]
+    }
+
+    #[test]
+    fn live_display_follows_the_hinge_status() {
+        let displays = duo_displays();
+
+        assert_eq!(
+            live_display("closed", &displays).map(|d| d.screen_id),
+            Some(1)
+        );
+        assert_eq!(
+            live_display("fullyOpen", &displays).map(|d| d.screen_id),
+            Some(3)
+        );
+        assert_eq!(
+            live_display("partiallyOpen", &displays).map(|d| d.screen_id),
+            Some(3)
+        );
+        assert!(live_display("unsupported", &displays).is_none());
+        assert!(live_display("closed", &displays[1..]).is_none());
+    }
+
+    #[test]
+    fn postures_map_to_hinge_buttons_and_statuses() {
+        assert_eq!(Posture::Folded.hinge_button(), "closed");
+        assert_eq!(Posture::Unfolded.hinge_button(), "open");
+        assert!(Posture::Folded.matches_hinge_status("closed"));
+        assert!(!Posture::Folded.matches_hinge_status("fullyOpen"));
+        assert!(Posture::Unfolded.matches_hinge_status("fullyOpen"));
+        assert!(!Posture::Unfolded.matches_hinge_status("partiallyOpen"));
+    }
+
+    #[test]
+    fn posture_set_args_accept_folded_and_unfolded_only() {
+        let args: PostureSetArgs =
+            serde_json::from_value(json!({ "posture": "folded" })).expect("folded is valid");
+        assert_eq!(args.posture, Posture::Folded);
+        assert!(serde_json::from_value::<PostureSetArgs>(json!({ "posture": "bent" })).is_err());
+        assert!(serde_json::from_value::<PostureSetArgs>(json!({})).is_err());
+    }
+
+    #[test]
+    fn screen_capture_advertises_the_display_argument() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        let tool = tools
+            .iter()
+            .find(|tool| tool.name == "screen_capture")
+            .expect("screen_capture is exposed");
+        assert!(tool
+            .input_schema
+            .get("properties")
+            .and_then(|p| p.get("display"))
+            .is_some());
+    }
+
     #[test]
     fn legacy_discovery_probe_receives_method_not_found() {
         let response = legacy_discovery_response(
@@ -2109,9 +2497,9 @@ mod tests {
         assert!(response.is_none());
     }
 
-    /// The 19 canonical tool names shared by the standalone and embedded
+    /// The 21 canonical tool names shared by the standalone and embedded
     /// automation servers.
-    const CANONICAL_TOOL_NAMES: [&str; 19] = [
+    const CANONICAL_TOOL_NAMES: [&str; 21] = [
         "device_list",
         "device_select",
         "device_capabilities",
@@ -2131,6 +2519,8 @@ mod tests {
         "input_spatial_tap",
         "orientation_get",
         "orientation_set",
+        "posture_get",
+        "posture_set",
     ];
 
     /// Fully-qualified tool names this crate used before the canonical-tool
@@ -2169,7 +2559,7 @@ mod tests {
     /// types it does not own, so they intentionally advertise no
     /// `output_schema`. Only `device_select` returns structured content built
     /// entirely from types this module owns, so it is the only tool with one.
-    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 18] = [
+    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 20] = [
         "device_list",
         "device_capabilities",
         "app_install_launch",
@@ -2188,10 +2578,12 @@ mod tests {
         "input_spatial_tap",
         "orientation_get",
         "orientation_set",
+        "posture_get",
+        "posture_set",
     ];
 
     #[test]
-    fn tool_router_exposes_exactly_the_nineteen_canonical_tools() {
+    fn tool_router_exposes_exactly_the_twentyone_canonical_tools() {
         let tools = XcrsMcpServer::xcrs_tool_router().list_all();
 
         assert_eq!(
@@ -2712,6 +3104,26 @@ mod tests {
         assert_eq!(
             capabilities["input_button"]["buttons"],
             serde_json::json!(AndroidButton::ALL)
+        );
+    }
+
+    /// The adb-only baseline reports the AndroidKit-backed semantic UI actions as
+    /// unavailable; `device_capabilities` may only ever upgrade them to `true`
+    /// after a successful `device.info` call, so a regression that flips them on
+    /// here would advertise actions that plain adb cannot perform.
+    #[test]
+    fn android_capabilities_reports_androidkit_backed_actions_as_unavailable() {
+        let capabilities = android_capabilities();
+        for action in ["ui_describe", "ui_element_list", "ui_tap"] {
+            assert_eq!(
+                capabilities[action],
+                serde_json::json!(false),
+                "{action} is AndroidKit-backed and must default to false"
+            );
+        }
+        assert!(
+            capabilities.get("androidkit").is_none(),
+            "the androidkit object is added by the device_capabilities handler, not the baseline"
         );
     }
 }

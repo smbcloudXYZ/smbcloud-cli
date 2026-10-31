@@ -35,8 +35,38 @@ and write the file at the start of the job:
     chmod 600 ~/.smb/token
 ```
 
-Deploys also rsync over SSH using `~/.ssh/id_<user-id>@smbcloud`; install that
-key the same way if your project deploys to a server tier.
+## Static sites: HTTPS, no SSH key
+
+Apps the server publishes as artifacts (`publish_target = artifact`; plain
+static, `vite-spa` and `sveltekit`) deploy over HTTPS with an app-scoped deploy
+token and nothing else. Mint the token once with a user session, store it as a
+CI secret, and export it as `SMB_TOKEN`:
+
+```yaml
+- run: smb deploy --prebuilt --ci
+  env:
+    SMB_TOKEN: ${{ secrets.SMB_DEPLOY_TOKEN }}
+```
+
+There is no `smb login`, no `~/.ssh` key and no `known_hosts`. The CLI hashes the
+output directory, uploads only the files the server does not already have, and
+waits until the deployment is live. A deploy token can deploy its own app and
+cannot read other apps, change app settings or create tokens. Revoke it to cut
+off access.
+
+- `--prebuilt` skips the build and ships the existing output (`output` for
+  `vite-spa` and `sveltekit`, the current directory for plain static).
+- `--dry-run` prints the app, the file list and the total size, then stops
+  before uploading.
+- `.gitignore` and `.smbignore` inside the shipped directory are honoured.
+  `.git` and `.smb` are never uploaded, and symlinks are refused.
+
+Limits per deployment: 20,000 files, 50 MB per file, 500 MB in total, and 10
+deployments per hour per app.
+
+Every other kind still rsyncs over SSH using `~/.ssh/id_<user-id>@smbcloud`;
+install that key the same way if your project deploys to a server tier. That path
+prints a deprecation note.
 
 ## Deploying from GitHub Actions
 
@@ -102,6 +132,14 @@ For a monorepo config with several `[[projects]]` entries, name the target —
 ```sh
 smb --ci deploy --project aircraftshubweb
 ```
+
+## Behind a proxy
+
+`smb` honours `HTTPS_PROXY` and `NO_PROXY` (and the lowercase forms). A deploy
+contacts `api.smbcloud.xyz` on port 443 and nothing else, so an egress
+allowlist with that one host is enough. If the host cannot be reached, the
+command exits with a network error; run with `RUST_LOG=debug` to see whether
+the connection, a timeout, or the proxy failed.
 
 ## Behavior reference
 

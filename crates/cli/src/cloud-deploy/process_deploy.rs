@@ -6,6 +6,8 @@ use {
         deploy::{
             config::{check_project, credentials, get_config, overlay_server_config},
             git::remote_deployment_setup,
+            process_deploy_artifact::{env_token, is_artifact, process_deploy_artifact, TOKEN_ENV},
+            process_deploy_astro_ssr::process_deploy_astro_ssr,
             process_deploy_nextjs_ssr::process_deploy_nextjs_ssr,
             process_deploy_rails::process_deploy_rails,
             process_deploy_rust::process_deploy_rust,
@@ -22,11 +24,13 @@ use {
     smbcloud_auth::me::me,
     smbcloud_deploy::Transport,
     smbcloud_model::{
+        error_codes::{ErrorCode, ErrorResponse},
         project::{DeploymentMethod, DeploymentPayload, DeploymentStatus},
         runner::Runner,
     },
     smbcloud_network::environment::Environment,
     smbcloud_networking_project::{
+        crud_app_deploy_config::get_app_deploy_config,
         crud_project_deployment_create::create_deployment, crud_project_deployment_update::update,
     },
     smbcloud_utils::config::Config,
@@ -95,10 +99,97 @@ fn resolve_sub_project(mut config: Config, name: &str) -> Result<Config> {
     Ok(config)
 }
 
+/// Flags that only the HTTPS artifact path reads.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DeployOptions {
+    pub dry_run: bool,
+    pub prebuilt: bool,
+}
+
+const SSH_DEPRECATION: &str = "note: deploying over SSH is deprecated. Static sites can publish \
+    over HTTPS with an app-scoped token (see docs/ci.md).";
+
+/// Resolves the monorepo sub-project, as both auth paths need.
+fn select_project(config: Config, project_name: Option<String>) -> Result<Config> {
+    let resolved_name = match project_name {
+        Some(name) => Some(name),
+        None if config.project.runner == Runner::Monorepo => Some(prompt_select_project(&config)?),
+        None => None,
+    };
+    match resolved_name {
+        Some(name) => resolve_sub_project(config, &name),
+        None => Ok(config),
+    }
+}
+
+/// Words a failed deploy config read for the `SMB_TOKEN` path. A refused token
+/// and a missing app are the two failures a CI job hits after a rotation or a
+/// config typo; anything else keeps the generic message.
+fn deploy_config_error_message(error: &ErrorResponse, app_id: &str) -> String {
+    let ErrorResponse::Error { error_code, .. } = error;
+    match error_code {
+        ErrorCode::Unauthorized => {
+            "The deploy token was refused: it is revoked, expired, or for another app.".to_string()
+        }
+        ErrorCode::ProjectNotFound => {
+            format!("No app {app_id}: check frontend_app_id in .smb/config.toml.")
+        }
+        _ => format!("Could not read the app's deploy config: {error}"),
+    }
+}
+
+/// `SMB_TOKEN` carries an app-scoped deploy token. It can reach only the
+/// artifact routes of its own app, so there is no `me`, no project check and no
+/// SSH key on this path; an app that is not published as an artifact is
+/// refused.
+async fn process_deploy_with_token(
+    env: Environment,
+    project_name: Option<String>,
+    options: DeployOptions,
+    token: String,
+) -> Result<CommandResult> {
+    let config = get_config(env, Some(&token)).await?;
+    let config = select_project(config, project_name)?;
+    let app_id = config.project.frontend_app_id.clone().ok_or_else(|| {
+        anyhow!(fail_message(
+            "The project has no frontend_app_id in .smb/config.toml, so SMB_TOKEN has no app to deploy."
+        ))
+    })?;
+    let remote = get_app_deploy_config(env, client(), &token, &app_id)
+        .await
+        .map_err(|e| anyhow!(fail_message(&deploy_config_error_message(&e, &app_id))))?;
+    if !is_artifact(&remote) {
+        return Err(anyhow!(fail_message(&format!(
+            "{TOKEN_ENV} deploy tokens only work for apps published over HTTPS \
+             (publish_target = artifact), and this app is not."
+        ))));
+    }
+
+    let mut config = config;
+    if let Some(kind) = remote.kind.clone() {
+        config.project.kind = Some(kind);
+    }
+    if let Some(output) = remote.output_path.clone() {
+        config.project.output = Some(output);
+    }
+    if let Some(package_manager) = remote.package_manager.clone() {
+        config.project.package_manager = Some(package_manager);
+    }
+    if let Some(source_path) = remote.source_path.clone() {
+        config.project.source_path = Some(source_path);
+    }
+    process_deploy_artifact(env, config, remote, token, options).await
+}
+
 pub async fn process_deploy(
     env: Environment,
     project_name: Option<String>,
+    options: DeployOptions,
 ) -> Result<CommandResult> {
+    if let Some(token) = env_token() {
+        return process_deploy_with_token(env, project_name, options, token).await;
+    }
+
     // Check credentials.
     let is_logged_in = is_logged_in(env).await?;
 
@@ -122,21 +213,24 @@ pub async fn process_deploy(
     // When a sub-project name is given (monorepo), swap config.project to that
     // entry from [[projects]] so all downstream logic operates on the right one.
     // When omitted and the root project is a monorepo, prompt the user to pick.
-    let resolved_name = match project_name {
-        Some(name) => Some(name),
-        None if config.project.runner == Runner::Monorepo => Some(prompt_select_project(&config)?),
-        None => None,
-    };
-
-    if let Some(ref name) = resolved_name {
-        config = resolve_sub_project(config, name)?;
-    }
+    config = select_project(config, project_name)?;
 
     overlay_server_config(env, &access_token, &mut config).await;
 
     // Validate that the logged-in user has access to this project before doing
     // any work — applies to every deployment path including vite-spa.
     check_project(env, &access_token, config.project.id).await?;
+
+    // Apps the server publishes as artifacts deploy over HTTPS: no SSH key,
+    // no host pinning, no `me`. Everything else keeps the SSH paths below.
+    if let Some(app_id) = config.project.frontend_app_id.clone() {
+        if let Ok(remote) = get_app_deploy_config(env, client(), &access_token, &app_id).await {
+            if is_artifact(&remote) {
+                return process_deploy_artifact(env, config, remote, access_token, options).await;
+            }
+        }
+    }
+    eprintln!("{SSH_DEPRECATION}");
 
     // Route Vite SPA projects to a dedicated local-build + rsync deploy path.
     // The kind field in config.toml drives this: kind = "vite-spa".
@@ -152,6 +246,11 @@ pub async fn process_deploy(
     // Route Next.js SSR projects: pnpm install + build, rsync 8 items, SSH pm2 restart.
     if config.project.kind.as_deref() == Some("nextjs-ssr") {
         return process_deploy_nextjs_ssr(env, config).await;
+    }
+
+    // Route Astro SSR projects (@astrojs/node standalone): build locally, rsync dist/, SSH install + systemd restart.
+    if config.project.kind.as_deref() == Some("astro-ssr") {
+        return process_deploy_astro_ssr(env, config).await;
     }
 
     // Route Rails projects: rsync shared lib, SSH compile native gem, git force-push sub-project.
@@ -383,5 +482,39 @@ async fn git_deploy(
             })
         }
         Err(e) => Err(anyhow!(fail_message(&e.to_string()))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn error(error_code: ErrorCode) -> ErrorResponse {
+        ErrorResponse::Error {
+            error_code,
+            message: String::new(),
+        }
+    }
+
+    #[test]
+    fn refused_token_message() {
+        assert_eq!(
+            deploy_config_error_message(&error(ErrorCode::Unauthorized), "7"),
+            "The deploy token was refused: it is revoked, expired, or for another app."
+        );
+    }
+
+    #[test]
+    fn missing_app_message() {
+        assert_eq!(
+            deploy_config_error_message(&error(ErrorCode::ProjectNotFound), "7"),
+            "No app 7: check frontend_app_id in .smb/config.toml."
+        );
+    }
+
+    #[test]
+    fn other_errors_keep_the_generic_message() {
+        let message = deploy_config_error_message(&error(ErrorCode::NetworkError), "7");
+        assert!(message.starts_with("Could not read the app's deploy config:"));
     }
 }

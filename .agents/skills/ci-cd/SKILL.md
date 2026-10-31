@@ -26,9 +26,9 @@ description: Use when creating, debugging, or improving GitHub Actions workflows
 | File                         | Published as                                      |
 | ---------------------------- | ------------------------------------------------- |
 | `README.MD`                  | GitHub repo — canonical brand voice               |
-| `npm/smbcloud-cli/README.md` | npmjs.com — `@smbcloud/cli`                       |
-| `pypi/README.md`             | pypi.org — `smbcloud-cli`                         |
-| `npm/README.md.tmpl`         | npmjs.com — `@smbcloud/cli-*` (platform packages) |
+| `packaging/npm/smbcloud-cli/README.md` | npmjs.com — `@smbcloud/cli`                       |
+| `packaging/pypi/smbcloud-cli/README.md`             | pypi.org — `smbcloud-cli`                         |
+| `packaging/npm/README.md.tmpl`         | npmjs.com — `@smbcloud/cli-*` (platform packages) |
 
 When the main `README.MD` changes its tagline, logo, quick start, or value proposition, update all three distribution READMEs to match.
 
@@ -379,23 +379,45 @@ No `PYPI_TOKEN` secret needed. The action exchanges the GitHub OIDC JWT for a sh
 
 If the trusted publisher is missing, the publish step fails with `invalid-publisher: valid token, but no corresponding publisher`.
 
-### npm — does NOT support trusted publishing natively
+### npm — trusted publishing, configured per package
 
-npm has no OIDC-based trusted publishing equivalent to PyPI. The `id-token: write` permission in the npm workflow is unused for auth.
-
-Authentication requires a stored secret:
+The npm workflows (`release-npm.yml`, `release-sdk-npm.yml`, `release-xcrs-npm.yml`) publish over OIDC. There is no `NPM_TOKEN` secret and no `NODE_AUTH_TOKEN` on the publish steps. Each workflow needs:
 
 ```yaml
-- name: Publish to NPM
-  env:
-    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+permissions:
+  id-token: write
+  contents: read
 ```
 
-`setup-node` with `registry-url` writes an `.npmrc` referencing `${NODE_AUTH_TOKEN}`. That variable must be in the step's `env` block at publish time. If it is missing, `npm publish` silently has no auth and returns 404 for new packages (existing packages that pass the `npm view` idempotency check are never attempted, masking the missing token).
+npm >= 11.5.1 and Node >= 22.14.0 are required, which `.nvmrc` covers.
 
-The 404 on `npm publish` does not mean the package does not exist. npm returns 404 for auth failures to avoid leaking package existence.
+The trusted publisher is set on each package, not on the `@smbcloud` scope, and it names one workflow file. Every platform package needs its own entry:
 
-**npm trusted publishing (future):** npm does support OIDC trusted publishing via `npm trust github`. It requires the package to exist on npm first. Configure it per-package after the first manual publish. See `smbcloud-cli-release` skill for details.
+```sh
+npm trust github @smbcloud/cli-linux-arm64 --repo smbcloudXYZ/smbcloud-cli --file release-npm.yml
+```
+
+A package without one fails at `npm publish` while its siblings succeed. `@smbcloud/cli-linux-arm64` was missed this way: it kept publishing on the stored token until the token died, and for eight releases starting at v0.5.3 its 404 also skipped the base `@smbcloud/cli` job, which `needs` every platform job.
+
+A 404 on `npm publish` does not mean the package does not exist. npm returns 404 for auth failures to avoid leaking package existence.
+
+`npm trust` only works on a package that already exists, so the first version of a new package name has to be published by hand. See the `smbcloud-cli-release` skill for details.
+
+### RubyGems — trusted publishing, configured per gem
+
+`release-sdk-gem.yml` pushes `smbcloud-auth`, `smbcloud-model` and `smbcloud-email` over OIDC. There is no `RUBYGEMS_API_KEY`. The push job needs `id-token: write`.
+
+Each gem has a trusted publisher on rubygems.org: repository `smbcloudXYZ/smbcloud-cli`, workflow `release-sdk-gem.yml`, environment blank. RubyGems matches the filename against the `job_workflow_ref` claim, which names the workflow containing the push job. A caller that only dispatches it (`release-crate.yml`) never appears in the claim, so a publisher registered to the caller, or to an unrelated workflow, does not match. Fix the publisher, not the workflow.
+
+The failure looks like this, at "Configure RubyGems credentials":
+
+```text
+No trusted publisher configured for this workflow
+```
+
+A gem that does not exist yet needs a pending publisher from the owner's profile. It expires after about 12 hours, and the first push must pass the creating account's immutable ID as `owner` in the token exchange. `rubygems/configure-rubygems-credentials` has no such input, so the workflow calls `/api/v1/oidc/trusted_publisher/exchange_token` itself.
+
+Complete a partial release with `gh run rerun <run-id> --failed`. The push loop skips files that are already published. A re-run keeps the original workflow file, so a workflow fix needs a new dispatch.
 
 ### crates.io — uses `CARGO_REGISTRY_TOKEN`
 
@@ -624,7 +646,7 @@ Every distribution channel README must stay aligned with the main `README.MD`. T
 
 ### Structure per README type
 
-**Wrapper package** (`npm/smbcloud-cli/README.md` → `@smbcloud/cli`, `pypi/README.md` → `smbcloud-cli`):
+**Wrapper package** (`packaging/npm/smbcloud-cli/README.md` → `@smbcloud/cli`, `packaging/pypi/smbcloud-cli/README.md` → `smbcloud-cli`):
 
 1. Logo + tagline + nav links + badges
 2. About section (copy from main README verbatim)
@@ -638,7 +660,7 @@ Every distribution channel README must stay aligned with the main `README.MD`. T
 
 The PyPI README leads with the PyPI badge; the npm README leads with the npm badge. Both include the full badge row.
 
-**Platform binary package** (`npm/README.md.tmpl` → `@smbcloud/cli-darwin-arm64`, etc.):
+**Platform binary package** (`packaging/npm/README.md.tmpl` → `@smbcloud/cli-darwin-arm64`, etc.):
 
 Keep it minimal. Show the logo and tagline for brand recognition, then immediately redirect to `@smbcloud/cli`. Do not repeat install instructions — the user landed on the wrong package.
 
@@ -711,8 +733,8 @@ Three files must be bumped together for each gem in `sdk/gems/`:
 
 After bumping, regenerate lockfiles with `cargo generate-lockfile` and `bundle lock` inside each gem directory. The `release-sdk-gem` workflow checks `Auth::VERSION` against the tag and fails on mismatch.
 
-**Tagging a release on a feature branch instead of `development`**
-Always tag on `development` (the mainline branch). Tagging on a feature branch leaves `development` without the release commit, making git history confusing and future releases error-prone. Merge the feature branch into `development` first, then tag. If a tag was already placed on the wrong commit, move it with `git tag -f v<version>` and `git push origin v<version> --force`.
+**Tagging a release on a feature branch instead of `main`**
+Always tag on `main`, on the merge commit of the release branch. Tagging on a feature or release branch leaves `main` without the release commit, making git history confusing and future releases error-prone. Merge the release branch into `development` and `main` first, then tag `main`. If a tag was already placed on the wrong commit, move it with `git tag -fa v<version> -m "v<version>"` and `git push origin v<version> --force`.
 
 **"Re-run all jobs" on an old workflow run rebuilds from the old commit**
 GitHub Actions workflow re-runs always use the commit the run was originally dispatched with. If you moved a tag after the run was created, the re-run still checks out the old commit. Use "Re-run failed jobs" only when the code on that commit is correct and only an external issue (e.g. missing trusted publisher) caused the failure. If the code itself was fixed, dispatch a fresh run instead: `gh workflow run <workflow>.yml -f tag=v<version>`.
@@ -751,7 +773,7 @@ crates.io rejects curl requests without a `User-Agent` header. Always include `-
 When the main `README.MD` changes its tagline, logo URL, quick start commands, or value proposition, the npm and PyPI READMEs must be updated in the same commit. Stale distribution READMEs show outdated branding on npmjs.com and pypi.org — the highest-visibility surfaces for new users discovering the CLI.
 
 **Platform support table missing new targets**
-When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `npm/smbcloud-cli/README.md` and `pypi/README.md` in the same PR.
+When a new platform is added to any release matrix (e.g. `linux-arm64`), update the platform support table in `packaging/npm/smbcloud-cli/README.md` and `packaging/pypi/smbcloud-cli/README.md` in the same PR.
 
 **Use workflow-level `env:` for compile-time secrets, not `$GITHUB_ENV` export steps**
 Compile-time secrets like `CLI_CLIENT_SECRET` (read by `env!()`) must be available to every `cargo` invocation across all platforms. Writing to `$GITHUB_ENV` in a separate step is unreliable: it does not propagate into Docker containers, and on Windows runners the default PowerShell shell does not expand `"$GITHUB_ENV"` correctly.
@@ -777,7 +799,7 @@ Fix: add `docker-options: -e CLI_CLIENT_SECRET` to the `Build wheel` step:
   with:
     target: ${{ matrix.build.TARGET }}
     manylinux: ${{ matrix.build.MANYLINUX || 'off' }}
-    working-directory: pypi
+    working-directory: packaging/pypi/smbcloud-cli
     args: --release --locked --compatibility pypi --out dist
     before-script-linux: yum install -y perl-core
     docker-options: -e CLI_CLIENT_SECRET

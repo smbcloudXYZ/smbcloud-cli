@@ -16,10 +16,10 @@ For running and configuring the server itself, see [MCP Server](./mcp.md).
 
 | Piece | Where |
 | --- | --- |
-| smbCloud server metadata | [`server.json`](../server.json) at the repo root |
-| XCRS server metadata | [`server-xcrs.json`](../server-xcrs.json) at the repo root |
-| npm ownership proof | `mcpName` in the generated `@smbcloud/cli` `package.json` (`npm/scripts/render-main-package.cjs`) |
-| NuGet ownership proof | `<!-- mcp-name: ... -->` in `nuget/smbcloud-cli/README.md` |
+| smbCloud server metadata | [`server.json`](../packaging/mcp/server.json) in `packaging/mcp/` |
+| XCRS server metadata | [`server-xcrs.json`](../packaging/mcp/server-xcrs.json) in `packaging/mcp/` |
+| npm ownership proof | `mcpName` in the generated `@smbcloud/cli` `package.json` (`packaging/npm/scripts/render-main-package.cjs`) |
+| NuGet ownership proof | `<!-- mcp-name: ... -->` in `packaging/nuget/smbcloud-cli/README.md` |
 | Cargo ownership proof | Visible `mcp-name: ...` text in `crates/xcrs/README.md` |
 | Publishing | `.github/workflows/release-mcp-registry.yml` |
 
@@ -73,8 +73,8 @@ per package — and both are updated by `make patch | minor | major` along with
 the rest of the release metadata (`scripts/sync-release-version.mjs`).
 
 Publishing is chained off the release: pushing a `v*` tag runs the crates.io
-workflow, which fans out to the distribution workflows, and **NuGet CLI
-Release** triggers **MCP Registry Release** once its publish job succeeds. It
+workflow, which fans out to the distribution workflows, and **CLI Release NuGet**
+triggers **MCP Registry Release** once its publish job succeeds. It
 hangs off NuGet rather than the fan-out because the listing needs both npm and
 NuGet live at that version, and NuGet is the slower of the two.
 
@@ -105,10 +105,10 @@ Rarely needed, but if Actions is unavailable:
 ```sh
 brew install mcp-publisher
 mcp-publisher login github        # device flow, needs push access to smbcloudXYZ
-mcp-publisher publish             # reads ./server.json
+(cd packaging/mcp && mcp-publisher publish)   # reads ./server.json
 ```
 
-The release workflow publishes `server.json`, then temporarily swaps in
-`server-xcrs.json` and publishes the standalone entry as well. Versions are
+The release workflow publishes `packaging/mcp/server.json`, then temporarily swaps in
+`packaging/mcp/server-xcrs.json` and publishes the standalone entry as well. Versions are
 immutable — republishing the same version is rejected. Fixing a bad listing
 means shipping a new patch version.

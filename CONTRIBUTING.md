@@ -30,7 +30,7 @@ By participating in this project you agree to abide by our [Code of Conduct](COD
    ```
 5. Create a branch for your work:
    ```sh
-   git checkout -b your-feature-or-fix
+   git checkout development && git checkout -b feature/<slug>
    ```
 
 ## Development Workflow
@@ -109,7 +109,7 @@ The full guidelines are in [AGENTS.md](AGENTS.md).
    cargo clippy --workspace --tests -- -D warnings
    cargo fmt --all -- --check
    ```
-2. Push your branch and open a PR against `main`.
+2. Push your branch and open a PR against `development`.
 3. Fill out the pull request template — in particular the **Release Notes** section.
 4. A maintainer will review your changes and may request modifications.
 5. Once approved, your PR will be merged.
@@ -138,17 +138,8 @@ Use the GitHub issue tracker and fill out the feature request template. Describe
 
 ## Releasing
 
-Releases are handled by maintainers using [cargo-workspaces](https://github.com/pksunkara/cargo-workspaces):
-
-```sh
-# Bump versions interactively
-cargo workspaces version
-
-# Publish all crates
-cargo workspaces publish --publish-as-is
-```
-
-GitHub Actions workflows handle the GitHub release and npm wrapper publish automatically on tag push.
+Releases are handled by maintainers. The branch flow and the tag-triggered publish
+chain are described in [docs/development.md](docs/development.md).
 
 ## Questions?
 

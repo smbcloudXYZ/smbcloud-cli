@@ -1,7 +1,9 @@
 name: Deploy docs
 
 # Deploys the docs website (website/, the `docs` sub-project in the monorepo's
-# .smb config) to smbCloud via the smbcloud-deploy-action.
+# .smb config) to smbCloud via the smbcloud-deploy-action. It runs on pushes to
+# `main`, so the published docs track released versions rather than the
+# integration branch.
 #
 # `smb deploy` builds the Next.js site on the runner before rsyncing it, so this
 # job sets up Node + pnpm first. The site's prebuild step generates
@@ -26,6 +28,10 @@ name: Deploy docs
 # manual runs. Adjust the branch to your release flow; workflow_dispatch lets you
 # run it from any branch.
 #
+# SSH inputs: the docs app is not a static kind, so it still deploys over SSH.
+# A static app (publish_target = artifact) needs only SMB_TOKEN set to an
+# app-scoped deploy token, with no SMB_SSH_* secrets; see docs/ci.md.
+#
 # NOTE: the action installs the latest published CLI release and runs it with
 # `--ci`. That flag must exist in the installed release, so this requires a
 # published smbcloud-cli release that includes `--ci` (pin a specific version
@@ -33,7 +39,7 @@ name: Deploy docs
 
 on:
   push:
-    branches: [development]
+    branches: [main]
     paths:
       - 'website/**'
       - 'docs/**'

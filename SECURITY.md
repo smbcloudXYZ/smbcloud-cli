@@ -4,12 +4,7 @@ The `smbcloud-cli` team takes security vulnerabilities seriously. We appreciate 
 
 ## Supported Versions
 
-As the project is in its early stages (pre-1.0), security patches will only be provided for the most recent releases. Please ensure you are using the latest version.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 0.3.x   | :white_check_mark: |
-| < 0.3.0 | :x:                |
+Security patches are provided for the latest minor release of the current major version. Please make sure you are on it.
 
 ## Reporting a Vulnerability
 
