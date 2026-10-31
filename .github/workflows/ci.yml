@@ -302,7 +302,9 @@ jobs:
       # patches from the extension manifest; release builds deliberately
       # resolve published crates after the release workflow has run. The
       # whole checkout is mounted into the rb-sys-dock container, so the
-      # relative paths resolve there too.
+      # relative paths resolve there too. Cargo discovers .cargo/config.toml
+      # from the current directory, not the manifest's, which is why the
+      # lockfile is generated from inside the gem directory.
       - name: Use workspace Rust crates for the gem check
         shell: bash
         run: |
@@ -315,7 +317,7 @@ jobs:
               print name " = { path = \"../../../crates/" name "\" }"
             }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
           } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
-          cargo generate-lockfile --manifest-path sdk/gems/${{ matrix.gem }}/Cargo.toml
+          (cd sdk/gems/${{ matrix.gem }} && cargo generate-lockfile)
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
@@ -418,18 +420,21 @@ jobs:
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
 
+      # `gem install` compiles under $GEM_HOME, outside the checkout, so an
+      # in-tree .cargo/config.toml is never found. $CARGO_HOME always is.
       - name: Use workspace Rust crates for the gem check
         shell: bash
         run: |
-          mkdir -p sdk/gems/${{ matrix.gem }}/.cargo
+          cargo_home="${CARGO_HOME:-$HOME/.cargo}"
+          mkdir -p "$cargo_home"
           {
             echo "[patch.crates-io]"
-            awk -F '=' '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
+            awk -F '=' -v root="$GITHUB_WORKSPACE" '/^smbcloud-[[:alnum:]-]+[[:space:]]*=/ {
               name = $1
               gsub(/[[:space:]]/, "", name)
-              print name " = { path = \"../../../crates/" name "\" }"
+              print name " = { path = \"" root "/crates/" name "\" }"
             }' sdk/gems/${{ matrix.gem }}/ext/${{ matrix.gem }}/Cargo.toml
-          } > sdk/gems/${{ matrix.gem }}/.cargo/config.toml
+          } >> "$cargo_home/config.toml"
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
