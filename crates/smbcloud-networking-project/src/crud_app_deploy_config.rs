@@ -5,8 +5,12 @@ use {
         deploy_config::DeployConfig,
         error_codes::{ErrorCode, ErrorResponse},
     },
-    smbcloud_network::{environment::Environment, network::parse_error_response},
+    smbcloud_network::{
+        environment::Environment,
+        network::{bearer_value, parse_error_response},
+    },
     smbcloud_networking::{constants::SMB_USER_AGENT, smb_client::SmbClient},
+    std::time::Duration,
 };
 
 /// `GET /v1/apps/:app_id/deploy_config`. Unlike the `frontend_apps` route, an
@@ -22,9 +26,17 @@ pub async fn get_app_deploy_config(
     access_token: &str,
     app_id: &str,
 ) -> Result<DeployConfig, ErrorResponse> {
-    let builder = Client::new()
+    let http = Client::builder()
+        .connect_timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(60))
+        .build()
+        .map_err(|_| ErrorResponse::Error {
+            error_code: ErrorCode::NetworkError,
+            message: ErrorCode::NetworkError.message(None).to_string(),
+        })?;
+    let builder = http
         .get(build_app_deploy_config_url(environment, client, app_id))
-        .header("Authorization", format!("Bearer {access_token}"))
+        .header("Authorization", bearer_value(access_token))
         .header("User-agent", SMB_USER_AGENT);
     let response = builder.send().await.map_err(|_| ErrorResponse::Error {
         error_code: ErrorCode::NetworkError,

@@ -25,11 +25,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Build Linux on 22.04 (glibc 2.35) so the binary also runs on
+          # Debian 12 and Ubuntu 22.04. It links zlib dynamically (zlib1g).
           - name: linux-amd64
-            runner: ubuntu-latest
+            runner: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
           - name: linux-arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
           - name: win-amd64
             runner: windows-latest

@@ -34,6 +34,12 @@ pub(crate) fn env_token() -> Option<String> {
         .filter(|t| !t.is_empty())
 }
 
+/// Whether `SMB_TOKEN` is set but blank. Under `--ci` that is a provisioning
+/// mistake, not a request to use the login token.
+pub(crate) fn env_token_is_blank() -> bool {
+    std::env::var(TOKEN_ENV).is_ok_and(|t| t.trim().is_empty())
+}
+
 /// Whether the server publishes this app as an artifact.
 pub(crate) fn is_artifact(remote: &DeployConfig) -> bool {
     remote.publish_target.as_deref() == Some("artifact")
