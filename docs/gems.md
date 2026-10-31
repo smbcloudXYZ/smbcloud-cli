@@ -1,76 +1,65 @@
-# Publishing the `smbcloud-model` gem
+# Ruby gems
 
-The gem wraps the `smbcloud-model` Rust crate via a native extension. Publishing requires coordinating the Rust crate release and the gem release in order.
+Three gems live under `sdk/gems/`, each a Magnus native extension over a Rust crate:
 
-## Prerequisites
+| Gem | Directory | Wraps |
+| --- | --- | --- |
+| `smbcloud-auth` | `sdk/gems/auth` | `smbcloud-auth-sdk` |
+| `smbcloud-model` | `sdk/gems/model` | `smbcloud-model` |
+| `smbcloud-email` | `sdk/gems/email` | `smbcloud-email-sdk` |
 
-- [Rust toolchain](https://rustup.rs) installed
-- `bundler` and `gem` CLI available
-- RubyGems account with push access to `smbcloud-model`
+Gem versions move in lockstep with the CLI release, so `make patch | minor | major` bumps them (see [development.md](development.md)).
 
----
+## Publishing
 
-## Steps
+CI is the release path. [`release-sdk-gem.yml`](../.github/workflows/release-sdk-gem.yml) cross-compiles the native gems with `rb-sys-dock` (x86_64 and aarch64 Linux, arm64 and x86_64 darwin), builds a source gem, and pushes everything to RubyGems. [`release-crate.yml`](../.github/workflows/release-crate.yml) dispatches it after the crates are published.
 
-### 1. Publish the Rust crate
+There is no API key secret. The push job exchanges its GitHub OIDC token for a short-lived RubyGems key.
 
-Publish `smbcloud-model` to crates.io first. The gem's native extension depends on it.
+### Trusted publisher settings
 
-```sh
-cargo publish -p smbcloud-model
-```
+Each gem needs a trusted publisher on rubygems.org (gem page, Trusted publishers), created by an owner of the gem:
 
-### 2. Update the Cargo dependency
+| Field | Value |
+| --- | --- |
+| Owner | `smbcloudXYZ` |
+| Repository | `smbcloud-cli` |
+| Workflow filename | `release-sdk-gem.yml` |
+| Environment | blank |
 
-Switch `gems/model/ext/model/Cargo.toml` from the local path to the published version:
+RubyGems matches the filename against the `job_workflow_ref` claim, which names the workflow that contains the running job. That is `release-sdk-gem.yml`, because `release-crate.yml` only dispatches it and a dispatch starts a separate workflow. A publisher registered to `release-crate.yml`, or to any other workflow, fails the "Configure RubyGems credentials" step with `No trusted publisher configured for this workflow`.
 
-```toml
-# Before (development)
-smbcloud-model = { path = "./../../../../crates/smbcloud-model" }
+### First push of a new gem
 
-# After (release) — match the version just published
-smbcloud-model = "0.3"
-```
+A gem that is not on RubyGems yet cannot have a normal publisher. Create a pending one instead, from your profile under Pending trusted publishers, with the gem name and the same repository and workflow as above.
 
-### 3. Sync the gem version
+- A pending publisher expires after about 12 hours, so create it right before the release.
+- The first push has to name the account that created it as `owner`, by its immutable ID. The workflow's credentials step passes this; the `rubygems/configure-rubygems-credentials` action has no input for it, which is why the step calls the exchange endpoint directly.
+- The first successful push turns the pending publisher into a normal one.
 
-Set `gems/model/lib/model/version.rb` to match the `smbcloud-model` crate version:
+### Completing a partial release
 
-```ruby
-module Model
-  VERSION = '0.3.31'
-end
-```
-
-### 4. Compile the native extension
+The push step skips any file RubyGems already has, so a failed run can be re-run without a new release or rebuild. Fix the cause (usually a publisher setting), then:
 
 ```sh
-cd gems/model
-bundle exec rake compile
+gh run rerun <run-id> --failed
 ```
 
-### 5. Build the gem
+Only the failed push jobs run again. The gem artifacts are kept for the Actions retention period. A re-run uses the workflow file from the original commit, so a change to the workflow itself needs a fresh `workflow_dispatch` instead.
+
+Check the result with `https://rubygems.org/api/v1/versions/<gem>.json`: every platform gem and the source gem should list the version.
+
+## Local build and development
+
+Use `rv` for Ruby (`rv run bundle ...`). From a gem directory:
 
 ```sh
-bundle exec rake build
+cd sdk/gems/model
+rv run bundle install
+rv run bundle exec rake compile
+rv run bundle exec rake build   # writes pkg/smbcloud-model-<version>.gem
 ```
 
-This produces `pkg/smbcloud-model-<version>.gem`.
+Each gem's extension crate (`ext/<gem>/Cargo.toml`) depends on the published `smbcloud-*` crate version. To build against your checkout instead, add a `[patch.crates-io]` section pointing at `crates/<name>` in a local, uncommitted Cargo config; CI does the same in its gem jobs.
 
-### 6. Publish the gem
-
-```sh
-gem push pkg/smbcloud-model-<version>.gem
-```
-
----
-
-## Development workflow
-
-To work against the local crate instead of the published one, use the path dependency:
-
-```toml
-smbcloud-model = { path = "./../../../../crates/smbcloud-model" }
-```
-
-Remember to revert this before publishing.
+A manual `gem push` is only for emergencies and needs local RubyGems credentials (`~/.gem/credentials` or `GEM_HOST_API_KEY`). Prefer CI.

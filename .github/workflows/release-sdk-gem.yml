@@ -17,7 +17,10 @@ name: SDK Ruby Gem Release
 # smbcloudXYZ/smbcloud-cli, workflow release-sdk-gem.yml, with no environment.
 # A gem that does not exist yet (smbcloud-email) needs a *pending* trusted
 # publisher, created from the owner's profile; the first push turns it into a
-# normal one. See https://guides.rubygems.org/trusted-publishing/
+# normal one, and must assert that account as `owner` (see the credentials
+# step). The filename is matched from the OIDC `job_workflow_ref` claim, so
+# publishers registered to a workflow that merely dispatches this one do not
+# match. See https://guides.rubygems.org/trusted-publishing/
 
 on:
   workflow_dispatch:
@@ -247,9 +250,31 @@ jobs:
           ruby-version: .ruby-version
 
       # Exchanges this job's OIDC token for a short-lived RubyGems API key and
-      # exports it as GEM_HOST_API_KEY, which `gem push` reads.
+      # exports it as GEM_HOST_API_KEY, which `gem push` reads. This is done by
+      # hand rather than with rubygems/configure-rubygems-credentials because
+      # that action has no input for `owner`, which RubyGems requires on the
+      # first push of a gem that only has a pending trusted publisher. The
+      # value is the immutable ID of the RubyGems account that created the
+      # pending publisher; it is ignored for gems that already exist. It comes
+      # from the RUBYGEMS_OWNER_ID repo variable so a new gem whose pending
+      # publisher belongs to a different account can be set without editing
+      # this file; the fallback is the account that created the current ones.
       - name: Configure RubyGems credentials
-        uses: rubygems/configure-rubygems-credentials@v2.1.0
+        shell: bash
+        env:
+          RUBYGEMS_OWNER_ID: ${{ vars.RUBYGEMS_OWNER_ID || '160848' }}
+        run: |
+          oidc_token="$(curl --silent --show-error --fail \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=rubygems.org" | jq -r '.value')"
+          echo "::add-mask::${oidc_token}"
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST https://rubygems.org/api/v1/oidc/trusted_publisher/exchange_token \
+            --header "Content-Type: application/json" \
+            --data "$(jq -n --arg jwt "${oidc_token}" --arg owner "${RUBYGEMS_OWNER_ID}" '{jwt: $jwt, owner: $owner}')")"
+          api_key="$(jq -r '.rubygems_api_key' <<<"${response}")"
+          echo "::add-mask::${api_key}"
+          echo "GEM_HOST_API_KEY=${api_key}" >> "$GITHUB_ENV"
 
       # Push each .gem file individually. A file that is already published (a
       # re-run, or completing a partial release) is skipped; any other failure

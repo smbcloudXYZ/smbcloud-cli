@@ -403,6 +403,22 @@ A 404 on `npm publish` does not mean the package does not exist. npm returns 404
 
 `npm trust` only works on a package that already exists, so the first version of a new package name has to be published by hand. See the `smbcloud-cli-release` skill for details.
 
+### RubyGems — trusted publishing, configured per gem
+
+`release-sdk-gem.yml` pushes `smbcloud-auth`, `smbcloud-model` and `smbcloud-email` over OIDC. There is no `RUBYGEMS_API_KEY`. The push job needs `id-token: write`.
+
+Each gem has a trusted publisher on rubygems.org: repository `smbcloudXYZ/smbcloud-cli`, workflow `release-sdk-gem.yml`, environment blank. RubyGems matches the filename against the `job_workflow_ref` claim, which names the workflow containing the push job. A caller that only dispatches it (`release-crate.yml`) never appears in the claim, so a publisher registered to the caller, or to an unrelated workflow, does not match. Fix the publisher, not the workflow.
+
+The failure looks like this, at "Configure RubyGems credentials":
+
+```text
+No trusted publisher configured for this workflow
+```
+
+A gem that does not exist yet needs a pending publisher from the owner's profile. It expires after about 12 hours, and the first push must pass the creating account's immutable ID as `owner` in the token exchange. `rubygems/configure-rubygems-credentials` has no such input, so the workflow calls `/api/v1/oidc/trusted_publisher/exchange_token` itself.
+
+Complete a partial release with `gh run rerun <run-id> --failed`. The push loop skips files that are already published. A re-run keeps the original workflow file, so a workflow fix needs a new dispatch.
+
 ### crates.io — uses `CARGO_REGISTRY_TOKEN`
 
 ```yaml
