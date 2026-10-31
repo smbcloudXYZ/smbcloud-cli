@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module Auth
-  VERSION = '0.7.6'
+  VERSION = '1.0.0'
 end
