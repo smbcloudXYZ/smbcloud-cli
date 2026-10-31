@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    smbcloud-model (1.0.0)
+    smbcloud-model (1.1.0)
       rb_sys (~> 0.9, >= 0.9.130)
 
 GEM
