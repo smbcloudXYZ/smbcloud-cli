@@ -80,6 +80,14 @@ pub enum Commands {
         /// Matches the `name` field in .smb/config.toml. Omit to deploy the root project.
         #[arg(short, long)]
         project: Option<String>,
+        /// Static sites published over HTTPS: print the app, the file list and the
+        /// total size, then stop before anything is uploaded.
+        #[arg(long)]
+        dry_run: bool,
+        /// Static sites published over HTTPS: skip the build and ship the
+        /// existing output directory.
+        #[arg(long)]
+        prebuilt: bool,
     },
     #[clap(
         about = "Initialize project. Requires an smbCloud account.",

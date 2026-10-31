@@ -721,6 +721,12 @@ struct DeployArgs {
     /// Sub-project to deploy, for monorepo configs with `[[projects]]`.
     #[serde(default)]
     project: Option<String>,
+    /// Static sites published over HTTPS: list what would be uploaded and stop.
+    #[serde(default)]
+    dry_run: bool,
+    /// Static sites published over HTTPS: skip the build and ship the existing output.
+    #[serde(default)]
+    prebuilt: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -1739,8 +1745,9 @@ impl SmbMcpServer {
 
     #[tool(
         description = "Deploy the project in `cwd` (the equivalent of `smb deploy`). Builds \
-                       locally, pushes to the server, and restarts the app, so it can take \
-                       minutes. Needs an existing `.smb/config.toml` (see `project_init`) and \
+                       locally, then publishes: static sites go over HTTPS (pass `dry_run` to \
+                       list the files first, `prebuilt` to skip the build), other kinds push to \
+                       the server and restart the app, so it can take minutes. Needs an existing `.smb/config.toml` (see `project_init`) and \
                        never prompts. For monorepo configs pass `project` to pick a \
                        sub-project. Returns {success, exit_code, output_tail} with the last \
                        ~200 lines of output; the call is an error when the deploy exits non-zero."
@@ -1755,6 +1762,12 @@ impl SmbMcpServer {
         let mut command = vec!["deploy"];
         if let Some(project) = args.project.as_deref() {
             command.extend(["--project", project]);
+        }
+        if args.dry_run {
+            command.push("--dry-run");
+        }
+        if args.prebuilt {
+            command.push("--prebuilt");
         }
         run_cli_subcommand(self.environment, &directory, &command).await
     }

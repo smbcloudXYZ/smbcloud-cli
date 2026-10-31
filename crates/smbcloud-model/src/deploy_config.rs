@@ -52,6 +52,12 @@ pub struct DeployConfig {
     pub deploy_repo_id: Option<i64>,
     #[serde(default)]
     pub repository: Option<String>,
+    /// `legacy_ssh` (default) or `artifact`: how the server publishes this app.
+    #[serde(default)]
+    pub publish_target: Option<String>,
+    /// Where the published site is served, when the server knows.
+    #[serde(default)]
+    pub site_url: Option<String>,
 }
 
 #[cfg(test)]

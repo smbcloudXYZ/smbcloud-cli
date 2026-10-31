@@ -49,6 +49,34 @@ pub(crate) fn build_frontend_app_deploy_config_url(
     url_builder.build()
 }
 
+pub(crate) fn build_app_deploy_config_url(
+    env: Environment,
+    client: (&SmbClient, &str),
+    app_id: &str,
+) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/apps");
+    url_builder.add_route(app_id);
+    url_builder.add_route("deploy_config");
+    url_builder.build()
+}
+
+pub(crate) fn build_artifact_deployments_url(
+    env: Environment,
+    client: (&SmbClient, &str),
+    app_id: &str,
+    tail: Option<&str>,
+) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/apps");
+    url_builder.add_route(app_id);
+    url_builder.add_route("artifact_deployments");
+    if let Some(tail) = tail {
+        url_builder.add_route(tail);
+    }
+    url_builder.build()
+}
+
 // Private functions
 
 pub(crate) fn build_project_url(env: Environment, client: (&SmbClient, &str)) -> String {

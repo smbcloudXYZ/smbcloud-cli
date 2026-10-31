@@ -14,9 +14,17 @@ categories = ["development-tools", "development-tools::build-utils"]
 
 [dependencies]
 anyhow = { workspace = true }
+ignore = { workspace = true }
+reqwest = { workspace = true, features = ["blocking", "json", "rustls-tls-native-roots"] }
+serde = { workspace = true, features = ["derive"] }
+sha2 = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 smbcloud-model = { workspace = true }
 smbcloud-utils = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+wiremock = { workspace = true }
