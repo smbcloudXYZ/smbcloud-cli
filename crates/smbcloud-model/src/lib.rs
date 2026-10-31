@@ -1,5 +1,6 @@
 pub mod account;
 pub mod app_auth;
+pub mod artifact_deployment;
 pub mod deploy_config;
 pub mod deploy_config_update;
 pub mod error_codes;

@@ -15,6 +15,7 @@
 //! `.smb/config.toml`) stays in the front-end. The engine takes a resolved
 //! config, or returns [`DeployError::NeedsSetup`] for the caller to handle.
 
+pub mod artifact;
 pub mod build;
 pub mod error;
 pub mod known_hosts;
@@ -22,6 +23,7 @@ pub mod report;
 pub mod runner;
 pub mod transport;
 
+pub use artifact::{build_manifest, ArtifactManifest, HttpsArtifactTransport};
 pub use build::{BuildArtifact, BuildStrategy, SvelteKitAdapter, SvelteKitBuild, ViteSpaBuild};
 pub use error::DeployError;
 pub use report::{NoopReporter, Reporter};

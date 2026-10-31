@@ -8,7 +8,10 @@ use {
         cli::{Cli, CommandResult, Commands},
         cloud_auth::process::process_cloud_auth,
         controlkit::process_controlkit,
-        deploy::{process_deploy::process_deploy, process_migrate::process_migrate},
+        deploy::{
+            process_deploy::{process_deploy, DeployOptions},
+            process_migrate::process_migrate,
+        },
         mail::process::process_mail,
         project::{crud_create::process_project_init, process::process_project},
         tenant::process::process_tenant,
@@ -210,7 +213,18 @@ async fn run(cli: Cli) -> Result<CommandResult> {
     match cli.command {
         Some(Commands::Me {}) => process_me(cli.environment).await,
         Some(Commands::Init {}) => process_project_init(cli.environment, true).await,
-        Some(Commands::Deploy { project }) => process_deploy(cli.environment, project).await,
+        Some(Commands::Deploy {
+            project,
+            dry_run,
+            prebuilt,
+        }) => {
+            process_deploy(
+                cli.environment,
+                project,
+                DeployOptions { dry_run, prebuilt },
+            )
+            .await
+        }
         Some(Commands::Account { command }) => process_account(cli.environment, command).await,
         Some(Commands::Login {}) => process_login(cli.environment, None).await,
         Some(Commands::Logout {}) => process_logout(cli.environment).await,

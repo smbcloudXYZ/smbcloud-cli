@@ -26,6 +26,10 @@ name: Deploy docs
 # manual runs. Adjust the branch to your release flow; workflow_dispatch lets you
 # run it from any branch.
 #
+# SSH inputs: the docs app is not a static kind, so it still deploys over SSH.
+# A static app (publish_target = artifact) needs only SMB_TOKEN set to an
+# app-scoped deploy token, with no SMB_SSH_* secrets; see docs/ci.md.
+#
 # NOTE: the action installs the latest published CLI release and runs it with
 # `--ci`. That flag must exist in the installed release, so this requires a
 # published smbcloud-cli release that includes `--ci` (pin a specific version
