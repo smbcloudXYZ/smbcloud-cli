@@ -39,15 +39,9 @@ Security fixes are the exception: they can change behavior in a patch release wh
 | Panics on user-driven paths removed (GitHub OAuth callback listener, runner pickers in `project update` and project setup, `migrate`). A cancelled prompt now returns an error message. | Done |
 | MCP tool count in the docs matches the router (41 cloud tools) | Done |
 | MCP Registry release publishes. Root cause of the recent failures: the NuGet wait loop polled up to 60 times but gave up at attempt 20, so it timed out after about 10 minutes, before NuGet finished indexing the new version. The loop now waits the full 30 minutes. | Open until a release run publishes |
-| `cargo install smbcloud-cli` works without `CLI_CLIENT_SECRET` at compile time. Today the secret is baked in at build time, which makes the crates.io route a second-class install. See [Native (Cargo)](./cli-install.md). | Open |
+| `cargo install smbcloud-cli` works without `CLI_CLIENT_SECRET` at compile time. Today the secret is baked in at build time, which makes the crates.io route a second-class install. See [Native (Cargo)](./cli-install.md). | Known limitation, tracked in [#107](https://github.com/smbcloudXYZ/smbcloud-cli/issues/107) |
 | winget listing. The first submission is waiting on a moderator and is not a blocker, because later releases update the package through the normal update path. | Waiting, not blocking |
 
 ## Cutting 1.0.0
 
-Once the open items are closed, from a clean `development` branch:
-
-```sh
-make custom VERSION=1.0.0
-```
-
-This bumps every crate and SDK to 1.0.0 in lockstep, commits `Release 1.0.0` and tags `v1.0.0` locally. Pushing the tag is a manual step.
+1.0.0 shipped from this checklist. The only open item is the Cargo install limitation above, which needs an API change first and does not alter anything 1.0 freezes.
