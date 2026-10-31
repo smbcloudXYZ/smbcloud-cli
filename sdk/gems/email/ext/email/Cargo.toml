@@ -1,6 +1,6 @@
 [package]
 name = "email"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 publish = false
@@ -15,4 +15,4 @@ tokio = { version = "1", features = ["rt-multi-thread"] }
 
 # The published transactional-email SDK. For local development this is patched
 # to the in-repo crate via `[patch.crates-io]` in the gem workspace Cargo.toml.
-smbcloud-email-sdk = { version = "1.0" }
+smbcloud-email-sdk = { version = "1.1" }
