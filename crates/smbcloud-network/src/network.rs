@@ -17,10 +17,14 @@ const LOG_RESPONSE_BODY: bool = false;
 
 /// Check if there is an active internet connection.
 ///
-/// Native clients can afford a preflight connectivity check. Browser/wasm
-/// clients should skip it and rely on the real request, otherwise the check
-/// itself becomes a separate cross-origin failure surface.
+/// Deprecated: this pings a third-party host, which fails behind an egress
+/// allowlist even when the smbCloud API is reachable. A request that cannot
+/// connect already returns `ErrorCode::NetworkError`.
 #[cfg(not(target_arch = "wasm32"))]
+#[deprecated(
+    since = "1.1.0",
+    note = "the request itself reports NetworkError; this pinged a third-party host"
+)]
 pub async fn check_internet_connection() -> bool {
     debug!("Checking internet connection");
     let client = reqwest::Client::builder()
@@ -52,8 +56,31 @@ pub async fn check_internet_connection() -> bool {
 }
 
 #[cfg(target_arch = "wasm32")]
+#[deprecated(
+    since = "1.1.0",
+    note = "the request itself reports NetworkError; this pinged a third-party host"
+)]
 pub async fn check_internet_connection() -> bool {
     true
+}
+
+/// Log why a request failed to send (connect, timeout, proxy or other), so
+/// `RUST_LOG=debug` explains a `NetworkError` without changing its message.
+pub fn log_send_error(e: &reqwest::Error) {
+    #[cfg(not(target_arch = "wasm32"))]
+    let connect = e.is_connect();
+    #[cfg(target_arch = "wasm32")]
+    let connect = false;
+    let kind = if e.is_timeout() {
+        "timeout"
+    } else if connect {
+        "connect"
+    } else if e.is_builder() {
+        "builder"
+    } else {
+        "other"
+    };
+    debug!("Request failed to send ({kind}): {e:?}");
 }
 
 pub async fn parse_error_response<T: DeserializeOwned>(
@@ -251,21 +278,12 @@ pub async fn request_login(builder: RequestBuilder) -> Result<AccountStatus, Err
 }
 
 pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, ErrorResponse> {
-    // Check internet connection before making the request
-    if !check_internet_connection().await {
-        error!("No internet connection available");
-        return Err(ErrorResponse::Error {
-            error_code: ErrorCode::NetworkError,
-            message: "No internet connection. Please check your network settings and try again."
-                .to_string(),
-        });
-    }
-
     let response = builder.send().await;
     let response = match response {
         Ok(response) => response,
         Err(e) => {
             error!("Failed to get response: {:?}", e);
+            log_send_error(&e);
             return Err(ErrorResponse::Error {
                 error_code: ErrorCode::NetworkError,
                 message: ErrorCode::NetworkError.message(None).to_string(),
@@ -311,4 +329,51 @@ pub async fn request<R: DeserializeOwned>(builder: RequestBuilder) -> Result<R, 
     };
 
     Ok(response)
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+    use std::time::{Duration, Instant};
+
+    #[tokio::test]
+    async fn unreachable_host_reports_network_error_quickly() {
+        let started = Instant::now();
+        let builder = reqwest::Client::new().get("http://127.0.0.1:1");
+        let result = request::<Value>(builder).await;
+        match result {
+            Err(ErrorResponse::Error { error_code, .. }) => {
+                assert!(matches!(error_code, ErrorCode::NetworkError));
+            }
+            other => panic!("expected NetworkError, got {other:?}"),
+        }
+        assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn workspace_does_not_call_the_connectivity_preflight() {
+        let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut callers = Vec::new();
+        let mut stack = vec![crates];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if path.extension().is_some_and(|e| e == "rs")
+                    && !path.ends_with("smbcloud-network/src/network.rs")
+                    && std::fs::read_to_string(&path)
+                        .unwrap()
+                        .contains("check_internet_connection")
+                {
+                    callers.push(path);
+                }
+            }
+        }
+        assert!(
+            callers.is_empty(),
+            "preflight still called from {callers:?}"
+        );
+    }
 }

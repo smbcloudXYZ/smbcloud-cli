@@ -133,6 +133,14 @@ For a monorepo config with several `[[projects]]` entries, name the target —
 smb --ci deploy --project aircraftshubweb
 ```
 
+## Behind a proxy
+
+`smb` honours `HTTPS_PROXY` and `NO_PROXY` (and the lowercase forms). A deploy
+contacts `api.smbcloud.xyz` on port 443 and nothing else, so an egress
+allowlist with that one host is enough. If the host cannot be reached, the
+command exits with a network error; run with `RUST_LOG=debug` to see whether
+the connection, a timeout, or the proxy failed.
+
 ## Behavior reference
 
 | Command | `--ci` behavior |

@@ -1,20 +1,15 @@
 use reqwest::{RequestBuilder, StatusCode};
 use serde_json::Value;
 use smbcloud_model::error_codes::{ErrorCode, ErrorResponse};
-use smbcloud_network::network::{check_internet_connection, parse_error_response};
+use smbcloud_network::network::{log_send_error, parse_error_response};
 
 pub(crate) async fn request_empty(builder: RequestBuilder) -> Result<(), ErrorResponse> {
-    if !check_internet_connection().await {
-        return Err(ErrorResponse::Error {
+    let response = builder.send().await.map_err(|e| {
+        log_send_error(&e);
+        ErrorResponse::Error {
             error_code: ErrorCode::NetworkError,
-            message: "No internet connection. Please check your network settings and try again."
-                .to_string(),
-        });
-    }
-
-    let response = builder.send().await.map_err(|_| ErrorResponse::Error {
-        error_code: ErrorCode::NetworkError,
-        message: ErrorCode::NetworkError.message(None).to_string(),
+            message: ErrorCode::NetworkError.message(None).to_string(),
+        }
     })?;
 
     match response.status() {
