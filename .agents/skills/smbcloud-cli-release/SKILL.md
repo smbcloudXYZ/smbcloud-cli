@@ -37,6 +37,8 @@ Use these files as the release source of truth:
 - SDK Ruby gem auth native extension: `sdk/gems/auth/ext/auth/Cargo.toml`
 - SDK Ruby gem model version: `sdk/gems/model/lib/model/version.rb`
 - SDK Ruby gem model native extension: `sdk/gems/model/ext/model/Cargo.toml`
+- SDK Ruby gem email version: `sdk/gems/email/lib/email/version.rb`
+- SDK Ruby gem email native extension: `sdk/gems/email/ext/email/Cargo.toml`
 
 ## Version sync rules
 
@@ -52,7 +54,7 @@ The npm wrapper package is generated, but its checked-in files still need to mat
 - refresh `packaging/npm/smbcloud-cli/package-lock.json` with `npm install`
 - commit both files so CI and local packaging agree on the wrapper version and optional dependency versions
 
-The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`):
+The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`, `email`):
 
 - `lib/<gem>/version.rb` — the gem version constant
 - `ext/<gem>/Cargo.toml` — the native extension crate version AND the `smbcloud-*` dependency version constraints (e.g. `"0.3"` → `"0.4"`)
@@ -318,6 +320,12 @@ Do not remove the manual publish path for brand-new package names, because npm t
 
 Use trusted publishing in GitHub Actions through `pypa/gh-action-pypi-publish@release/v1`.
 Do not use trusted publishing as the default local-machine publish path.
+
+### RubyGems
+
+The gems publish from `release-sdk-gem.yml` over OIDC, with no API key. Each gem needs a trusted publisher on rubygems.org for repository `smbcloudXYZ/smbcloud-cli` and workflow `release-sdk-gem.yml`, environment blank. The filename must be the workflow that contains the push job: a publisher registered to `release-crate.yml`, which only dispatches it, fails with `No trusted publisher configured for this workflow`.
+
+A new gem needs a pending publisher (12-hour expiry) created right before the release. If a push job fails, fix the publisher and run `gh run rerun <run-id> --failed`. See `docs/gems.md`.
 
 ## CI/CD workflow rules
 

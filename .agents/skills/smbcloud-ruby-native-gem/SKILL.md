@@ -1,6 +1,6 @@
 ---
 name: smbcloud-ruby-native-gem
-description: Use when building, packaging, or publishing smbCloud Ruby gems backed by Rust native extensions through Magnus and rb_sys, especially under sdk/gems/model and sdk/gems/auth. Covers gem layout, path wiring to workspace crates, rake build/compile flows, pkg output, .gitignore conventions, and RubyGems release preflight.
+description: Use when building, packaging, or publishing smbCloud Ruby gems backed by Rust native extensions through Magnus and rb_sys, especially under sdk/gems/model, sdk/gems/auth and sdk/gems/email. Covers gem layout, path wiring to workspace crates, rake build/compile flows, pkg output, .gitignore conventions, and RubyGems release preflight.
 ---
 
 # smbCloud Ruby Native Gem
@@ -117,14 +117,14 @@ Before publishing:
 2. build the gem with `bundle exec rake build`
 3. verify the artifact exists in `pkg/`
 4. inspect warnings from `gem build` or `rake build`
-5. confirm RubyGems credentials exist
+5. for a manual push only, confirm RubyGems credentials exist
 
-Credentials can come from either:
+CI publishes through OIDC trusted publishing (`release-sdk-gem.yml`, see `docs/gems.md`) and needs no credentials. Local credentials are only for a manual push, and can come from either:
 
 - `~/.gem/credentials`
 - `GEM_HOST_API_KEY`
 
-Without one of those, `gem push` will fail.
+Without one of those, a local `gem push` will fail.
 
 ## Publish
 

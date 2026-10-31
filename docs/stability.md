@@ -21,7 +21,7 @@ smbCloud is headless-first. Every capability has to work without a browser, and 
 - **One change, three surfaces.** A console capability is required to land in the API, the CLI and the MCP server in the same change. The CLI is not a lagging port of the web app.
 - **We use it ourselves.** Our own agents and CI jobs run `smb` and `smb --mcp` daily, so a break shows up internally before it reaches anyone else.
 - **A versioned API.** The CLI talks to the REST API under `/v1`. A backward-incompatible API change gets a new version path rather than a silent edit.
-- **Lockstep releases.** One tag produces every distribution (crates.io, npm, PyPI, NuGet, Homebrew, Scoop, winget and the GitHub release binaries). CI gates the version of each package against the tag.
+- **Lockstep releases.** One tag produces every distribution (crates.io, npm, PyPI, NuGet, RubyGems, the MCP Registry, Homebrew, Scoop, winget and the GitHub release binaries). CI gates the version of each package against the tag.
 - **A track record.** Releases have been regular since 2023, and the workspace has an automated test suite that runs on every push.
 
 ## Deprecation policy
@@ -38,7 +38,7 @@ Security fixes are the exception: they can change behavior in a patch release wh
 | `SECURITY.md` supports the latest minor of the current major, not a pre-1.0 line | Done |
 | Panics on user-driven paths removed (GitHub OAuth callback listener, runner pickers in `project update` and project setup, `migrate`). A cancelled prompt now returns an error message. | Done |
 | MCP tool count in the docs matches the router (41 cloud tools) | Done |
-| MCP Registry release publishes. Root cause of the recent failures: the NuGet wait loop polled up to 60 times but gave up at attempt 20, so it timed out after about 10 minutes, before NuGet finished indexing the new version. The loop now waits the full 30 minutes. | Open until a release run publishes |
+| MCP Registry release publishes. The NuGet wait loop used to give up after about 10 minutes, before NuGet finished indexing; it now waits the full 30 minutes. 1.0.0 is live and marked latest. | Done |
 | `cargo install smbcloud-cli` works without `CLI_CLIENT_SECRET` at compile time. Today the secret is baked in at build time, which makes the crates.io route a second-class install. See [Native (Cargo)](./cli-install.md). | Known limitation, tracked in [#107](https://github.com/smbcloudXYZ/smbcloud-cli/issues/107) |
 | winget listing. The first submission is waiting on a moderator and is not a blocker, because later releases update the package through the normal update path. | Waiting, not blocking |
 
