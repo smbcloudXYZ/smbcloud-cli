@@ -255,11 +255,14 @@ jobs:
       # that action has no input for `owner`, which RubyGems requires on the
       # first push of a gem that only has a pending trusted publisher. The
       # value is the immutable ID of the RubyGems account that created the
-      # pending publisher; it is ignored for gems that already exist.
+      # pending publisher; it is ignored for gems that already exist. It comes
+      # from the RUBYGEMS_OWNER_ID repo variable so a new gem whose pending
+      # publisher belongs to a different account can be set without editing
+      # this file; the fallback is the account that created the current ones.
       - name: Configure RubyGems credentials
         shell: bash
         env:
-          RUBYGEMS_OWNER_ID: "160848"
+          RUBYGEMS_OWNER_ID: ${{ vars.RUBYGEMS_OWNER_ID || '160848' }}
         run: |
           oidc_token="$(curl --silent --show-error --fail \
             --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
