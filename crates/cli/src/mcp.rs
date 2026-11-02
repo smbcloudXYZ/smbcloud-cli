@@ -322,6 +322,16 @@ struct TenantUseArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct RunRunnerTagsSetArgs {
+    /// The runner ID, from `run_runners_list`.
+    id: i64,
+    /// The complete tag list. It replaces the current one: lower-case letters,
+    /// digits and hyphens, at most 16. Executor tags the runner reports are
+    /// kept regardless.
+    tags: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct MailAppListArgs {
     /// Restrict to mail apps under this project ID. Defaults to the
     /// currently selected project (`project_use`) if omitted; lists across
@@ -1114,6 +1124,37 @@ impl SmbMcpServer {
         .await
         .map_err(to_error_data)?;
         json_result(&tenant)
+    }
+
+    #[tool(
+        description = "List Run runners with status, tags, flags and active job count, as a \
+                       JSON array. Requires an admin user."
+    )]
+    async fn run_runners_list(&self) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let runners = crate::run::list_runners(self.environment, client(), token)
+            .await
+            .map_err(to_error_data)?;
+        json_result(&runners)
+    }
+
+    #[tool(
+        description = "Replace a Run runner's tags with the given list. Tags decide which \
+                       jobs the runner claims, so any tag not in the list is removed. Read \
+                       the current tags with `run_runners_list` first. Requires an admin \
+                       user. Returns the updated runner as JSON.",
+        annotations(destructive_hint = true)
+    )]
+    async fn run_runner_tags_set(
+        &self,
+        Parameters(args): Parameters<RunRunnerTagsSetArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let runner =
+            crate::run::set_runner_tags(self.environment, client(), token, args.id, args.tags)
+                .await
+                .map_err(to_error_data)?;
+        json_result(&runner)
     }
 
     #[tool(
@@ -1925,6 +1966,8 @@ mod tests {
             "auth_app_new",
             "auth_app_update",
             "auth_app_delete",
+            "run_runners_list",
+            "run_runner_tags_set",
         ] {
             assert!(
                 names.contains(&cloud_only),
@@ -2100,15 +2143,16 @@ mod tests {
     fn delete_and_overwrite_tools_carry_destructive_hint() {
         let tools = SmbMcpServer::cloud_tool_router().list_all();
         let mut checked = 0;
-        for tool in tools
-            .iter()
-            .filter(|tool| tool.name.ends_with("_delete") || tool.name == "project_init")
-        {
+        for tool in tools.iter().filter(|tool| {
+            tool.name.ends_with("_delete")
+                || tool.name == "project_init"
+                || tool.name == "run_runner_tags_set"
+        }) {
             let annotations = tool.annotations.as_ref().expect("annotations");
             assert_eq!(annotations.destructive_hint, Some(true), "{}", tool.name);
             checked += 1;
         }
-        assert_eq!(checked, 6);
+        assert_eq!(checked, 7);
     }
 
     #[test]

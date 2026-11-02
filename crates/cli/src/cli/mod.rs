@@ -1,5 +1,5 @@
 use {
-    crate::{account, cloud_auth, mail, project, tenant},
+    crate::{account, cloud_auth, mail, project, run, tenant},
     clap::{Parser, Subcommand, ValueEnum},
     smbcloud_network::environment::Environment,
     spinners::Spinner,
@@ -107,6 +107,11 @@ pub enum Commands {
     Project {
         #[clap(subcommand)]
         command: project::cli::Commands,
+    },
+    #[clap(about = "Inspect and tag Run runners (admin only).")]
+    Run {
+        #[clap(subcommand)]
+        command: run::Commands,
     },
     #[clap(about = "Manage your tenants.")]
     Tenant {
