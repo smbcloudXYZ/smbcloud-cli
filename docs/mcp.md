@@ -5,8 +5,8 @@ assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
 MCP-capable client — can send transactional email and manage your smbCloud
 projects, tenants, Mail apps, and Auth apps directly, without you leaving the
 chat to run `smb` commands by hand.
-Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 41
-tools covering the account, project, deploy, tenant, Mail, and Auth surfaces.
+Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 43
+tools covering the account, project, deploy, tenant, Run, Mail, and Auth surfaces.
 
 Cross-platform mobile and TV app testing is exposed as a separate, focused MCP
 profile through `xcrs --mcp` or `smb --mcp --scope automation`. Keeping cloud
@@ -253,6 +253,18 @@ tenant is bootstrapped on signup and isn't user-managed.
 | `tenant_new` | `name` | The created organization tenant. |
 | `tenant_update` | `id`, `name` | The renamed tenant. |
 | `tenant_delete` | `id` | Confirmation. **Destructive and irreversible** — cascades to every project, Mail app, and Auth app the tenant owns. |
+
+### Run runners
+
+Run executes jobs on registered runners, and a runner's tags decide which jobs
+it claims. These tools are for an admin user: the API refuses anyone else. The
+same operations are available as `smb run runners list` and
+`smb run runners tags <id> <tag>...`.
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `run_runners_list` | _(none)_ | Every runner with status, tags, flags, heartbeat, host, and active job count. |
+| `run_runner_tags_set` | `id`, `tags` | The updated runner. **Replaces the whole tag list**, so read the current tags first. Tags are lower-cased and must use letters, digits, and hyphens, up to 16. An executor tag the runner reports is kept. |
 
 ### Mail apps
 
