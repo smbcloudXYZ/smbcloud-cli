@@ -133,7 +133,7 @@ impl WebDriver {
         let json: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
         let value = json.get("value").cloned().unwrap_or(Value::Null);
         if !status.is_success() {
-            if json.is_null() {
+            if !json.is_object() {
                 // Not WebDriver JSON (a proxy page, a plain-text refusal): the body is the clue.
                 let body: String = raw.trim().chars().take(300).collect();
                 bail!("webdriver error ({status}): {body}");
