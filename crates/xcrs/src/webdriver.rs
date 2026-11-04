@@ -129,9 +129,15 @@ impl WebDriver {
             .await
             .with_context(|| format!("{method} {url}: is a WebDriver server listening?"))?;
         let status = response.status();
-        let json: Value = response.json().await.unwrap_or(Value::Null);
+        let raw = response.text().await.unwrap_or_default();
+        let json: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
         let value = json.get("value").cloned().unwrap_or(Value::Null);
         if !status.is_success() {
+            if json.is_null() {
+                // Not WebDriver JSON (a proxy page, a plain-text refusal): the body is the clue.
+                let body: String = raw.trim().chars().take(300).collect();
+                bail!("webdriver error ({status}): {body}");
+            }
             let code = value
                 .get("error")
                 .and_then(Value::as_str)
@@ -147,9 +153,12 @@ impl WebDriver {
 
     /// Whether the driver answers `/status`.
     pub async fn is_ready(&self) -> bool {
-        self.send(reqwest::Method::GET, "/status", None)
+        self.http
+            .get(format!("{}/status", self.base))
+            .timeout(Duration::from_secs(2))
+            .send()
             .await
-            .is_ok()
+            .is_ok_and(|response| response.status().is_success())
     }
 
     /// Start the application and remember the session. Replaces a session already held for
@@ -183,11 +192,21 @@ impl WebDriver {
 
     /// Delete the held session, if any. Returns whether one existed.
     pub async fn end_session(&self) -> Result<bool> {
-        let id = sessions().lock().await.remove(&self.base);
+        // Delete first and forget the id only after the driver agrees, so a failed delete can be
+        // retried with app_terminate.
+        let id = sessions().lock().await.get(&self.base).cloned();
         match id {
             Some(id) => {
-                self.send(reqwest::Method::DELETE, &format!("/session/{id}"), None)
-                    .await?;
+                let deleted = self
+                    .send(reqwest::Method::DELETE, &format!("/session/{id}"), None)
+                    .await;
+                if let Err(error) = &deleted {
+                    // A session the driver no longer knows is gone; anything else stays held.
+                    if !error.to_string().contains("invalid session id") {
+                        deleted?;
+                    }
+                }
+                sessions().lock().await.remove(&self.base);
                 Ok(true)
             }
             None => Ok(false),
@@ -308,7 +327,9 @@ impl WebDriver {
         self.on_session(
             reqwest::Method::POST,
             &format!("/element/{reference}/value"),
-            Some(json!({ "text": text })),
+            // W3C `text`, plus the legacy `value` array: tauri-driver can drop `text` when it
+            // proxies to WebKitWebDriver, which then rejects the request.
+            Some(json!({ "text": text, "value": text.chars().map(String::from).collect::<Vec<_>>() })),
         )
         .await?;
         Ok(())
@@ -645,6 +666,73 @@ mod tests {
             .iter()
             .any(|(_, p, b)| p.ends_with("/execute/sync") && b.contains("querySelectorAll")));
         driver.end_session().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn type_text_sends_both_the_text_and_the_legacy_value_array() {
+        let key = ELEMENT_KEY;
+        let (url, seen) = stub(move |method, path, _| match (method, path) {
+            ("POST", "/session") => ok(json!({ "sessionId": "s6" })),
+            ("GET", "/session/s6/element/active") => ok(json!({ key: "f1" })),
+            ("POST", "/session/s6/element/f1/value") => ok(Value::Null),
+            ("DELETE", _) => ok(Value::Null),
+            _ => (
+                404,
+                json!({ "value": { "error": "unknown command", "message": path } }),
+            ),
+        })
+        .await;
+        let driver = WebDriver::new(Some(&url)).unwrap();
+        driver.start_session("/opt/app").await.unwrap();
+        driver.type_text("ab").await.unwrap();
+        driver.end_session().await.unwrap();
+        let seen = seen.lock().unwrap();
+        let typed = seen
+            .iter()
+            .find(|(_, p, _)| p.ends_with("/f1/value"))
+            .unwrap();
+        let body: Value = serde_json::from_str(&typed.2).unwrap();
+        assert_eq!(body["text"], "ab");
+        assert_eq!(body["value"], json!(["a", "b"]));
+    }
+
+    #[tokio::test]
+    async fn a_non_json_error_body_is_kept_in_the_message() {
+        let (url, _) = stub(|_, _, _| (502, Value::String("bad gateway from proxy".into()))).await;
+        let driver = WebDriver::new(Some(&url)).unwrap();
+        let error = driver
+            .start_session("/opt/app")
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("502") && error.contains("bad gateway"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_delete_keeps_the_session_so_it_can_be_retried() {
+        let fail = Arc::new(StdMutex::new(true));
+        let flag = fail.clone();
+        let (url, _) = stub(move |method, path, _| match (method, path) {
+            ("POST", "/session") => ok(json!({ "sessionId": "s7" })),
+            ("DELETE", "/session/s7") if *flag.lock().unwrap() => (
+                500,
+                json!({ "value": { "error": "unknown error", "message": "busy" } }),
+            ),
+            ("DELETE", "/session/s7") => ok(Value::Null),
+            _ => (
+                404,
+                json!({ "value": { "error": "unknown command", "message": path } }),
+            ),
+        })
+        .await;
+        let driver = WebDriver::new(Some(&url)).unwrap();
+        driver.start_session("/opt/app").await.unwrap();
+        assert!(driver.end_session().await.is_err());
+        *fail.lock().unwrap() = false;
+        assert!(driver.end_session().await.unwrap());
     }
 
     #[test]
