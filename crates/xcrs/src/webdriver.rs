@@ -133,7 +133,7 @@ impl WebDriver {
         let json: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
         let value = json.get("value").cloned().unwrap_or(Value::Null);
         if !status.is_success() {
-            if !json.is_object() {
+            if value.get("error").and_then(Value::as_str).is_none() {
                 // Not WebDriver JSON (a proxy page, a plain-text refusal): the body is the clue.
                 let body: String = raw.trim().chars().take(300).collect();
                 bail!("webdriver error ({status}): {body}");
@@ -707,6 +707,21 @@ mod tests {
             .to_string();
         assert!(
             error.contains("502") && error.contains("bad gateway"),
+            "{error}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_json_error_without_the_webdriver_shape_keeps_its_body() {
+        let (url, _) = stub(|_, _, _| (503, json!({ "message": "no healthy upstream" }))).await;
+        let driver = WebDriver::new(Some(&url)).unwrap();
+        let error = driver
+            .start_session("/opt/app")
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("503") && error.contains("no healthy upstream"),
             "{error}"
         );
     }
