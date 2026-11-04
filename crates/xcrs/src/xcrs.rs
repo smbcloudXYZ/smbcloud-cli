@@ -8,6 +8,7 @@ use std::process::{Child, Command, Output, Stdio};
 use std::time::Duration;
 
 pub mod mcp;
+pub mod webdriver;
 
 const IOS_SIMULATOR_DESTINATION_PREFIX: &str = "platform=iOS Simulator,id=";
 const CONTROLKIT_METHOD_NOT_FOUND: i64 = -32601;
