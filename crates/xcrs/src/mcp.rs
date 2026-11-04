@@ -76,8 +76,8 @@ fn legacy_discovery_response(line: &str) -> Option<Vec<u8>> {
 }
 
 /// A validated, unambiguous automation target: exactly one of an Apple simulator, an
-/// Apple ControlKit host (physical device, remote runner, or local Mac), or an
-/// Android device. Produced by [`resolve_selected_target`], never constructed
+/// Apple ControlKit host (physical device, remote runner, or local Mac), an
+/// Android device, or a desktop app behind a W3C WebDriver endpoint. Produced by [`resolve_selected_target`], never constructed
 /// directly from untrusted input.
 #[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
 #[serde(tag = "platform", rename_all = "snake_case")]
@@ -107,6 +107,13 @@ pub enum SelectedTarget {
         #[serde(default)]
         serial: Option<String>,
     },
+    /// A desktop application driven through a W3C WebDriver endpoint, such as
+    /// `tauri-driver`. Starting the session launches the app.
+    Desktop {
+        /// WebDriver endpoint. `None` means `http://127.0.0.1:4444`.
+        #[serde(default)]
+        webdriver_url: Option<String>,
+    },
 }
 
 /// Validate and tag a target from optional per-call fields, falling back to
@@ -125,9 +132,40 @@ pub fn resolve_selected_target(
     android_serial: Option<String>,
     stored: Option<SelectedTarget>,
 ) -> Result<SelectedTarget, String> {
+    resolve_target(
+        simulator_name,
+        simulator_udid,
+        host,
+        controlkit_port,
+        android_serial,
+        None,
+        stored,
+    )
+}
+
+/// [`resolve_selected_target`] with the desktop field. `webdriver_url` selects a desktop
+/// target and cannot be combined with any Apple or Android field.
+pub fn resolve_target(
+    simulator_name: Option<String>,
+    simulator_udid: Option<String>,
+    host: Option<String>,
+    controlkit_port: Option<u16>,
+    android_serial: Option<String>,
+    webdriver_url: Option<String>,
+    stored: Option<SelectedTarget>,
+) -> Result<SelectedTarget, String> {
     let apple_simulator_provided = simulator_name.is_some() || simulator_udid.is_some();
     let apple_host_provided = host.is_some();
     let android_provided = android_serial.is_some();
+    let desktop_provided = webdriver_url.is_some();
+
+    if desktop_provided && (android_provided || apple_simulator_provided || apple_host_provided) {
+        return Err(
+            "Ambiguous target: webdriver_url cannot be combined with simulator_name, \
+             simulator_udid, host, or android_serial. Provide exactly one target."
+                .to_string(),
+        );
+    }
 
     if android_provided && (apple_simulator_provided || apple_host_provided) {
         return Err(
@@ -144,6 +182,11 @@ pub fn resolve_selected_target(
         );
     }
 
+    if let Some(webdriver_url) = webdriver_url {
+        return Ok(SelectedTarget::Desktop {
+            webdriver_url: Some(webdriver_url),
+        });
+    }
     if let Some(serial) = android_serial {
         return Ok(SelectedTarget::Android {
             serial: Some(serial),
@@ -164,8 +207,8 @@ pub fn resolve_selected_target(
     }
 
     stored.ok_or_else(|| {
-        "No target provided. Pass simulator_name/simulator_udid, host, or android_serial, \
-         or select a default target first with device_select."
+        "No target provided. Pass simulator_name/simulator_udid, host, android_serial, or \
+         webdriver_url, or select a default target first with device_select."
             .to_string()
     })
 }
@@ -181,7 +224,89 @@ pub fn require_apple_target(tool_name: &str, target: &SelectedTarget) -> Result<
              simulator_name, simulator_udid, or host explicitly.",
             serial.as_deref().unwrap_or("auto-detected")
         )),
+        SelectedTarget::Desktop { .. } => Err(format!(
+            "{tool_name} is Apple-only; the active target is a desktop app. Select an Apple \
+             simulator or ControlKit host with device_select, or pass simulator_name, \
+             simulator_udid, or host explicitly."
+        )),
         SelectedTarget::AppleSimulator { .. } | SelectedTarget::AppleHost { .. } => Ok(()),
+    }
+}
+
+/// One desktop operation, mapped from an `xcrs` tool.
+#[derive(Debug, Clone)]
+pub enum DesktopCall {
+    /// `app_install_launch` or `app_launch`: start the app at this binary path.
+    Launch(String),
+    /// `app_terminate`: end the session, which closes the app.
+    Terminate,
+    /// `ui_describe`: the page source.
+    Describe,
+    /// `ui_element_list`: visible interactive elements.
+    Elements,
+    /// `ui_tap`: click the one element with this label.
+    Tap(String),
+    /// `input_text`: type into the focused element.
+    Text(String),
+    /// `screen_capture`: a PNG of the window.
+    Screenshot,
+}
+
+/// Run one desktop operation against the WebDriver endpoint and shape the answer as MCP
+/// content. A bad URL or a bad label is an invalid request; a failed driver call is internal.
+pub async fn run_desktop(
+    webdriver_url: Option<&str>,
+    call: DesktopCall,
+) -> Result<Vec<rmcp::model::ContentBlock>, rmcp::model::ErrorData> {
+    use rmcp::model::{ContentBlock, ErrorData};
+    let driver = crate::webdriver::WebDriver::new(webdriver_url)
+        .map_err(|error| ErrorData::invalid_request(error.to_string(), None))?;
+    let failed = |error: anyhow::Error| ErrorData::internal_error(error.to_string(), None);
+    match call {
+        DesktopCall::Launch(path) => {
+            let session = driver.start_session(&path).await.map_err(failed)?;
+            Ok(vec![ContentBlock::text(format!(
+                "Started {path} on {} (session {session}).",
+                driver.url()
+            ))])
+        }
+        DesktopCall::Terminate => {
+            let ended = driver.end_session().await.map_err(failed)?;
+            Ok(vec![ContentBlock::text(if ended {
+                "Ended the desktop session; the app is closed."
+            } else {
+                "No desktop session was running."
+            })])
+        }
+        DesktopCall::Describe => {
+            let source = driver.page_source().await.map_err(failed)?;
+            Ok(vec![ContentBlock::json(serde_json::json!({
+                "target": SelectedTarget::Desktop { webdriver_url: webdriver_url.map(str::to_string) },
+                "ui": source,
+            }))?])
+        }
+        DesktopCall::Elements => {
+            let elements = driver.list_elements().await.map_err(failed)?;
+            Ok(vec![ContentBlock::json(serde_json::json!({
+                "target": SelectedTarget::Desktop { webdriver_url: webdriver_url.map(str::to_string) },
+                "elements": elements,
+            }))?])
+        }
+        DesktopCall::Tap(label) => {
+            driver.click_label(&label).await.map_err(failed)?;
+            Ok(vec![ContentBlock::text(format!("Clicked '{label}'."))])
+        }
+        DesktopCall::Text(text) => {
+            driver.type_text(&text).await.map_err(failed)?;
+            Ok(vec![ContentBlock::text(format!(
+                "Typed {} characters.",
+                text.chars().count()
+            ))])
+        }
+        DesktopCall::Screenshot => {
+            let png = driver.screenshot_base64().await.map_err(failed)?;
+            Ok(vec![ContentBlock::image(png, "image/png")])
+        }
     }
 }
 
@@ -490,6 +615,11 @@ pub struct DeviceSelectArgs {
     /// target. Mutually exclusive with every Apple field.
     #[serde(default)]
     pub android_serial: Option<String>,
+    /// W3C WebDriver endpoint of a desktop app, such as `tauri-driver` at
+    /// `http://127.0.0.1:4444`, to remember as the active target. Mutually exclusive
+    /// with every Apple and Android field. The desktop tools use the stored target.
+    #[serde(default)]
+    pub webdriver_url: Option<String>,
 }
 
 /// Structured result of `device_select`: the single unambiguous target that is
@@ -518,6 +648,9 @@ pub struct DeviceCapabilitiesArgs {
     /// Android device serial from `adb devices -l`.
     #[serde(default)]
     pub android_serial: Option<String>,
+    /// W3C WebDriver endpoint of a desktop app.
+    #[serde(default)]
+    pub webdriver_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -1033,6 +1166,12 @@ macro_rules! xcrs_mcp_tools {
                             None,
                         ))
                     }
+                    $crate::mcp::SelectedTarget::Desktop { .. } => {
+                        Err(::rmcp::model::ErrorData::invalid_request(
+                            "Desktop targets do not use ControlKit; this tool has no desktop meaning.",
+                            None,
+                        ))
+                    }
                 }
             }
 
@@ -1069,6 +1208,9 @@ macro_rules! xcrs_mcp_tools {
                         .clone()
                         .unwrap_or_else(|| "the connected Android device".to_string()),
                     $crate::mcp::SelectedTarget::AppleHost { host, .. } => host.clone(),
+                    $crate::mcp::SelectedTarget::Desktop { webdriver_url } => webdriver_url
+                        .clone()
+                        .unwrap_or_else(|| $crate::webdriver::DEFAULT_WEBDRIVER_URL.to_string()),
                     $crate::mcp::SelectedTarget::AppleSimulator { .. } => simulator
                         .as_ref()
                         .map(|simulator| simulator.name.clone())
@@ -1143,12 +1285,13 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
-                let target = $crate::mcp::resolve_selected_target(
+                let target = $crate::mcp::resolve_target(
                     args.simulator_name,
                     args.simulator_udid,
                     args.host,
                     args.controlkit_port,
                     args.android_serial,
+                    args.webdriver_url,
                     None,
                 )
                 .map_err(|error| ::rmcp::model::ErrorData::invalid_request(error, None))?;
@@ -1185,14 +1328,32 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
-                let target = Self::dispatch_target(
+                let target = $crate::mcp::resolve_target(
                     args.simulator_name,
                     args.simulator_udid,
                     args.host,
                     args.controlkit_port,
                     args.android_serial,
-                )?;
+                    args.webdriver_url,
+                    Self::stored_target(),
+                )
+                .map_err(|error| ::rmcp::model::ErrorData::invalid_request(error, None))?;
                 match &target {
+                    $crate::mcp::SelectedTarget::Desktop { webdriver_url } => {
+                        let driver = $crate::webdriver::WebDriver::new(webdriver_url.as_deref())
+                            .map_err(|error| ::rmcp::model::ErrorData::invalid_request(error.to_string(), None))?;
+                        let mut capabilities = $crate::webdriver::desktop_capabilities();
+                        if let Some(object) = capabilities.as_object_mut() {
+                            object.insert("driver_ready".to_string(), ::serde_json::json!(driver.is_ready().await));
+                            object.insert("webdriver_url".to_string(), ::serde_json::json!(driver.url()));
+                        }
+                        Ok(::rmcp::model::CallToolResult::success(vec![
+                            ::rmcp::model::ContentBlock::json(&::serde_json::json!({
+                                "platform": "desktop",
+                                "capabilities": capabilities,
+                            }))?,
+                        ]))
+                    }
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
                         let mut capabilities = $crate::mcp::android_capabilities();
@@ -1274,6 +1435,17 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::ErrorData,
             > {
                 if args.simulator_name.is_none() && args.simulator_udid.is_none() {
+                    if let ::std::option::Option::Some($crate::mcp::SelectedTarget::Desktop { webdriver_url }) =
+                        Self::stored_target()
+                    {
+                        return Ok(::rmcp::model::CallToolResult::success(
+                            $crate::mcp::run_desktop(
+                                webdriver_url.as_deref(),
+                                $crate::mcp::DesktopCall::Launch(args.app_path.to_string_lossy().into_owned()),
+                            )
+                            .await?,
+                        ));
+                    }
                     return Err(::rmcp::model::ErrorData::invalid_request(
                         "Provide either simulator_name or simulator_udid.",
                         None,
@@ -1351,7 +1523,18 @@ macro_rules! xcrs_mcp_tools {
                     args.controlkit_port,
                     args.android_serial,
                 )?;
+                if let $crate::mcp::SelectedTarget::Desktop { webdriver_url } = &target {
+                    return Ok(::rmcp::model::CallToolResult::success(
+                        $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Screenshot).await?,
+                    ));
+                }
                 let content = match &target {
+                    $crate::mcp::SelectedTarget::Desktop { .. } => {
+                        return Err(::rmcp::model::ErrorData::internal_error(
+                            "desktop targets are handled before this match",
+                            None,
+                        ));
+                    }
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         if args.display.is_some() {
                             return Err(::rmcp::model::ErrorData::invalid_request(
@@ -1420,7 +1603,18 @@ macro_rules! xcrs_mcp_tools {
                     args.controlkit_port,
                     args.android_serial,
                 )?;
+                if let $crate::mcp::SelectedTarget::Desktop { webdriver_url } = &target {
+                    return Ok(::rmcp::model::CallToolResult::success(
+                        $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Launch(args.app_id.clone())).await?,
+                    ));
+                }
                 let label = match &target {
+                    $crate::mcp::SelectedTarget::Desktop { .. } => {
+                        return Err(::rmcp::model::ErrorData::internal_error(
+                            "desktop targets are handled before this match",
+                            None,
+                        ));
+                    }
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
                         let device_serial = device.serial.clone();
@@ -1499,7 +1693,18 @@ macro_rules! xcrs_mcp_tools {
                     args.controlkit_port,
                     args.android_serial,
                 )?;
+                if let $crate::mcp::SelectedTarget::Desktop { webdriver_url } = &target {
+                    return Ok(::rmcp::model::CallToolResult::success(
+                        $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Terminate).await?,
+                    ));
+                }
                 let label = match &target {
+                    $crate::mcp::SelectedTarget::Desktop { .. } => {
+                        return Err(::rmcp::model::ErrorData::internal_error(
+                            "desktop targets are handled before this match",
+                            None,
+                        ));
+                    }
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
                         let device_serial = device.serial.clone();
@@ -1579,6 +1784,12 @@ macro_rules! xcrs_mcp_tools {
                     args.android_serial,
                 )?;
                 let label = match &target {
+                    $crate::mcp::SelectedTarget::Desktop { .. } => {
+                        return Err(::rmcp::model::ErrorData::internal_error(
+                            "desktop targets are handled before this match",
+                            None,
+                        ));
+                    }
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
                         let device_serial = device.serial.clone();
@@ -1640,14 +1851,19 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
-                let app_id = Self::require_app_id($ui_describe_name, args.app_id, args.bundle_id)?;
-                let target = Self::dispatch_target(
+                                let target = Self::dispatch_target(
                     args.simulator_name,
                     args.simulator_udid,
                     args.host,
                     args.controlkit_port,
                     args.android_serial,
                 )?;
+                if let $crate::mcp::SelectedTarget::Desktop { webdriver_url } = &target {
+                    return Ok(::rmcp::model::CallToolResult::success(
+                        $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Describe).await?,
+                    ));
+                }
+                let app_id = Self::require_app_id($ui_describe_name, args.app_id, args.bundle_id)?;
                 let (simulator, result) = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
@@ -1691,10 +1907,15 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
-                let app_id = Self::require_app_id($ui_element_list_name, args.app_id, args.bundle_id)?;
-                let target = Self::dispatch_target(
+                                let target = Self::dispatch_target(
                     args.simulator_name, args.simulator_udid, args.host, args.controlkit_port, args.android_serial,
                 )?;
+                if let $crate::mcp::SelectedTarget::Desktop { webdriver_url } = &target {
+                    return Ok(::rmcp::model::CallToolResult::success(
+                        $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Elements).await?,
+                    ));
+                }
+                let app_id = Self::require_app_id($ui_element_list_name, args.app_id, args.bundle_id)?;
                 let (simulator, elements) = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
@@ -1730,8 +1951,7 @@ macro_rules! xcrs_mcp_tools {
                 &self,
                 ::rmcp::handler::server::wrapper::Parameters(args): ::rmcp::handler::server::wrapper::Parameters<$crate::mcp::UiTapArgs>,
             ) -> ::std::result::Result<::rmcp::model::CallToolResult, ::rmcp::model::ErrorData> {
-                let app_id = Self::require_app_id($ui_tap_name, args.target.app_id, args.target.bundle_id)?;
-                let element = args.element.trim().to_string();
+                                let element = args.element.trim().to_string();
                 if element.is_empty() {
                     return Err(::rmcp::model::ErrorData::invalid_request(
                         format!("{} requires a non-empty element.", $ui_tap_name),
@@ -1745,6 +1965,12 @@ macro_rules! xcrs_mcp_tools {
                     args.target.controlkit_port,
                     args.target.android_serial,
                 )?;
+                if let $crate::mcp::SelectedTarget::Desktop { webdriver_url } = &target {
+                    return Ok(::rmcp::model::CallToolResult::success(
+                        $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Tap(args.element.trim().to_string())).await?,
+                    ));
+                }
+                let app_id = Self::require_app_id($ui_tap_name, args.target.app_id, args.target.bundle_id)?;
                 let label = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
@@ -1856,6 +2082,11 @@ macro_rules! xcrs_mcp_tools {
                     args.controlkit_port,
                     args.android_serial,
                 )?;
+                if let $crate::mcp::SelectedTarget::Desktop { webdriver_url } = &target {
+                    return Ok(::rmcp::model::CallToolResult::success(
+                        $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Text(args.text.clone())).await?,
+                    ));
+                }
                 let label = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
                         let device = Self::android_device_for(serial.clone()).await?;
@@ -2869,6 +3100,7 @@ mod tests {
                     host: None,
                     controlkit_port: None,
                     android_serial: None,
+                    webdriver_url: None,
                 },
             ))
             .await
@@ -3094,6 +3326,93 @@ mod tests {
     fn orientation_as_str_matches_controlkit_vocabulary() {
         assert_eq!(Orientation::Portrait.as_str(), "PORTRAIT");
         assert_eq!(Orientation::Landscape.as_str(), "LANDSCAPE");
+    }
+
+    #[test]
+    fn webdriver_url_selects_a_desktop_target() {
+        let target = resolve_target(
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("http://127.0.0.1:4444".to_string()),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            target,
+            SelectedTarget::Desktop {
+                webdriver_url: Some("http://127.0.0.1:4444".to_string())
+            }
+        );
+    }
+
+    #[test]
+    fn webdriver_url_is_ambiguous_with_every_other_target_field() {
+        let url = || Some("http://127.0.0.1:4444".to_string());
+        for (sim, host, android) in [
+            (Some("iPhone 16".to_string()), None, None),
+            (None, Some("10.0.0.2".to_string()), None),
+            (None, None, Some("emulator-5554".to_string())),
+        ] {
+            let error = resolve_target(sim, None, host, None, android, url(), None).unwrap_err();
+            assert!(
+                error.contains("webdriver_url cannot be combined"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_stored_desktop_target_is_used_and_an_explicit_field_overrides_it() {
+        let stored = SelectedTarget::Desktop {
+            webdriver_url: None,
+        };
+        assert_eq!(
+            resolve_target(None, None, None, None, None, None, Some(stored.clone())).unwrap(),
+            stored
+        );
+        let android = resolve_target(
+            None,
+            None,
+            None,
+            None,
+            Some("emulator-5554".to_string()),
+            None,
+            Some(stored),
+        )
+        .unwrap();
+        assert!(matches!(android, SelectedTarget::Android { .. }));
+    }
+
+    #[test]
+    fn apple_only_tools_refuse_a_desktop_target() {
+        let error = require_apple_target(
+            "input_click",
+            &SelectedTarget::Desktop {
+                webdriver_url: None,
+            },
+        )
+        .unwrap_err();
+        assert!(error.contains("input_click is Apple-only"), "{error}");
+    }
+
+    #[tokio::test]
+    async fn run_desktop_reports_a_missing_session_and_a_bad_url() {
+        let error = run_desktop(Some("ftp://nowhere"), DesktopCall::Describe)
+            .await
+            .unwrap_err();
+        assert!(error.message.contains("http"), "{}", error.message);
+        // Nothing listens on port 9, so the call fails as an internal error, not a panic.
+        let error = run_desktop(Some("http://127.0.0.1:9"), DesktopCall::Screenshot)
+            .await
+            .unwrap_err();
+        assert!(
+            error.message.contains("no desktop session"),
+            "{}",
+            error.message
+        );
     }
 
     #[test]
