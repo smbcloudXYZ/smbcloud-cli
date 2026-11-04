@@ -28,6 +28,31 @@ The same automation profile is available from the full smbCloud CLI:
 smb --mcp --scope automation
 ```
 
+## Desktop apps
+
+A desktop target drives an application through a W3C WebDriver endpoint, for example
+`tauri-driver` for a Tauri app on Linux (it proxies WebKitWebDriver). Select it once:
+
+```json
+{ "name": "device_select", "arguments": { "webdriver_url": "http://127.0.0.1:4444" } }
+```
+
+`webdriver_url` cannot be combined with an Apple or Android field. The desktop tools then use the
+stored target.
+
+| Tool | Desktop behaviour |
+|------|-------------------|
+| `app_install_launch`, `app_launch` | Start a WebDriver session, which launches the binary at `app_path` (`app_id` for `app_launch`). `bundle_id` is ignored. |
+| `app_terminate` | End the session and close the app. |
+| `ui_describe` | The page source. |
+| `ui_element_list` | Visible interactive elements with label, id, role and rectangle, up to 200. |
+| `ui_tap` | Click the one displayed element whose id, name, test id, ARIA label, title or text equals `element`. Zero or several matches are an error. |
+| `input_text` | Type into the focused element. |
+| `screen_capture` | A PNG of the window. |
+
+The other tools return an error saying they have no desktop meaning. A running app cannot be
+attached to: the session is the launched app.
+
 ## Repository
 
 Source and documentation are available in the
