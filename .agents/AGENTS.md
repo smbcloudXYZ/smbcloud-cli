@@ -108,6 +108,8 @@ Minor and major releases branch off `development`; patch releases branch off `ma
 
 `packaging/mcp/server.json` and `packaging/mcp/server-xcrs.json` (the MCP Registry listings) are version-synced by the same Makefile step, and `release-nuget.yml` triggers `release-mcp-registry.yml` once its publish job succeeds — the listings need the npm, NuGet, and Cargo packages live at their recorded versions, and the registry validates their metadata against the real packages. See `docs/mcp-registry.md`.
 
+`release-winget.yml` files the Package Request issue with `WINGET_ISSUE_TOKEN` (`public_repo`), then opens the manifest PR with `WINGET_PR_TOKEN`, a classic PAT with `public_repo`, `read:org`, `read:discussion`, and `workflow`. The first three cover forking and the `gh pr edit` GraphQL query. `workflow` is there because wingetcreate fast-forwards the token owner's fork before it branches, and GitHub refuses that sync once an upstream commit changes a file under `.github/workflows`. "The forked repository could not be synced with the upstream commits" means the PAT lacks `workflow`; add it, or sync the fork by hand and rerun.
+
 ---
 
 # Architecture
