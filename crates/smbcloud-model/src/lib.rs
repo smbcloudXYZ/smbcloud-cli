@@ -4,6 +4,7 @@ pub mod artifact_deployment;
 pub mod deploy_config;
 pub mod deploy_config_update;
 pub mod error_codes;
+pub mod flags;
 pub mod forgot;
 pub mod frontend_app;
 pub mod login;
