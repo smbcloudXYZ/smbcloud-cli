@@ -578,7 +578,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download actionlint
-        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
 
       - name: Run actionlint
         run: ./actionlint -color
