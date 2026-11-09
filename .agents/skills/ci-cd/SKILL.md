@@ -34,6 +34,33 @@ When the main `README.MD` changes its tagline, logo, quick start, or value propo
 
 ---
 
+## CI triggers and path gating
+
+`ci.yml` (the `Tests` workflow) is built so a change runs only what it can break:
+
+- **One trigger per commit.** `push` is limited to `main` and `development`; every other
+  branch runs through `pull_request`, which has no `branches:` filter (it matches the PR
+  base and would skip stacked PRs). Never combine `push: ["**"]` with `pull_request`: every
+  PR commit then runs twice. Concurrency cancels superseded runs except on `main` and
+  `development`.
+- **Layer 1: workflow-level `paths-ignore`** for files no job reads (`**/*.md`, `.agents/**`,
+  `.claude/**`, `docs/**`). A change that touches only those starts no run.
+- **Layer 2: the `changes` job** (`dorny/paths-filter`, pinned by SHA) exposes one output per
+  concern (`rust`, `wasm`, `npm_sdk`, `python_sdk`, `nuget`, `gems`, `workflows`).
+  Every job is gated with `if: needs.changes.outputs.<name> == 'true'`. `ci.yml` is in every
+  filter, so editing CI re-runs everything. When you add a job or an input path, update the
+  matching filter.
+- **Release workflows only.** CI cannot run a `release-*.yml`, so a change limited to
+  `.github/workflows/` runs `actionlint` (which also shellchecks `run:` blocks) and nothing
+  else. Keep `actionlint` clean locally before pushing.
+- **`CI status` aggregator.** Runs with `if: always()` and passes when each needed job is
+  `success` or `skipped`, so it can become a required check without a skipped job leaving it
+  pending. Add new jobs to its `needs`. Don't make it a required check while `paths-ignore`
+  is on `pull_request`: a PR touching only ignored files starts no run, so the check would
+  wait forever. Drop `paths-ignore` from `pull_request` first.
+
+The general rules live in the `ci-cd-pragmatic` skill.
+
 ## Universal workflow patterns
 
 The repo now has two kinds of release workflows.

@@ -56,9 +56,11 @@ jobs:
           # wingetcreate wants ReleaseDate as YYYY-MM-DD.
           DATE=$(gh release view "$TAG" --repo "$REPO" --json publishedAt --jq '.publishedAt[0:10]')
 
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "date=${DATE}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+            echo "date=${DATE}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Check whether the package is already in winget-pkgs
         id: exists
