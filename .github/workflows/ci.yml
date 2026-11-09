@@ -34,8 +34,8 @@ on:
       - "docs/**"
   workflow_dispatch:
 
-# Superseded pushes to a feature branch are cancelled. development and main are
-# never cancelled, so every commit there keeps a result.
+# A newer commit on a pull request cancels the run it supersedes. development
+# and main are never cancelled, so every commit there keeps a result.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/development' && github.ref != 'refs/heads/main' }}
@@ -50,7 +50,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
-      cross: ${{ steps.filter.outputs.cross }}
       wasm: ${{ steps.filter.outputs.wasm }}
       npm_sdk: ${{ steps.filter.outputs.npm_sdk }}
       python_sdk: ${{ steps.filter.outputs.python_sdk }}
@@ -68,13 +67,6 @@ jobs:
           filters: |
             rust:
               - "crates/**"
-              - "Cargo.toml"
-              - "Cargo.lock"
-              - "rust-toolchain.toml"
-              - ".github/workflows/ci.yml"
-            cross:
-              - "crates/cli/**"
-              - "crates/xcrs/**"
               - "Cargo.toml"
               - "Cargo.lock"
               - "rust-toolchain.toml"
@@ -171,12 +163,14 @@ jobs:
         run: cargo test --workspace --exclude smbcloud-auth-sdk-wasm
 
   # ── Cross-platform build ────────────────────────────────────────────────────
+  # Gated on `rust`, not just crates/cli: cfg(windows) code also lives in the
+  # dependency crates, and this is the only job that compiles it on Windows.
   # A #[cfg(unix)] mismatch type-checks on Linux and only fails on Windows, so
   # compile the packages the release workflows build on those OSes.
   check-cross-platform:
     name: Rust — clippy (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.cross == 'true'
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -583,8 +577,11 @@ jobs:
       - name: Run actionlint
         run: ./actionlint -color
 
-  # Passes when every job succeeded or was skipped, so it can be a required
-  # check without a skipped job leaving it pending.
+  # Passes when every job succeeded or was skipped, so a skipped job never
+  # leaves it pending. Do not make it a required check while the workflow-level
+  # paths-ignore is on pull_request: a PR touching only ignored files starts no
+  # run, and a required check would wait for it forever. Drop paths-ignore from
+  # pull_request first (the `changes` job then skips everything).
   ci:
     name: CI status
     runs-on: ubuntu-latest
