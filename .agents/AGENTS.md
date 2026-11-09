@@ -70,9 +70,13 @@ Rust change done** — after every edit, not just before a push. Fix clippy find
 than silencing them with `#[allow(...)]` unless there's a specific reason the lint doesn't
 apply, and note that reason inline.
 
-`ci.yml` runs seven jobs on every push; run the ones relevant to what changed, not just the
-main Rust workspace job — a change that only compiles in the main workspace but breaks one
-of these is still a broken CI run:
+`ci.yml` routes jobs by changed paths (a `changes` job built on `dorny/paths-filter`), so
+each job below runs only when its own inputs change. Run the ones relevant to what you
+changed locally, not just the main Rust workspace job — a change that only compiles in the
+main workspace but breaks one of these is still a broken CI run. Push runs only on `main`
+and `development`; everything else runs once through `pull_request`. Docs, skills and other
+markdown skip the workflow, and a change to release workflows alone runs only `actionlint`.
+See the "CI triggers and path gating" section of `.agents/skills/ci-cd/SKILL.md`:
 
 | Job | Touches | Local check |
 |---|---|---|
