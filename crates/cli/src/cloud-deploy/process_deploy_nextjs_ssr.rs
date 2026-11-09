@@ -87,33 +87,12 @@ fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
     Ok(removed)
 }
 
-/// Build the shell snippet that (re)starts the app after the standalone bundle
-/// is on the server.
-///
-/// Two supervisors are supported, selected by `process_manager` (matched
-/// case-insensitively):
-/// - `None` / `"pm2"` → **pm2** (default): delete + start fresh, preferring an
-///   operator-managed `ecosystem.config.cjs`/`.js`, else `pm2 start node --
-///   server.js` with `PORT`/`HOSTNAME` inline.
-/// - `"systemd"` → a **git-owned `systemctl --user` service** named
-///   `<pm2_app>.service` (created out-of-band; see the smbcloud-deploy-nextjs
-///   skill). Restarted with no sudo — the deploy SSHes as the git app-owner,
-///   and `systemctl --user` (with `XDG_RUNTIME_DIR` set) drives that user's own
-///   manager. Fails loudly if the unit does not exist.
-///
-/// Any other value is a hard error rather than a silent fall back to pm2: on an
-/// app already migrated to systemd, a typo like `system` would otherwise start
-/// a second pm2 process that collides with the systemd-owned port — the exact
-/// double-supervisor outage this option exists to prevent.
-///
-/// The returned snippet references the shell var `$PM2_APP` (set earlier in the
-/// deploy script). `port` is only used by the pm2 path.
 /// Node program run on the host to apply the app's env vars to an existing PM2
 /// ecosystem file. It reads the values from `SMB_ENV_B64` (base64 of a JSON
 /// object), so no value is ever interpolated into shell source.
 ///
 /// It sets every managed key in `env_production` of the app named
-/// `SMB_PM2_APP`, removes keys the previous deploy managed that are gone now,
+/// `SMB_PM2_APP` (in `{ apps: [...] }` or a bare array, both of which pm2 loads), removes keys the previous deploy managed that are gone now,
 /// and records the managed key names (never values) in
 /// `.smbcloud-env-keys.json`. Keys nobody told smbCloud about stay untouched.
 /// The first rewrite keeps the original as `ecosystem.config.cjs.smbcloud.bak`,
@@ -135,7 +114,8 @@ if (!plain(cfg)) {
   console.error('smbCloud: ' + file + ' contains functions, so env vars cannot be merged into it safely. Edit it by hand or remove the functions.');
   process.exit(1);
 }
-var entry = (cfg.apps || []).filter(function (a) { return a.name === app; })[0];
+var apps = Array.isArray(cfg) ? cfg : (cfg.apps || []);
+var entry = apps.filter(function (a) { return a.name === app; })[0];
 if (!entry) {
   console.error('smbCloud: no app named ' + app + ' in ' + file + '.');
   process.exit(1);
@@ -143,7 +123,7 @@ if (!entry) {
 entry.env_production = entry.env_production || {};
 var previous = [];
 try { previous = JSON.parse(fs.readFileSync(keysFile, 'utf8')); } catch (e) {}
-previous.forEach(function (k) { if (!(k in vars)) delete entry.env_production[k]; });
+previous.forEach(function (k) { if (!Object.prototype.hasOwnProperty.call(vars, k)) delete entry.env_production[k]; });
 Object.keys(vars).forEach(function (k) { entry.env_production[k] = vars[k]; });
 if (!fs.existsSync(file + '.smbcloud.bak')) fs.copyFileSync(file, file + '.smbcloud.bak');
 fs.writeFileSync(file, 'module.exports = ' + JSON.stringify(cfg, null, 2) + ';\n');
@@ -192,6 +172,27 @@ pub(super) fn ecosystem_env_merge_snippet(
     )
 }
 
+/// Build the shell snippet that (re)starts the app after the standalone bundle
+/// is on the server.
+///
+/// Two supervisors are supported, selected by `process_manager` (matched
+/// case-insensitively):
+/// - `None` / `"pm2"` → **pm2** (default): delete + start fresh, preferring an
+///   operator-managed `ecosystem.config.cjs`/`.js`, else `pm2 start node --
+///   server.js` with `PORT`/`HOSTNAME` inline.
+/// - `"systemd"` → a **git-owned `systemctl --user` service** named
+///   `<pm2_app>.service` (created out-of-band; see the smbcloud-deploy-nextjs
+///   skill). Restarted with no sudo — the deploy SSHes as the git app-owner,
+///   and `systemctl --user` (with `XDG_RUNTIME_DIR` set) drives that user's own
+///   manager. Fails loudly if the unit does not exist.
+///
+/// Any other value is a hard error rather than a silent fall back to pm2: on an
+/// app already migrated to systemd, a typo like `system` would otherwise start
+/// a second pm2 process that collides with the systemd-owned port — the exact
+/// double-supervisor outage this option exists to prevent.
+///
+/// The returned snippet references the shell var `$PM2_APP` (set earlier in the
+/// deploy script). `port` is only used by the pm2 path.
 pub(super) fn restart_stanza(process_manager: Option<&str>, port: u16) -> Result<String> {
     let use_systemd = match process_manager.map(str::trim) {
         None | Some("") => false,
@@ -1186,6 +1187,25 @@ mod tests {
         serde_json::from_slice(&out.stdout).unwrap()
     }
 
+    /// Like `env_of`, for a file that exports a bare array of apps.
+    fn env_of_array(dir: &Path, app: &str) -> Value {
+        let out = Command::new("node")
+            .arg("-e")
+            .arg(format!(
+                "var c=require('./ecosystem.config.cjs');\
+                 console.log(JSON.stringify(c.find(a=>a.name==='{app}').env_production))"
+            ))
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice(&out.stdout).unwrap()
+    }
+
     #[test]
     fn env_merge_sets_keys_and_keeps_hand_maintained_ones() {
         if !have_bash_and_node() {
@@ -1307,6 +1327,50 @@ mod tests {
         let web = env_of(dir.path(), "web");
         assert_eq!(web["PORT"], 3026);
         assert_eq!(web["NODE_ENV"], "production");
+        assert_eq!(web["K"], "v");
+    }
+
+    #[test]
+    fn env_merge_handles_an_array_form_ecosystem_file() {
+        if !have_bash_and_node() {
+            return;
+        }
+        let dir = tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("ecosystem.config.cjs"),
+            "module.exports = [{ name: 'web', script: 'server.js', env_production: { HAND_KEPT: 'mine' } }];\n",
+        )
+        .unwrap();
+
+        let out = run_merge(dir.path(), Some(&vars(&[("K", json!("v"))])));
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+
+        let web = env_of_array(dir.path(), "web");
+        assert_eq!(web["K"], "v");
+        assert_eq!(web["HAND_KEPT"], "mine");
+    }
+
+    #[test]
+    fn env_merge_removes_a_managed_key_named_like_an_object_property() {
+        if !have_bash_and_node() {
+            return;
+        }
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("ecosystem.config.cjs"), HAND_FILE).unwrap();
+
+        let first = vars(&[("constructor", json!("x")), ("toString", json!("y"))]);
+        assert!(run_merge(dir.path(), Some(&first)).status.success());
+        assert_eq!(env_of(dir.path(), "web")["constructor"], "x");
+
+        let second = vars(&[("K", json!("v"))]);
+        assert!(run_merge(dir.path(), Some(&second)).status.success());
+        let web = env_of(dir.path(), "web");
+        assert!(!web.as_object().unwrap().contains_key("constructor"));
+        assert!(!web.as_object().unwrap().contains_key("toString"));
         assert_eq!(web["K"], "v");
     }
 
