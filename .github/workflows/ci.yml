@@ -1,8 +1,10 @@
 name: Tests
 
-# Runs on every branch push (not on tag pushes: a release tag re-tests a SHA the
-# branch push already covered, and the release workflows handle tags).
-# Covers:
+# One run per commit: push only for the integration branches, pull_request for
+# everything else (tag pushes are covered by the release workflows). Files that
+# never affect a job skip the workflow entirely; the `changes` job then routes
+# the rest so each job runs only when its own inputs changed. Editing ci.yml
+# re-runs everything. Covers:
 #   - All Rust workspace members (fmt, clippy, tests)
 #   - smbcloud-cli + xcrs clippy on Windows and macOS (cfg-gated code)
 #   - smbcloud-auth-sdk-wasm (wasm32-unknown-unknown cargo check)
@@ -14,10 +16,23 @@ name: Tests
 #                   Ruby), then installed and required on native runners; the
 #                   source gem is built, its file list checked and installed
 #   - nuget       → .NET tool launcher build         (SmbCloud.Cli)
+#   - workflows   → actionlint (release workflows cannot run in CI)
 
 on:
   push:
-    branches: ["**"] # tag pushes (v*) re-test a SHA the branch push already covers
+    branches: [main, development]
+    paths-ignore:
+      - "**/*.md"
+      - ".agents/**"
+      - ".claude/**"
+      - "docs/**"
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - ".agents/**"
+      - ".claude/**"
+      - "docs/**"
+  workflow_dispatch:
 
 # Superseded pushes to a feature branch are cancelled. development and main are
 # never cancelled, so every commit there keeps a result.
@@ -30,9 +45,94 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  changes:
+    name: Changes — route jobs by changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      cross: ${{ steps.filter.outputs.cross }}
+      wasm: ${{ steps.filter.outputs.wasm }}
+      npm_sdk: ${{ steps.filter.outputs.npm_sdk }}
+      python_sdk: ${{ steps.filter.outputs.python_sdk }}
+      nuget: ${{ steps.filter.outputs.nuget }}
+      gems: ${{ steps.filter.outputs.gems }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            rust:
+              - "crates/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".github/workflows/ci.yml"
+            cross:
+              - "crates/cli/**"
+              - "crates/xcrs/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".github/workflows/ci.yml"
+            wasm:
+              - "crates/smbcloud-auth-sdk-wasm/**"
+              - "crates/smbcloud-auth-sdk/**"
+              - "crates/smbcloud-model/**"
+              - "crates/smbcloud-network/**"
+              - "crates/smbcloud-networking/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".github/workflows/ci.yml"
+            npm_sdk:
+              - "crates/smbcloud-auth-sdk-wasm/**"
+              - "sdk/npm/**"
+              - ".nvmrc"
+              - "crates/smbcloud-auth-sdk/**"
+              - "crates/smbcloud-model/**"
+              - "crates/smbcloud-network/**"
+              - "crates/smbcloud-networking/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".github/workflows/ci.yml"
+            python_sdk:
+              - "crates/smbcloud-auth-sdk-py/**"
+              - "sdk/python/**"
+              - "crates/smbcloud-auth-sdk/**"
+              - "crates/smbcloud-model/**"
+              - "crates/smbcloud-network/**"
+              - "crates/smbcloud-networking/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".github/workflows/ci.yml"
+            nuget:
+              - "packaging/nuget/**"
+              - ".github/workflows/ci.yml"
+            gems:
+              - "sdk/gems/auth/**"
+              - "sdk/gems/model/**"
+              - "sdk/gems/email/**"
+              - "crates/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".ruby-version"
+              - ".github/workflows/ci.yml"
+            workflows:
+              - ".github/workflows/**"
+
   # ── Rust workspace ──────────────────────────────────────────────────────────
   test-rust:
     name: Rust — fmt / clippy / test (workspace)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -75,6 +175,8 @@ jobs:
   # compile the packages the release workflows build on those OSes.
   check-cross-platform:
     name: Rust — clippy (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.cross == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -111,6 +213,8 @@ jobs:
   # ── WASM crate ──────────────────────────────────────────────────────────────
   check-wasm:
     name: Rust — smbcloud-auth-sdk-wasm (wasm32-unknown-unknown)
+    needs: changes
+    if: needs.changes.outputs.wasm == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -143,6 +247,8 @@ jobs:
   # ── Python SDK ──────────────────────────────────────────────────────────────
   check-python-sdk:
     name: SDK — Python wheel (smbcloud-sdk-auth)
+    needs: changes
+    if: needs.changes.outputs.python_sdk == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -182,6 +288,8 @@ jobs:
   # ── npm / WASM SDK ──────────────────────────────────────────────────────────
   check-npm-sdk:
     name: SDK — npm / WASM (@smbcloud/sdk-auth)
+    needs: changes
+    if: needs.changes.outputs.npm_sdk == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -226,6 +334,8 @@ jobs:
   # ── .NET tool ───────────────────────────────────────────────────────────────
   check-nuget-tool:
     name: NuGet — .NET tool launcher (SmbCloud.Cli)
+    needs: changes
+    if: needs.changes.outputs.nuget == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -240,32 +350,6 @@ jobs:
         run: dotnet build packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj --configuration Release
 
   # ── Ruby Gems ───────────────────────────────────────────────────────────────
-  # Skip the gem jobs when nothing they build from changed.
-  changes:
-    name: Changes — detect gem inputs
-    runs-on: ubuntu-latest
-    outputs:
-      gems: ${{ steps.filter.outputs.gems }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Filter changed paths
-        id: filter
-        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
-        with:
-          filters: |
-            gems:
-              - "sdk/gems/auth/**"
-              - "sdk/gems/model/**"
-              - "sdk/gems/email/**"
-              - "crates/**"
-              - "Cargo.toml"
-              - "Cargo.lock"
-              - "rust-toolchain.toml"
-              - ".ruby-version"
-              - ".github/workflows/ci.yml"
-
   # Cross-builds each gem like release-sdk-gem.yml, but against the workspace
   # crates (not the published ones) and only for the oldest and newest Ruby the
   # release ships. Those bracket the C-API differences.
@@ -482,3 +566,47 @@ jobs:
       - name: Install the source gem
         working-directory: sdk/gems/${{ matrix.gem }}
         run: gem install pkg/${{ matrix.gem }}-source.gem
+
+  # CI cannot run a release workflow, so a lint is the check for those edits.
+  actionlint:
+    name: Lint workflows
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download actionlint
+        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+
+      - name: Run actionlint
+        run: ./actionlint -color
+
+  # Passes when every job succeeded or was skipped, so it can be a required
+  # check without a skipped job leaving it pending.
+  ci:
+    name: CI status
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - test-rust
+      - check-cross-platform
+      - check-wasm
+      - check-python-sdk
+      - check-npm-sdk
+      - check-nuget-tool
+      - check-ruby-gems
+      - smoke-test-ruby-gems
+      - check-ruby-source-gems
+      - actionlint
+    if: always()
+    steps:
+      - name: Verify every job succeeded or was skipped
+        run: |
+          for result in ${{ join(needs.*.result, ' ') }}; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "::error::a needed job finished as $result"; exit 1 ;;
+            esac
+          done
