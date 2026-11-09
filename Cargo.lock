@@ -2713,6 +2713,7 @@ name = "smbcloud-cli"
 version = "1.1.1"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "chrono",
  "clap 4.6.6",
  "clap_mangen",

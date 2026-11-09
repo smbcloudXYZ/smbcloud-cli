@@ -6,6 +6,7 @@ use {
         ui::{fail_message, fail_symbol, succeed_message, succeed_symbol},
     },
     anyhow::{anyhow, Result},
+    base64::{engine::general_purpose::STANDARD as BASE64, Engine as _},
     chrono::Utc,
     smbcloud_auth::me::me,
     smbcloud_model::project::{DeploymentPayload, DeploymentStatus},
@@ -16,6 +17,7 @@ use {
     smbcloud_utils::config::Config,
     spinners::{Spinner, Spinners},
     std::{
+        collections::HashMap,
         io::Write,
         process::{Command, Stdio},
     },
@@ -106,6 +108,90 @@ fn prune_dangling_symlinks(root: &std::path::Path) -> std::io::Result<usize> {
 ///
 /// The returned snippet references the shell var `$PM2_APP` (set earlier in the
 /// deploy script). `port` is only used by the pm2 path.
+/// Node program run on the host to apply the app's env vars to an existing PM2
+/// ecosystem file. It reads the values from `SMB_ENV_B64` (base64 of a JSON
+/// object), so no value is ever interpolated into shell source.
+///
+/// It sets every managed key in `env_production` of the app named
+/// `SMB_PM2_APP`, removes keys the previous deploy managed that are gone now,
+/// and records the managed key names (never values) in
+/// `.smbcloud-env-keys.json`. Keys nobody told smbCloud about stay untouched.
+/// The first rewrite keeps the original as `ecosystem.config.cjs.smbcloud.bak`,
+/// because the file is re-serialised and comments do not survive.
+const ECOSYSTEM_ENV_MERGE_JS: &str = r#"
+var fs = require('fs');
+var path = require('path');
+var file = 'ecosystem.config.cjs';
+var keysFile = '.smbcloud-env-keys.json';
+var app = process.env.SMB_PM2_APP;
+var vars = JSON.parse(Buffer.from(process.env.SMB_ENV_B64, 'base64').toString('utf8'));
+function plain(v) {
+  if (typeof v === 'function' || typeof v === 'symbol') return false;
+  if (v && typeof v === 'object') return Object.keys(v).every(function (k) { return plain(v[k]); });
+  return true;
+}
+var cfg = require(path.resolve(file));
+if (!plain(cfg)) {
+  console.error('smbCloud: ' + file + ' contains functions, so env vars cannot be merged into it safely. Edit it by hand or remove the functions.');
+  process.exit(1);
+}
+var entry = (cfg.apps || []).filter(function (a) { return a.name === app; })[0];
+if (!entry) {
+  console.error('smbCloud: no app named ' + app + ' in ' + file + '.');
+  process.exit(1);
+}
+entry.env_production = entry.env_production || {};
+var previous = [];
+try { previous = JSON.parse(fs.readFileSync(keysFile, 'utf8')); } catch (e) {}
+previous.forEach(function (k) { if (!(k in vars)) delete entry.env_production[k]; });
+Object.keys(vars).forEach(function (k) { entry.env_production[k] = vars[k]; });
+if (!fs.existsSync(file + '.smbcloud.bak')) fs.copyFileSync(file, file + '.smbcloud.bak');
+fs.writeFileSync(file, 'module.exports = ' + JSON.stringify(cfg, null, 2) + ';\n');
+fs.writeFileSync(keysFile, JSON.stringify(Object.keys(vars).sort()) + '\n');
+"#;
+
+/// Shell that applies `pm2_env` to the host's ecosystem file on every deploy.
+///
+/// Returns an empty string when the server sent no env map at all (`None`),
+/// so a failed lookup never strips keys. An empty map is authoritative: the
+/// merge still runs when a previous deploy recorded managed keys, to remove
+/// them. Needs `PM2_APP` set in the surrounding script.
+pub(super) fn ecosystem_env_merge_snippet(
+    pm2_env: Option<&HashMap<String, serde_json::Value>>,
+) -> String {
+    let Some(pm2_env) = pm2_env else {
+        return String::new();
+    };
+    // The deploy sets these itself; the API rejects them, and a stale local
+    // config must not override the port the restart stanza passes.
+    let vars: std::collections::BTreeMap<&str, String> = pm2_env
+        .iter()
+        .filter(|(k, _)| !matches!(k.as_str(), "NODE_ENV" | "PORT" | "HOSTNAME"))
+        .map(|(k, v)| {
+            let value = match v {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            };
+            (k.as_str(), value)
+        })
+        .collect();
+    let blob = BASE64.encode(serde_json::to_string(&vars).unwrap_or_else(|_| "{}".to_string()));
+    let guard = if vars.is_empty() {
+        r#"[ -f ecosystem.config.cjs ] && [ -f .smbcloud-env-keys.json ]"#
+    } else {
+        r#"[ -f ecosystem.config.cjs ]"#
+    };
+    format!(
+        r#"# Apply smbCloud env vars to the ecosystem file on every deploy.
+    if {guard}; then
+        SMB_PM2_APP="$PM2_APP" SMB_ENV_B64='{blob}' node --input-type=commonjs - << 'SMB_ENV_EOF'
+{js}SMB_ENV_EOF
+    fi
+"#,
+        js = ECOSYSTEM_ENV_MERGE_JS.trim_start_matches('\n'),
+    )
+}
+
 pub(super) fn restart_stanza(process_manager: Option<&str>, port: u16) -> Result<String> {
     let use_systemd = match process_manager.map(str::trim) {
         None | Some("") => false,
@@ -617,6 +703,8 @@ pub async fn process_deploy_nextjs_ssr(env: Environment, config: Config) -> Resu
         )
     };
 
+    let env_merge = ecosystem_env_merge_snippet(config.project.pm2_env.as_ref());
+
     // Runtime supervisor: pm2 (default) or a git-owned systemd --user service.
     let restart_stanza = restart_stanza(config.project.process_manager.as_deref(), port)?;
 
@@ -659,6 +747,7 @@ ECOSYSTEM_EOF
         " "$APP_PATH" 2>/dev/null || true
     fi
 
+    {env_merge}
     # The monorepo root package.json may declare "type": "module", which
     # Next.js copies into .next/standalone/. Standalone server.js and our
     # shims use require() (CJS). Strip the field so Node treats .js as CJS.
@@ -758,6 +847,7 @@ EOF
         runtime_subdir = runtime_subdir_for_shell,
         restart = restart_stanza,
         ecosystem_config = ecosystem_config_content,
+        env_merge = env_merge,
     );
 
     let mut restart_spinner = Spinner::new(
@@ -904,8 +994,9 @@ pub(super) async fn mark_failed(
 #[cfg(all(test, unix))]
 mod tests {
     use {
-        super::{prune_dangling_symlinks, restart_stanza},
-        std::os::unix::fs::symlink,
+        super::{ecosystem_env_merge_snippet, prune_dangling_symlinks, restart_stanza},
+        serde_json::{json, Value},
+        std::{collections::HashMap, os::unix::fs::symlink, path::Path, process::Command},
         tempfile::tempdir,
     };
 
@@ -1029,5 +1120,210 @@ mod tests {
         assert!(!s.contains("pm2 "), "systemd path must not call pm2");
         // Case-insensitive selector.
         assert_eq!(s, restart_stanza(Some("SystemD"), 3025).unwrap());
+    }
+
+    // ── Ecosystem env merge ──────────────────────────────────────────────────
+    //
+    // These run the generated shell under real bash and node, since the point
+    // is what lands in the file on the host.
+
+    const HAND_FILE: &str = r#"module.exports = {
+  apps: [
+    { name: "web", script: "server.js", cwd: "/srv/web",
+      env_production: { NODE_ENV: "production", PORT: 3026, HAND_KEPT: "mine", OLD: "x" } },
+    { name: "other", script: "o.js", env_production: { UNTOUCHED: "1" } },
+  ],
+};
+"#;
+
+    fn have_bash_and_node() -> bool {
+        ["bash", "node"].iter().all(|bin| {
+            Command::new(bin)
+                .arg("--version")
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false)
+        })
+    }
+
+    fn vars(pairs: &[(&str, Value)]) -> HashMap<String, Value> {
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
+    }
+
+    /// Runs the snippet in `dir` the way the deploy does, with PM2_APP set.
+    fn run_merge(dir: &Path, env: Option<&HashMap<String, Value>>) -> std::process::Output {
+        let script = format!(
+            "set -e\nPM2_APP=\"web\"\n{}",
+            ecosystem_env_merge_snippet(env)
+        );
+        Command::new("bash")
+            .arg("-c")
+            .arg(script)
+            .current_dir(dir)
+            .output()
+            .unwrap()
+    }
+
+    /// The env_production of an app, as the host's pm2 would load it.
+    fn env_of(dir: &Path, app: &str) -> Value {
+        let out = Command::new("node")
+            .arg("-e")
+            .arg(format!(
+                "var c=require('./ecosystem.config.cjs');\
+                 console.log(JSON.stringify(c.apps.find(a=>a.name==='{app}').env_production))"
+            ))
+            .current_dir(dir)
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice(&out.stdout).unwrap()
+    }
+
+    #[test]
+    fn env_merge_sets_keys_and_keeps_hand_maintained_ones() {
+        if !have_bash_and_node() {
+            return;
+        }
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("ecosystem.config.cjs"), HAND_FILE).unwrap();
+
+        let env = vars(&[("STRIPE_WEBHOOK_SECRET", json!("whsec_1")), ("N", json!(5))]);
+        let out = run_merge(dir.path(), Some(&env));
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+
+        let web = env_of(dir.path(), "web");
+        assert_eq!(web["STRIPE_WEBHOOK_SECRET"], "whsec_1");
+        assert_eq!(web["N"], "5");
+        assert_eq!(web["HAND_KEPT"], "mine");
+        assert_eq!(web["PORT"], 3026);
+        assert_eq!(env_of(dir.path(), "other"), json!({"UNTOUCHED": "1"}));
+
+        let sidecar = std::fs::read_to_string(dir.path().join(".smbcloud-env-keys.json")).unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&sidecar).unwrap(),
+            json!(["N", "STRIPE_WEBHOOK_SECRET"])
+        );
+        assert!(!sidecar.contains("whsec_1"), "the sidecar holds names only");
+        assert!(dir
+            .path()
+            .join("ecosystem.config.cjs.smbcloud.bak")
+            .exists());
+    }
+
+    #[test]
+    fn env_merge_removes_keys_deleted_since_last_deploy_but_not_hand_kept_ones() {
+        if !have_bash_and_node() {
+            return;
+        }
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("ecosystem.config.cjs"), HAND_FILE).unwrap();
+
+        let first = vars(&[("A", json!("1")), ("B", json!("2"))]);
+        assert!(run_merge(dir.path(), Some(&first)).status.success());
+        let second = vars(&[("A", json!("1"))]);
+        assert!(run_merge(dir.path(), Some(&second)).status.success());
+
+        let web = env_of(dir.path(), "web");
+        assert_eq!(web["A"], "1");
+        assert!(web.get("B").is_none(), "B was managed and is now deleted");
+        assert_eq!(web["HAND_KEPT"], "mine");
+        assert_eq!(web["OLD"], "x");
+
+        // Deleting the last key still cleans up, via the empty-map path.
+        let empty = vars(&[]);
+        assert!(run_merge(dir.path(), Some(&empty)).status.success());
+        assert!(env_of(dir.path(), "web").get("A").is_none());
+        assert_eq!(env_of(dir.path(), "web")["HAND_KEPT"], "mine");
+    }
+
+    #[test]
+    fn env_merge_is_a_no_op_without_a_map_or_a_previous_sidecar() {
+        assert_eq!(ecosystem_env_merge_snippet(None), "");
+
+        if !have_bash_and_node() {
+            return;
+        }
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("ecosystem.config.cjs"), HAND_FILE).unwrap();
+        assert!(run_merge(dir.path(), Some(&vars(&[]))).status.success());
+        assert_eq!(
+            std::fs::read_to_string(dir.path().join("ecosystem.config.cjs")).unwrap(),
+            HAND_FILE
+        );
+        assert!(!dir.path().join(".smbcloud-env-keys.json").exists());
+    }
+
+    #[test]
+    fn env_merge_carries_quotes_newlines_and_dollars_verbatim() {
+        if !have_bash_and_node() {
+            return;
+        }
+        let nasty = "a'b\"c\nline2 $HOME `id` $(whoami) \\n end";
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("ecosystem.config.cjs"), HAND_FILE).unwrap();
+
+        let env = vars(&[
+            ("NASTY", json!(nasty)),
+            ("PEM", json!("-----BEGIN-----\nabc\n-----END-----")),
+        ]);
+        let out = run_merge(dir.path(), Some(&env));
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+
+        let web = env_of(dir.path(), "web");
+        assert_eq!(web["NASTY"], nasty);
+        assert_eq!(web["PEM"], "-----BEGIN-----\nabc\n-----END-----");
+    }
+
+    #[test]
+    fn env_merge_never_overrides_the_deploy_owned_keys() {
+        if !have_bash_and_node() {
+            return;
+        }
+        let dir = tempdir().unwrap();
+        std::fs::write(dir.path().join("ecosystem.config.cjs"), HAND_FILE).unwrap();
+
+        let env = vars(&[
+            ("PORT", json!("1")),
+            ("NODE_ENV", json!("dev")),
+            ("K", json!("v")),
+        ]);
+        assert!(run_merge(dir.path(), Some(&env)).status.success());
+
+        let web = env_of(dir.path(), "web");
+        assert_eq!(web["PORT"], 3026);
+        assert_eq!(web["NODE_ENV"], "production");
+        assert_eq!(web["K"], "v");
+    }
+
+    #[test]
+    fn env_merge_fails_loudly_when_the_app_is_not_in_the_file() {
+        if !have_bash_and_node() {
+            return;
+        }
+        let dir = tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("ecosystem.config.cjs"),
+            "module.exports = { apps: [{ name: 'else' }] };\n",
+        )
+        .unwrap();
+
+        let out = run_merge(dir.path(), Some(&vars(&[("K", json!("v"))])));
+        assert!(!out.status.success());
+        assert!(String::from_utf8_lossy(&out.stderr).contains("no app named web"));
     }
 }
