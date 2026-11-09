@@ -351,6 +351,10 @@ The gems publish from `release-sdk-gem.yml` over OIDC, with no API key. Each gem
 
 A new gem needs a pending publisher (12-hour expiry) created right before the release. If a push job fails, fix the publisher and run `gh run rerun <run-id> --failed`. See `docs/gems.md`.
 
+### NuGet
+
+Both NuGet workflows (`release-nuget.yml`, `release-xcrs-nuget.yml`) publish over OIDC with `NuGet/login@v1` and the `NUGET_USER` secret (the nuget.org profile name). There is no `NUGET_API_KEY` secret. nuget.org needs one trusted publishing policy per workflow file, naming the file that contains the push job. `403 The specified API key has expired` means a workflow is still using a stored key. A login failure with no matching policy means the policy is missing or names the wrong file. A failed NuGet publish also blocks the MCP Registry release, which is dispatched only after `publish-nuget` succeeds. See the `ci-cd` skill.
+
 ## CI/CD workflow rules
 
 ### Shared rules
