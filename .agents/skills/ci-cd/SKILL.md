@@ -419,6 +419,38 @@ A gem that does not exist yet needs a pending publisher from the owner's profile
 
 Complete a partial release with `gh run rerun <run-id> --failed`. The push loop skips files that are already published. A re-run keeps the original workflow file, so a workflow fix needs a new dispatch.
 
+### NuGet — trusted publishing, configured per workflow
+
+`release-nuget.yml` (SmbCloud.Cli) and `release-xcrs-nuget.yml` (SmbCloud.Xcrs) publish over OIDC. There is no `NUGET_API_KEY` secret. Only the `publish-nuget` job has `id-token: write`, so the build and smoke-test jobs get no OIDC token. The job runs `NuGet/login@v1`, which exchanges the OIDC token for an API key that lasts about an hour, and passes the step output to `dotnet nuget push` seconds later:
+
+```yaml
+- name: NuGet login (OIDC)
+  id: nuget-login
+  uses: NuGet/login@v1
+  with:
+    user: ${{ secrets.NUGET_USER }}
+```
+
+`NUGET_USER` is the nuget.org profile name, not the email, of the account that owns the policy.
+
+Set up a policy at nuget.org under Trusted Publishing, with owner `smbCloud`, repository `smbcloudXYZ/smbcloud-cli`, and the workflow file name. Each of the two workflows needs its own policy. As with RubyGems, the file name must be the workflow that contains the push job, not `release-crate.yml`.
+
+Symptoms:
+
+```text
+403 The specified API key has expired
+```
+
+The workflow still pushes with a stored `NUGET_API_KEY`. Move it to the OIDC login.
+
+```text
+no matching trusted publishing policy
+```
+
+The policy is missing, or it names a different workflow file, repository or owner. Fix the policy, not the workflow.
+
+A re-run uses the workflow file from the original ref. After fixing a workflow, dispatch a fresh run from the fixed branch: `gh workflow run release-nuget.yml --ref development -f tag=v<version>`. The jobs check out `inputs.tag`, so they still build the tagged sources.
+
 ### crates.io — uses `CARGO_REGISTRY_TOKEN`
 
 ```yaml
