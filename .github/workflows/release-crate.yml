@@ -129,9 +129,11 @@ jobs:
           publish_cli_sdk_npm="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk-wasm" or . == "smbcloud-auth-sdk" or . == "smbcloud-network" or . == "smbcloud-networking")' plan.json)"
           publish_cli_sdk_gem="$(jq -r 'map(.name) | any(. == "smbcloud-auth-sdk" or . == "smbcloud-model" or . == "smbcloud-network")' plan.json)"
 
-          echo "publish_cli_sdk_pypi=${publish_cli_sdk_pypi}" >> "$GITHUB_OUTPUT"
-          echo "publish_cli_sdk_npm=${publish_cli_sdk_npm}" >> "$GITHUB_OUTPUT"
-          echo "publish_cli_sdk_gem=${publish_cli_sdk_gem}" >> "$GITHUB_OUTPUT"
+          {
+            echo "publish_cli_sdk_pypi=${publish_cli_sdk_pypi}"
+            echo "publish_cli_sdk_npm=${publish_cli_sdk_npm}"
+            echo "publish_cli_sdk_gem=${publish_cli_sdk_gem}"
+          } >> "$GITHUB_OUTPUT"
 
           echo "SDK PyPI trigger: ${publish_cli_sdk_pypi}"
           echo "SDK npm trigger: ${publish_cli_sdk_npm}"
