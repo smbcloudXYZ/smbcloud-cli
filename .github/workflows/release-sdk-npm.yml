@@ -1,4 +1,4 @@
-name: SDK npm Release
+name: SDK Release NPM
 
 # Publishes @smbcloud/sdk-auth (WASM) to npm.
 # WASM is a single universal target — no platform matrix needed.

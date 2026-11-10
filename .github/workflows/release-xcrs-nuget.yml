@@ -6,7 +6,7 @@
 # account that owns the policy. NuGet/login exchanges the OIDC token for an API
 # key that lasts about an hour.
 
-name: NuGet XCRS Release
+name: XCRS Release NuGet
 
 on:
   workflow_dispatch:
