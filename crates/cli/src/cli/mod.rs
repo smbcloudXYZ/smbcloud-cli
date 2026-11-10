@@ -1,5 +1,5 @@
 use {
-    crate::{account, cloud_auth, flags, mail, project, run, tenant},
+    crate::{account, cloud_auth, flags, gresiq, mail, project, run, tenant},
     clap::{Parser, Subcommand, ValueEnum},
     smbcloud_network::environment::Environment,
     spinners::Spinner,
@@ -122,6 +122,11 @@ pub enum Commands {
     Flags {
         #[clap(subcommand)]
         command: flags::Commands,
+    },
+    #[clap(about = "Manage a project's GresIQ app and its keys.")]
+    Gresiq {
+        #[clap(subcommand)]
+        command: gresiq::Commands,
     },
     #[clap(about = "Manage smbCloud Mail.")]
     Mail {

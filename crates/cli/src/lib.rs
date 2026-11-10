@@ -9,6 +9,7 @@ pub mod controlkit;
 #[path = "cloud-deploy/mod.rs"]
 pub mod deploy;
 pub mod flags;
+pub mod gresiq;
 pub mod interface;
 #[path = "cloud-mail/mod.rs"]
 pub mod mail;

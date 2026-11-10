@@ -287,6 +287,20 @@ struct ProjectDeleteArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct GresiqAppListArgs {
+    /// Only this project's GresIQ app.
+    project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct GresiqAppCreateArgs {
+    /// Project ID. Defaults to the project selected with `project_use`.
+    project_id: Option<String>,
+    /// Display name. Defaults to `<project>-GresIQ`.
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct FlagsListArgs {
     /// Project ID. Defaults to the project selected with `project_use`.
     project_id: Option<String>,
@@ -1099,6 +1113,43 @@ impl SmbMcpServer {
             .await
             .map_err(to_error_data)?;
         text_result("Project deleted.")
+    }
+
+    // ── GresIQ ───────────────────────────────────────────────────────────
+
+    #[tool(
+        description = "List the GresIQ apps in the selected tenant as JSON, optionally for one \
+                       project. Shows key metadata (last four characters) only, never a secret."
+    )]
+    async fn gresiq_app_list(
+        &self,
+        Parameters(args): Parameters<GresiqAppListArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let apps = crate::gresiq::list_apps(self.environment, &token, args.project_id.as_deref())
+            .await
+            .map_err(to_error_data)?;
+        json_result(&apps)
+    }
+
+    #[tool(
+        description = "Create a project's GresIQ app (one per project; the first smbCloud Flag \
+                       also creates it). Returns the app as JSON without credentials. The API \
+                       secret is shown only once and is deliberately not returned here; for a \
+                       backend key run `smb gresiq rotate-server-key <id> --output <file>`."
+    )]
+    async fn gresiq_app_create(
+        &self,
+        Parameters(args): Parameters<GresiqAppCreateArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let project =
+            crate::flags::project_id(self.environment, args.project_id).map_err(to_error_data)?;
+        let (app, _credentials) =
+            crate::gresiq::create_app(self.environment, &token, &project, args.name)
+                .await
+                .map_err(to_error_data)?;
+        json_result(&app)
     }
 
     // ── Flags ────────────────────────────────────────────────────────────
@@ -2098,6 +2149,8 @@ mod tests {
             "auth_app_delete",
             "run_runners_list",
             "run_runner_tags_set",
+            "gresiq_app_list",
+            "gresiq_app_create",
             "flags_list",
             "flags_get",
             "flags_upsert",
