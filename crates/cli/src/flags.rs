@@ -194,7 +194,7 @@ fn flags_url(env: Environment, project_id: &str, key: Option<&str>) -> Result<St
     Ok(builder.build())
 }
 
-fn authorized(builder: RequestBuilder, token: &str) -> RequestBuilder {
+pub(crate) fn authorized(builder: RequestBuilder, token: &str) -> RequestBuilder {
     builder
         .header("Authorization", token)
         .header("User-agent", SMB_USER_AGENT)
@@ -203,7 +203,7 @@ fn authorized(builder: RequestBuilder, token: &str) -> RequestBuilder {
 /// The API answers errors as `{ "errors": [..] }` or `{ "error": ".." }`. Say
 /// what it said, since the message ("Set up GresIQ for this project first.")
 /// is the useful part.
-async fn send<T: DeserializeOwned>(builder: RequestBuilder) -> Result<T> {
+pub(crate) async fn send<T: DeserializeOwned>(builder: RequestBuilder) -> Result<T> {
     let response = builder
         .send()
         .await
@@ -216,7 +216,7 @@ async fn send<T: DeserializeOwned>(builder: RequestBuilder) -> Result<T> {
     serde_json::from_str(&body).map_err(|error| anyhow!("Unexpected answer from smbCloud: {error}"))
 }
 
-fn error_message(status: u16, body: &str) -> String {
+pub(crate) fn error_message(status: u16, body: &str) -> String {
     let parsed: Option<Value> = serde_json::from_str(body).ok();
     let message = parsed.as_ref().and_then(|value| {
         value
@@ -339,7 +339,7 @@ fn print_flag(flag: &Flag) {
     field("Percent", flag.targets.percent.to_string());
 }
 
-fn done(message: &str) -> CommandResult {
+pub(crate) fn done(message: &str) -> CommandResult {
     CommandResult {
         spinner: Spinner::new(
             spinners::Spinners::SimpleDotsScrolling,
