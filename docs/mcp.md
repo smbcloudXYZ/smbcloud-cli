@@ -5,8 +5,8 @@ assistant or agent — Claude Desktop, Claude Code, Cursor, or any other
 MCP-capable client — can send transactional email and manage your smbCloud
 projects, tenants, Mail apps, and Auth apps directly, without you leaving the
 chat to run `smb` commands by hand.
-Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 43
-tools covering the account, project, deploy, tenant, Run, Mail, and Auth surfaces.
+Start it with `smb --mcp`; it speaks standard MCP over stdio and exposes 47
+tools covering the account, project, deploy, tenant, Flags, Run, Mail, and Auth surfaces.
 
 Cross-platform mobile and TV app testing is exposed as a separate, focused MCP
 profile through `xcrs --mcp` or `smb --mcp --scope automation`. Keeping cloud
@@ -253,6 +253,21 @@ tenant is bootstrapped on signup and isn't user-managed.
 | `tenant_new` | `name` | The created organization tenant. |
 | `tenant_update` | `id`, `name` | The renamed tenant. |
 | `tenant_delete` | `id` | Confirmation. **Destructive and irreversible** — cascades to every project, Mail app, and Auth app the tenant owns. |
+
+### Flags
+
+smbCloud Flags are boolean feature flags a project keeps in its GresIQ app, so
+the project needs a GresIQ app first. A flag is on for the emails and domains it
+lists and for a stable percentage of everyone else. `project_id` defaults to the
+project selected with `project_use`. The same operations are available as
+`smb flags list|get|create|update|delete`.
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `flags_list` | `project_id` (optional) | The project's flags. |
+| `flags_get` | `key`, `project_id` (optional) | A single flag. |
+| `flags_upsert` | `key`, `project_id`, `name`, `description`, `on`, `emails`, `domains`, `percent` (all optional) | The created or changed flag. Only the fields you pass change, and `emails` and `domains` replace the existing list. |
+| `flags_delete` | `key`, `project_id` (optional) | Confirmation. **Destructive**: apps that read the flag stop seeing it. |
 
 ### Run runners
 

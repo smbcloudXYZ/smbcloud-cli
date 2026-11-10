@@ -1,4 +1,4 @@
-name: NPM XCRS Release
+name: XCRS Release NPM
 
 on:
   workflow_dispatch:

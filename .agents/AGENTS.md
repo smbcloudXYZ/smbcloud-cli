@@ -70,9 +70,13 @@ Rust change done** — after every edit, not just before a push. Fix clippy find
 than silencing them with `#[allow(...)]` unless there's a specific reason the lint doesn't
 apply, and note that reason inline.
 
-`ci.yml` runs seven jobs on every push; run the ones relevant to what changed, not just the
-main Rust workspace job — a change that only compiles in the main workspace but breaks one
-of these is still a broken CI run:
+`ci.yml` routes jobs by changed paths (a `changes` job built on `dorny/paths-filter`), so
+each job below runs only when its own inputs change. Run the ones relevant to what you
+changed locally, not just the main Rust workspace job — a change that only compiles in the
+main workspace but breaks one of these is still a broken CI run. Push runs only on `main`
+and `development`; everything else runs once through `pull_request`. Docs, skills and other
+markdown skip the workflow, and a change to release workflows alone runs only `actionlint`.
+See the "CI triggers and path gating" section of `.agents/skills/ci-cd/SKILL.md`:
 
 | Job | Touches | Local check |
 |---|---|---|
@@ -104,9 +108,11 @@ as `npm`, `nuget` and `pypi`, split into `smbcloud-cli/` and `xcrs/` subdirector
 make patch | make minor | make major | make custom VERSION=0.x.y
 ```
 
-Minor and major releases branch off `development`; patch releases branch off `main` and cherry-pick the fix. The Makefile refuses to run on any other branch. It commits `Release <version>` without tagging. After CI is green, merge the release branch into `development` and `main` with `--no-ff`, then tag the `main` merge commit with an annotated tag and push it. The tag push triggers `release-crate.yml`, which publishes the crates and fans out to the per-target workflows (`release-*.yml`). See the `smbcloud-cli-release` skill and `docs/development.md`.
+Minor and major releases branch off `development` and their pull request targets `development`; patches and small fixes branch off `main`. The Makefile refuses to run on any other branch. It commits `Release <version>` without tagging. After CI is green, merge the release pull request into `development`, then sync `main` locally with `git merge --no-ff <release PR merge commit>` and `git push`, with no pull request (auto-delete would remove `development` if a PR merged it). Merge the release PR's merge commit, not `development`'s tip, so the tag carries only what the release branch's CI tested. Tag the `main` merge commit with an annotated tag and push it. The tag push triggers `release-crate.yml`, which publishes the crates and fans out to the per-target workflows (`release-*.yml`). See the `smbcloud-cli-release` skill and `docs/development.md`.
 
 `packaging/mcp/server.json` and `packaging/mcp/server-xcrs.json` (the MCP Registry listings) are version-synced by the same Makefile step, and `release-nuget.yml` triggers `release-mcp-registry.yml` once its publish job succeeds — the listings need the npm, NuGet, and Cargo packages live at their recorded versions, and the registry validates their metadata against the real packages. See `docs/mcp-registry.md`.
+
+`release-winget.yml` files the Package Request issue with `WINGET_ISSUE_TOKEN` (`public_repo`), then opens the manifest PR with `WINGET_PR_TOKEN`, a classic PAT with `public_repo`, `read:org`, `read:discussion`, and `workflow`. The first three cover forking and the `gh pr edit` GraphQL query. `workflow` is there because wingetcreate fast-forwards the token owner's fork before it branches, and GitHub refuses that sync once an upstream commit changes a file under `.github/workflows`. "The forked repository could not be synced with the upstream commits" means the PAT lacks `workflow`; add it, or sync the fork by hand and rerun.
 
 ---
 
