@@ -367,7 +367,7 @@ A new gem needs a pending publisher (12-hour expiry) created right before the re
 
 ### NuGet
 
-Both NuGet workflows (`release-nuget.yml`, `release-xcrs-nuget.yml`) publish over OIDC with `NuGet/login@v1` and the `NUGET_USER` secret (the nuget.org profile name). There is no `NUGET_API_KEY` secret. nuget.org needs one trusted publishing policy per workflow file, naming the file that contains the push job. `403 The specified API key has expired` means a workflow is still using a stored key. A login failure with no matching policy means the policy is missing or names the wrong file. A failed NuGet publish also blocks the MCP Registry release, which is dispatched only after `publish-nuget` succeeds. See the `ci-cd` skill.
+Both NuGet workflows (`release-nuget.yml`, `release-xcrs-nuget.yml`) publish over OIDC with `NuGet/login@v1` and the `NUGET_USER` secret (the nuget.org profile name). There is no `NUGET_API_KEY` secret. nuget.org needs one trusted publishing policy per workflow file, naming the file that contains the push job. `403 The specified API key has expired` means a workflow is still using a stored key. A login failure with no matching policy means the policy is missing or names the wrong file. A failed NuGet publish also blocks the MCP Registry release, which is dispatched only after `publish-nuget` succeeds. The MCP Registry release doesn't wait for nuget.org indexing: if the version isn't indexed yet, that registry version lists npm only. See the `ci-cd` skill.
 
 ## CI/CD workflow rules
 
