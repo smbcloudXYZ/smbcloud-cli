@@ -105,6 +105,10 @@ intended change.
 6. Tag the `main` merge commit with an annotated tag and push it:
    `git tag -a v<version> -m "v<version>" && git push origin v<version>`.
    The tag push triggers `release-crate.yml` and the full publish chain.
+   For a minor or major CLI bump, also cut the next minor monorepo release. The monorepo
+   is versioned independently (still 0.x): promote its `development` to `main`, tag the
+   next `v0.<n>.0` and run `gh release create` with notes generated from the previous
+   monorepo tag. Name the CLI version in the notes.
 7. Delete the release branch (local and remote, if auto-delete has not already):
    `git branch -d release/v<version> && git push origin --delete release/v<version>`.
 
