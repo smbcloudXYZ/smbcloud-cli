@@ -1,4 +1,4 @@
-name: MCP Registry Release
+name: CLI Release MCP Registry
 
 on:
   workflow_dispatch:
