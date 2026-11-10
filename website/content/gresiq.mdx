@@ -76,6 +76,25 @@ let online = client
 Each returned `GresiqDocument` carries the stored `doc` plus its `key` and
 timestamps.
 
+## From the CLI
+
+A project has one GresIQ app. Create it from the console, with `smb gresiq
+create`, or by creating the project's first smbCloud Flag.
+
+```bash
+smb gresiq list --project 38
+smb gresiq create --project 38 --credentials-file ./gresiq.env
+smb gresiq show 7
+smb gresiq rotate-server-key 7 --output ./gqs.key
+smb gresiq rotate-ingest-key 7 --output ./gqi.key
+```
+
+smbCloud shows the API secret and each new key only once, so the CLI never
+prints them. It writes them to the file you name, created with mode 0600, and
+refuses to write over an existing file. Rotating a key revokes the old one, so
+`--output` is required. The MCP server has `gresiq_app_list` and
+`gresiq_app_create`. Neither returns a secret.
+
 ## Getting started
 
 1. Create a GresIQ app and copy its API key and secret.

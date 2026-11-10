@@ -7,6 +7,7 @@ pub mod error_codes;
 pub mod flags;
 pub mod forgot;
 pub mod frontend_app;
+pub mod gresiq;
 pub mod login;
 pub mod mail;
 pub mod oauth;
