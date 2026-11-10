@@ -11,15 +11,19 @@ it before cutting a release. The short version:
 1. Prepare the bump on a `release/v<version>` branch with the Makefile:
    `make patch | minor | major | custom VERSION=<version>`. Branch off `development`
    for a minor or major release. For a patch, branch off `main` and
-   `git cherry-pick -x` the fix, which already landed on `development`. The Makefile
+   `git cherry-pick -x` the fix if it already landed on `development`. The Makefile
    bumps every workspace crate in lockstep, syncs the npm/PyPI/gem manifests and
    lockfiles, and commits `Release <version>` without tagging.
-2. Push the branch. Once CI is green, merge it into `development` and `main` with
-   `--no-ff`.
-3. Tag the `main` merge commit with an annotated tag and push it:
-   `git checkout main && git pull && git tag -a v<version> -m "v<version>" && git push origin v<version>`.
-4. For a patch release, the `development` merge carries the version bump back; the fix
-   is already there. Delete the release branch.
+2. Push the branch and open a pull request into `development`. Once CI is green, merge
+   it with a merge commit.
+3. Sync `main` locally, with no pull request:
+   `git checkout main && git pull && git merge --no-ff <release-pr-merge-commit> && git push origin main`.
+   Use the release PR's merge commit, not `development`'s tip, so later features wait
+   for the next release. There is no PR because auto-delete would remove `development`.
+4. Tag the `main` merge commit with an annotated tag and push it:
+   `git tag -a v<version> -m "v<version>" && git push origin v<version>`.
+5. For a patch release, merge `main` back into `development` so the version bump
+   carries over. Delete the release branch.
 
 Pushing the `v*.*.*` tag triggers `.github/workflows/release-crate.yml`, which
 publishes the workspace crates to crates.io and fans out to the npm, PyPI, NuGet,
