@@ -64,11 +64,12 @@ The same applies to the Ruby gems in `sdk/gems/`. For each gem (`auth`, `model`,
 
 Branch roles:
 
-- `main` is the default branch. It only receives release merges and patch cherry-picks,
-  and every release tag lives on a `main` commit.
-- `development` is the integration branch. Feature and fix branches start from it and
-  pull requests target it.
-- `feature/<slug>` and `fix/<slug>` hold day-to-day work.
+- `main` is the default branch. Every release tag lives on a `main` commit. It receives
+  release merges (see below) and patch merges, never feature work directly.
+- `development` is the integration branch. Feature and release branches start from it and
+  their pull requests target it.
+- `feature/<slug>` holds day-to-day feature work. `fix/<slug>` holds small fixes and
+  patches, and branches off `main`.
 - `release/v<version>` holds a single release. `make patch|minor|major|custom` only runs
   on these branches.
 
@@ -90,26 +91,35 @@ intended change.
 2. Prepare the release: `make minor|major|custom VERSION=<version>` (see the version-sync
    rules above; `make` commits `Release <version>` on the branch). Run it through `rv`
    if the Ruby gem lockfiles are regenerated: `rv run make minor`.
-3. Push the branch and let CI run: `git push origin release/v<version>`.
-4. **Only when CI is green**, merge into both branches with `--no-ff`
-   (open one pull request per target and use the merge-commit method, or merge locally):
-   `development` first, then `main`.
-5. Tag the `main` merge commit with an annotated tag and push it:
-   `git checkout main && git pull && git tag -a v<version> -m "v<version>" && git push origin v<version>`.
+3. Push the branch and open a pull request into `development`. Let CI run.
+4. **Only when CI is green**, merge the pull request with the merge-commit method. Note
+   the merge commit it creates on `development`.
+5. Sync `main` locally, with no pull request, using that merge commit and not
+   `development`'s tip:
+   `git checkout main && git pull && git merge --no-ff <release-pr-merge-commit> && git push origin main`.
+   There is no PR because the repo deletes head branches on merge, and a PR from
+   `development` into `main` would delete `development` when it merged.
+   Merging the release PR's merge commit matters: features that landed on `development`
+   after it wait for the next release, so the tag only carries what the release
+   branch's CI tested.
+6. Tag the `main` merge commit with an annotated tag and push it:
+   `git tag -a v<version> -m "v<version>" && git push origin v<version>`.
    The tag push triggers `release-crate.yml` and the full publish chain.
-6. Delete the release branch (local and remote):
+7. Delete the release branch (local and remote, if auto-delete has not already):
    `git branch -d release/v<version> && git push origin --delete release/v<version>`.
 
 ### Patch release
 
-1. Land the fix on `development` through a normal pull request.
-2. Branch off `main`: `git checkout main && git pull && git checkout -b release/v<version>`.
-3. Cherry-pick the fix: `git cherry-pick -x <fix-commit>`.
-4. `make patch`, push the branch and wait for CI.
-5. Merge the release branch into `main` with `--no-ff`, then tag `main` as above.
-6. Merge the release branch back into `development` with `--no-ff`. This carries the
-   version bump; the fix is already there.
-7. Delete the release branch.
+Patches and small fixes branch off `main` and merge into both branches.
+
+1. Branch off `main`: `git checkout main && git pull && git checkout -b release/v<version>`.
+   If the fix already landed on `development`, `git cherry-pick -x <fix-commit>`;
+   otherwise commit the fix here.
+2. `make patch`, push the branch and wait for CI.
+3. Merge the release branch into `main` with `--no-ff`, then tag `main` as above.
+4. Merge `main` back into `development` through a pull request so the version bump
+   (and the fix, if it started here) reaches `development`.
+5. Delete the release branch.
 
 ### Moving a misplaced tag
 
@@ -350,6 +360,10 @@ Do not use trusted publishing as the default local-machine publish path.
 The gems publish from `release-sdk-gem.yml` over OIDC, with no API key. Each gem needs a trusted publisher on rubygems.org for repository `smbcloudXYZ/smbcloud-cli` and workflow `release-sdk-gem.yml`, environment blank. The filename must be the workflow that contains the push job: a publisher registered to `release-crate.yml`, which only dispatches it, fails with `No trusted publisher configured for this workflow`.
 
 A new gem needs a pending publisher (12-hour expiry) created right before the release. If a push job fails, fix the publisher and run `gh run rerun <run-id> --failed`. See `docs/gems.md`.
+
+### NuGet
+
+Both NuGet workflows (`release-nuget.yml`, `release-xcrs-nuget.yml`) publish over OIDC with `NuGet/login@v1` and the `NUGET_USER` secret (the nuget.org profile name). There is no `NUGET_API_KEY` secret. nuget.org needs one trusted publishing policy per workflow file, naming the file that contains the push job. `403 The specified API key has expired` means a workflow is still using a stored key. A login failure with no matching policy means the policy is missing or names the wrong file. A failed NuGet publish also blocks the MCP Registry release, which is dispatched only after `publish-nuget` succeeds. See the `ci-cd` skill.
 
 ## CI/CD workflow rules
 

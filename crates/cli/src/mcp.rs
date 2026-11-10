@@ -287,6 +287,48 @@ struct ProjectDeleteArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+struct FlagsListArgs {
+    /// Project ID. Defaults to the project selected with `project_use`.
+    project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FlagsGetArgs {
+    /// The flag key.
+    key: String,
+    /// Project ID. Defaults to the project selected with `project_use`.
+    project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FlagsUpsertArgs {
+    /// The flag key: lowercase letters, digits and underscores, starting with a letter.
+    key: String,
+    /// Project ID. Defaults to the project selected with `project_use`.
+    project_id: Option<String>,
+    /// Display name.
+    name: Option<String>,
+    /// What the flag controls.
+    description: Option<String>,
+    /// Switch the flag on or off.
+    on: Option<bool>,
+    /// Emails the flag is on for. Replaces the existing list.
+    emails: Option<Vec<String>>,
+    /// Email domains the flag is on for. Replaces the existing list.
+    domains: Option<Vec<String>>,
+    /// A stable share of all users, 0 to 100.
+    percent: Option<u8>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+struct FlagsDeleteArgs {
+    /// The flag key.
+    key: String,
+    /// Project ID. Defaults to the project selected with `project_use`.
+    project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 struct TenantShowArgs {
     /// The tenant ID to show.
     id: String,
@@ -1057,6 +1099,94 @@ impl SmbMcpServer {
             .await
             .map_err(to_error_data)?;
         text_result("Project deleted.")
+    }
+
+    // ── Flags ────────────────────────────────────────────────────────────
+
+    #[tool(
+        description = "List a project's smbCloud Flags (boolean feature flags with email, \
+                       domain and percent targeting) as JSON. The project needs a GresIQ app."
+    )]
+    async fn flags_list(
+        &self,
+        Parameters(args): Parameters<FlagsListArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let project =
+            crate::flags::project_id(self.environment, args.project_id).map_err(to_error_data)?;
+        let flags = crate::flags::list_flags(self.environment, &token, &project)
+            .await
+            .map_err(to_error_data)?;
+        json_result(&flags)
+    }
+
+    #[tool(description = "Show one smbCloud Flag by key, returned as JSON.")]
+    async fn flags_get(
+        &self,
+        Parameters(args): Parameters<FlagsGetArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let project =
+            crate::flags::project_id(self.environment, args.project_id).map_err(to_error_data)?;
+        let flag = crate::flags::get_flag(self.environment, &token, &project, &args.key)
+            .await
+            .map_err(to_error_data)?;
+        json_result(&flag)
+    }
+
+    #[tool(
+        description = "Create a smbCloud Flag, or change it if the key already exists. Only the \
+                       fields you pass are changed; `emails` and `domains` replace the existing \
+                       list. Returns the flag as JSON."
+    )]
+    async fn flags_upsert(
+        &self,
+        Parameters(args): Parameters<FlagsUpsertArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let project =
+            crate::flags::project_id(self.environment, args.project_id).map_err(to_error_data)?;
+        let exists = crate::flags::list_flags(self.environment, &token, &project)
+            .await
+            .map_err(to_error_data)?
+            .iter()
+            .any(|flag| flag.key == args.key);
+        let input = smbcloud_model::flags::FlagInput {
+            key: (!exists).then(|| args.key.clone()),
+            name: args.name,
+            description: args.description,
+            on: args.on,
+            targets: smbcloud_model::flags::FlagTargetsInput {
+                emails: args.emails,
+                domains: args.domains,
+                percent: args.percent,
+            },
+        };
+        let flag = if exists {
+            crate::flags::update_flag(self.environment, &token, &project, &args.key, input).await
+        } else {
+            crate::flags::create_flag(self.environment, &token, &project, input).await
+        }
+        .map_err(to_error_data)?;
+        json_result(&flag)
+    }
+
+    #[tool(
+        description = "Delete a smbCloud Flag by key. Apps that read it stop seeing it, so \
+                       they treat it as off.",
+        annotations(destructive_hint = true)
+    )]
+    async fn flags_delete(
+        &self,
+        Parameters(args): Parameters<FlagsDeleteArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let token = self.access_token()?;
+        let project =
+            crate::flags::project_id(self.environment, args.project_id).map_err(to_error_data)?;
+        crate::flags::delete_flag(self.environment, &token, &project, &args.key)
+            .await
+            .map_err(to_error_data)?;
+        text_result("Flag deleted.")
     }
 
     // ── Tenants ──────────────────────────────────────────────────────────
@@ -1968,6 +2098,10 @@ mod tests {
             "auth_app_delete",
             "run_runners_list",
             "run_runner_tags_set",
+            "flags_list",
+            "flags_get",
+            "flags_upsert",
+            "flags_delete",
         ] {
             assert!(
                 names.contains(&cloud_only),
@@ -2152,7 +2286,7 @@ mod tests {
             assert_eq!(annotations.destructive_hint, Some(true), "{}", tool.name);
             checked += 1;
         }
-        assert_eq!(checked, 7);
+        assert_eq!(checked, 8);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-name: SDK Ruby Gem Release
+name: SDK Release RubyGems
 
 # Publishes the smbcloud-auth (sdk/gems/auth), smbcloud-model (sdk/gems/model)
 # and smbcloud-email (sdk/gems/email) Ruby gems to RubyGems.

@@ -1,4 +1,4 @@
-name: SDK PyPI Release
+name: SDK Release PyPI
 
 # Publishes smbcloud-sdk-auth (sdk/python) to PyPI.
 # Triggered by the crates release workflow when wrapped Rust crates change,

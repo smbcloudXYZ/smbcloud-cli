@@ -1,4 +1,12 @@
-name: NuGet XCRS Release
+# Publishes to NuGet with trusted publishing (OIDC), so there is no long-lived
+# API key to store or rotate. nuget.org needs a trusted publishing policy for
+# this repository that names this workflow file, release-xcrs-nuget.yml: the file
+# that contains the push job, not release-crate.yml, which only dispatches it.
+# The NUGET_USER secret holds the nuget.org profile name (not the email) of the
+# account that owns the policy. NuGet/login exchanges the OIDC token for an API
+# key that lasts about an hour.
+
+name: XCRS Release NuGet
 
 on:
   workflow_dispatch:
@@ -154,7 +162,7 @@ jobs:
           dotnet pack packaging/nuget/xcrs/Xcrs.csproj \
             --configuration Release \
             --output packaging/nuget/dist \
-            -p:PackageVersion=${RELEASE_VERSION}
+            -p:PackageVersion="${RELEASE_VERSION}"
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v7
@@ -232,6 +240,9 @@ jobs:
     name: Publish to NuGet
     runs-on: ubuntu-latest
     needs: smoke-test
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -273,10 +284,17 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: NuGet login (OIDC)
+        id: nuget-login
+        if: steps.nuget-check.outputs.exists != 'true'
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Publish package
         if: steps.nuget-check.outputs.exists != 'true'
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         shell: bash
         run: |
           dotnet nuget push packaging/nuget/dist/*.nupkg \
