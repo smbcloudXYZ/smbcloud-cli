@@ -20,6 +20,10 @@ pub struct Flag {
     #[serde(default)]
     pub description: String,
     pub on: bool,
+    /// Whether a visitor can ask for a variant with `?treatment=` or
+    /// `?control=`. A flag that is off ignores overrides.
+    #[serde(default)]
+    pub overridable: bool,
     #[serde(default)]
     pub targets: FlagTargets,
 }
@@ -36,6 +40,8 @@ pub struct FlagInput {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub overridable: Option<bool>,
     #[serde(skip_serializing_if = "FlagTargetsInput::is_empty")]
     pub targets: FlagTargetsInput,
 }
@@ -80,6 +86,31 @@ mod tests {
         .expect("flag");
         assert_eq!(flag.targets.percent, 10);
         assert_eq!(flag.targets.emails, vec!["a@example.com"]);
+        assert!(
+            !flag.overridable,
+            "a flag from before overridable is not overridable"
+        );
+    }
+
+    #[test]
+    fn a_flag_reads_overridable() {
+        let flag: Flag = serde_json::from_value(json!({
+            "key": "beta", "name": "Beta", "on": true, "overridable": true
+        }))
+        .expect("flag");
+        assert!(flag.overridable);
+    }
+
+    #[test]
+    fn overridable_is_sent_only_when_given() {
+        let input = FlagInput {
+            overridable: Some(false),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_value(&input).expect("json"),
+            json!({ "overridable": false })
+        );
     }
 
     #[test]
