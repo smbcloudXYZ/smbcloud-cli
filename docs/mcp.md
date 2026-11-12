@@ -266,7 +266,7 @@ project selected with `project_use`. The same operations are available as
 | --- | --- | --- |
 | `flags_list` | `project_id` (optional) | The project's flags. |
 | `flags_get` | `key`, `project_id` (optional) | A single flag. |
-| `flags_upsert` | `key`, `project_id`, `name`, `description`, `on`, `emails`, `domains`, `percent` (all optional) | The created or changed flag. Only the fields you pass change, and `emails` and `domains` replace the existing list. |
+| `flags_upsert` | `key`, `project_id`, `name`, `description`, `on`, `overridable`, `emails`, `domains`, `percent` (all optional) | The created or changed flag. Only the fields you pass change, and `emails` and `domains` replace the existing list. |
 | `flags_delete` | `key`, `project_id` (optional) | Confirmation. **Destructive**: apps that read the flag stop seeing it. |
 
 ### Run runners

@@ -30,6 +30,18 @@ pub struct FlagFields {
     pub off: bool,
     #[clap(
         long,
+        conflicts_with = "not_overridable",
+        help = "Let a visitor force a variant with ?treatment= or ?control=."
+    )]
+    pub overridable: bool,
+    #[clap(
+        long,
+        conflicts_with = "overridable",
+        help = "Stop a visitor forcing a variant."
+    )]
+    pub not_overridable: bool,
+    #[clap(
+        long,
         value_delimiter = ',',
         help = "Emails it is on for, comma separated. Replaces the list."
     )]
@@ -55,6 +67,11 @@ impl FlagFields {
             name: self.name,
             description: self.description,
             on: match (self.on, self.off) {
+                (true, _) => Some(true),
+                (_, true) => Some(false),
+                _ => None,
+            },
+            overridable: match (self.overridable, self.not_overridable) {
                 (true, _) => Some(true),
                 (_, true) => Some(false),
                 _ => None,
@@ -148,7 +165,7 @@ pub async fn process_flags(env: Environment, commands: Commands) -> Result<Comma
             let input = fields.into_input(None);
             if input == FlagInput::default() {
                 return Err(anyhow!(
-                    "Pass at least one of --name, --description, --on, --off, --emails, --domains or --percent."
+                    "Pass at least one of --name, --description, --on, --off, --overridable, --not-overridable, --emails, --domains or --percent."
                 ));
             }
             let flag = update_flag(env, &token, &project_id(env, project)?, &key, input).await?;
@@ -334,6 +351,7 @@ fn print_flag(flag: &Flag) {
         field("Description", flag.description.clone());
     }
     field("On", flag.on.to_string());
+    field("Overridable", flag.overridable.to_string());
     field("Emails", flag.targets.emails.join(", "));
     field("Domains", flag.targets.domains.join(", "));
     field("Percent", flag.targets.percent.to_string());
