@@ -326,6 +326,8 @@ struct FlagsUpsertArgs {
     description: Option<String>,
     /// Switch the flag on or off.
     on: Option<bool>,
+    /// Let a visitor force a variant with `?treatment=` or `?control=`. A flag that is off ignores it.
+    overridable: Option<bool>,
     /// Emails the flag is on for. Replaces the existing list.
     emails: Option<Vec<String>>,
     /// Email domains the flag is on for. Replaces the existing list.
@@ -1207,6 +1209,7 @@ impl SmbMcpServer {
             name: args.name,
             description: args.description,
             on: args.on,
+            overridable: args.overridable,
             targets: smbcloud_model::flags::FlagTargetsInput {
                 emails: args.emails,
                 domains: args.domains,
