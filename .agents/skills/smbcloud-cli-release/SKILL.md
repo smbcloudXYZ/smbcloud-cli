@@ -114,16 +114,25 @@ intended change.
 
 ### Patch release
 
-Patches and small fixes branch off `main` and merge into both branches.
+A patch uses the same order as a minor or major release: the release branch merges into
+`development` first, then its merge commit goes into `main`, then the tag. Never merge
+into `main` or tag before the pull request into `development` has merged.
 
-1. Branch off `main`: `git checkout main && git pull && git checkout -b release/v<version>`.
-   If the fix already landed on `development`, `git cherry-pick -x <fix-commit>`;
-   otherwise commit the fix here.
-2. `make patch`, push the branch and wait for CI.
-3. Merge the release branch into `main` with `--no-ff`, then tag `main` as above.
-4. Merge `main` back into `development` through a pull request so the version bump
-   (and the fix, if it started here) reaches `development`.
-5. Delete the release branch.
+1. Pick the base. If `development` holds nothing unreleased besides the fix, branch off an
+   up-to-date `development`. If it holds other unreleased work, branch off `main` and
+   `git cherry-pick -x <fix-commit>` (or commit the fix here), so the tag carries only
+   the fix. Name the branch `release/v<version>` either way.
+2. `make patch`, then amend the `Release <version>` commit to add the commit trailers.
+3. Push the branch and open a pull request into `development`. Let CI run.
+4. **Only when CI is green**, merge it with the merge-commit method and note the merge
+   commit. If the branch started from `main`, the merge brings the cherry-picked fix and
+   the version bump into `development` together.
+5. Sync `main` and tag as in steps 5 and 6 of the minor or major flow: merge that merge
+   commit into `main` with `--no-ff`, push `main`, then tag the `main` merge commit.
+6. Delete the release branch.
+
+Do not open a pull request with `main` or `development` as its head. The repo deletes head
+branches on merge, and a PR from a long-lived branch risks deleting it.
 
 ### Moving a misplaced tag
 
