@@ -109,26 +109,43 @@ expose the same unprefixed tool names.
 | --- | --- | --- |
 | `device_select` | All platforms | Remember the active simulator or device for later tools. |
 | `device_capabilities` | All platforms | Read platform and capability information. |
-| `input_click` | macOS | Click at screen coordinates. |
+| `input_click` | macOS | Click at screen coordinates (the space `ui_describe` reports rects in). Needs `app_id` or `app_path`. |
+| `input_key` | macOS | Press one key with optional modifiers, e.g. `return`, `escape`, or `g` with `["command", "shift"]` for Go to folder in an open panel. |
+| `input_drag` | macOS | Press, drag and release from one screen point to another. |
+| `input_scroll` | macOS | Scroll-wheel at a point; negative `dy` reveals content below. |
+| `window_resize` | macOS | Move (optional `x`, `y`) and resize the app's main window; returns the resulting frame and `clamped`. |
 | `input_spatial_tap` | visionOS | Perform a spatial tap. |
 | `input_tap` | iOS / tvOS / watchOS, simulator or physical | Perform a touch tap. Apple targets need `app_id`, the running app to tap in. |
-| `input_text` | iOS / tvOS, simulator or physical | Type into the focused field. |
+| `input_text` | iOS / tvOS / macOS, simulator or physical | Type into the focused field. On macOS pass `app_id` or `app_path`, or the runner types into its own host app. |
 | `input_swipe` | iOS / tvOS, simulator or physical | Swipe between coordinates. Apple targets need `app_id`, the running app to swipe in. |
 | `input_button` | iOS / tvOS, simulator or physical | Press a Home or tvOS remote button. |
-| `app_launch`/`app_terminate` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. |
-| `screen_capture` | Simulator or physical | Capture a PNG screenshot. Uses `simctl` for a simulator, or `devicectl device capture screenshot` when a `device` identifier is given. `display` (`outer`, `inner`, `all` or a screen ID) picks a display of a foldable simulator; see [iPhone Duo](#iphone-duo-foldable-simulators). |
+| `app_launch`/`app_terminate` | simulator or physical | Launch/terminate an app by bundle ID. On a physical device or Mac this calls the runner's `device.apps.launch`/`device.apps.terminate` RPC methods instead of `simctl`. `activate: true` calls `device.apps.activate`, which foregrounds an app that is already running instead of relaunching it. |
+| `screen_capture` | Simulator, physical, or ControlKit host | Capture a PNG screenshot. Uses `simctl` for a simulator, `devicectl device capture screenshot` when a `device` identifier is given, or the runner's `device.screenshot` for a `host`: the main window of the app named by `app_id`/`app_path`, else the whole screen. `display` (`outer`, `inner`, `all` or a screen ID) picks a display of a foldable simulator; see [iPhone Duo](#iphone-duo-foldable-simulators). |
 | `posture_get` | iOS 27.1+ simulator | Read the hinge status and angle, and which display is live. |
 | `posture_set` | iOS 27.1+ simulator | Fold (`folded`) or unfold (`unfolded`) a foldable simulator. Needs Device Hub and the Accessibility permission. |
 | `ui_describe` | All UI-test runners | Read the accessibility hierarchy for the supplied `bundle_id`. |
 | `ui_element_list` | All UI-test runners | Read actionable elements with tap coordinates for the supplied `bundle_id`. |
-| `ui_tap` | All UI-test runners | Resolve and activate an accessibility element by label, identifier, or value. |
+| `ui_tap` | All UI-test runners | Resolve and activate an accessibility element by label, identifier, or value (and title on macOS). `element_type` (e.g. `Button`) and `index` disambiguate repeated text. |
+
+On macOS, every tool that names an app also takes `app_path`, the exact `.app`
+bundle. Use it when more than one copy of the app is installed (an App Store
+build in `/Applications` and a local or staged build, say): a bundle ID
+resolves through LaunchServices to one copy, and the runner then reports the
+copy you started as not in the foreground. Launching an app that something
+else already started can block for minutes; use `app_launch` with
+`activate: true` for that.
 
 The runner implements these JSON-RPC methods: `device.capabilities`,
 `device.info`, `device.apps.launch`, `device.apps.terminate`, `device.io.tap`,
 `device.io.click`, `device.io.spatial.tap`, `device.io.swipe` (x1, y1, x2, y2,
 optional durationMs; iOS), `device.io.orientation.get`/`set` (`PORTRAIT` or
 `LANDSCAPE`; iOS), `device.io.text`, `device.io.button`, `device.dump.ui`,
-`device.ui.tap` and `device.hinge.get` (iOS 27.1 and later; the runner lists
+`device.ui.tap` (optional `type` and `index`), `device.apps.activate`,
+`device.screenshot` (optional `target`: `window` or `screen`; returns a base64
+PNG with its pixel size), and on macOS `device.io.key`, `device.io.drag`,
+`device.io.scroll` and `device.window.resize`. Methods that name an app accept
+`bundleId`, or on macOS `path`. `device.dump.ui` takes `raw: true` to also
+return XCTest's unparsed `debugDescription`. And `device.hinge.get` (iOS 27.1 and later; the runner lists
 `hinge` in its capabilities only on a device that reports one). Calls that name
 an app that is not running fail with an error instead of stopping the runner.
 
