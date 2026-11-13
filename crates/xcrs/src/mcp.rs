@@ -588,6 +588,10 @@ pub fn android_capabilities() -> serde_json::Value {
         "orientation_set": false,
         "input_click": false,
         "input_spatial_tap": false,
+        "input_key": false,
+        "input_drag": false,
+        "input_scroll": false,
+        "window_resize": false,
     })
 }
 
@@ -679,8 +683,9 @@ pub struct ScreenCaptureArgs {
     /// Apple simulator UDID. Omit to use the target selected with `device_select`.
     #[serde(default)]
     pub simulator_udid: Option<String>,
-    /// ControlKit host. Screen capture is not implemented for ControlKit hosts;
-    /// use `device` instead for a physical device, or select a simulator.
+    /// ControlKit host of a physical device, remote runner, or local Mac. The
+    /// runner captures through XCTest: the named app's main window when
+    /// `app_id` or `app_path` is given, otherwise the whole main screen.
     #[serde(default)]
     pub host: Option<String>,
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
@@ -701,6 +706,14 @@ pub struct ScreenCaptureArgs {
     /// Android device serial from `adb devices -l`.
     #[serde(default)]
     pub android_serial: Option<String>,
+    /// ControlKit hosts only: bundle identifier of the app whose main window to
+    /// capture. Omit (with `app_path`) to capture the whole screen.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// ControlKit macOS hosts only: path to the `.app` bundle whose main window
+    /// to capture. Wins over `app_id`; see `app_path` on `ui_describe`.
+    #[serde(default)]
+    pub app_path: Option<String>,
 }
 
 /// Capture the requested displays of a simulator as MCP content. A selection of
@@ -742,6 +755,23 @@ pub fn capture_simulator(
     Ok(content)
 }
 
+/// The base64 PNG from a ControlKit `device.screenshot` result, checked to be a
+/// PNG so a malformed reply fails here rather than as a broken image downstream.
+pub fn controlkit_screenshot_png(result: &serde_json::Value) -> Result<String> {
+    use base64::Engine as _;
+    let png = result
+        .get("png")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("device.screenshot returned no `png` field"))?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(png)
+        .map_err(|error| anyhow::anyhow!("device.screenshot returned invalid base64: {error}"))?;
+    if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        anyhow::bail!("device.screenshot did not return a PNG");
+    }
+    Ok(png.to_string())
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct AppTargetArgs {
     /// Exact Apple simulator name. Omit to use the target selected with
@@ -763,6 +793,28 @@ pub struct AppTargetArgs {
     /// App identifier: an Apple bundle identifier, or an Android package name,
     /// depending on the resolved target platform.
     pub app_id: String,
+    /// ControlKit macOS hosts only: path to the exact `.app` bundle to act on.
+    /// A bundle identifier resolves through LaunchServices, which picks one copy
+    /// when several are installed (an App Store build in /Applications and a
+    /// local or staged build elsewhere); a path names exactly one.
+    #[serde(default)]
+    pub app_path: Option<String>,
+}
+
+/// `app_launch`'s arguments: an app target plus the launch-only `activate`
+/// flag. `app_terminate` takes a bare `AppTargetArgs`, so `activate` stays out
+/// of its input schema instead of showing up there and being ignored.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AppLaunchArgs {
+    #[serde(flatten)]
+    pub target: AppTargetArgs,
+    /// ControlKit hosts only: bring the app to the foreground without
+    /// relaunching it (`device.apps.activate`), launching it only if it is not
+    /// running. Use this for an app started outside the runner (Finder,
+    /// `open`, a second copy): a plain launch of such an app can block for
+    /// minutes and then fail.
+    #[serde(default)]
+    pub activate: bool,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -838,6 +890,17 @@ pub struct TextArgs {
     pub android_serial: Option<String>,
     /// Single-line text to type into the focused field.
     pub text: String,
+    /// ControlKit hosts: bundle identifier of the app to type into. Without it
+    /// (or `app_path`) the runner types into its own host app, which on macOS
+    /// is not the app under test.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Alias for `app_id`.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
+    /// ControlKit macOS hosts only: path to the `.app` bundle to type into.
+    #[serde(default)]
+    pub app_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -946,6 +1009,13 @@ pub struct UiTargetArgs {
     /// Backward-compatible alias for `app_id` on Apple targets.
     #[serde(default)]
     pub bundle_id: Option<String>,
+    /// ControlKit macOS hosts only: path to the exact `.app` bundle to attach
+    /// to, instead of (or as well as) `app_id`. Needed when more than one copy
+    /// of the app is installed, since a bundle identifier then resolves to
+    /// whichever copy LaunchServices prefers, and the runner reports the copy
+    /// you started as not in the foreground.
+    #[serde(default)]
+    pub app_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -953,7 +1023,19 @@ pub struct UiTapArgs {
     #[serde(flatten)]
     pub target: UiTargetArgs,
     /// Exact accessible text, description, identifier, value, or hint to activate.
+    /// On macOS a control's caption (its title) also matches.
     pub element: String,
+    /// Apple targets only: narrow the match to one element type, as
+    /// `ui_describe` reports it in `type` (for example `Button`, `Link`,
+    /// `StaticText`, `TextField`, `MenuItem`). Web views repeat a control's text
+    /// on the control and on the text inside it, so a bare label often matches
+    /// more than once.
+    #[serde(default)]
+    pub element_type: Option<String>,
+    /// Apple targets only: pick the n-th match (0-based, document order) instead
+    /// of requiring exactly one.
+    #[serde(default)]
+    pub index: Option<u32>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -992,10 +1074,215 @@ pub struct CoordinateArgs {
     /// Local ControlKit JSON-RPC port. Defaults to 12004.
     #[serde(default)]
     pub controlkit_port: Option<u16>,
-    /// Horizontal screen coordinate.
+    /// Horizontal screen coordinate, in the same screen space `ui_describe`
+    /// reports rects in.
     pub x: f32,
     /// Vertical screen coordinate.
     pub y: f32,
+    /// Bundle identifier of the app to click in. Needed on macOS: without it
+    /// (or `app_path`) the runner aims at its own host app.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Alias for `app_id`.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
+    /// ControlKit macOS hosts only: path to the `.app` bundle to click in.
+    #[serde(default)]
+    pub app_path: Option<String>,
+}
+
+/// The app a macOS ControlKit tool acts on, by bundle identifier and/or path.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct MacAppArgs {
+    /// Bundle identifier of the app.
+    #[serde(default)]
+    pub app_id: Option<String>,
+    /// Alias for `app_id`.
+    #[serde(default)]
+    pub bundle_id: Option<String>,
+    /// Path to the exact `.app` bundle. Wins over `app_id` when both are given;
+    /// use it when more than one copy of the app is installed.
+    #[serde(default)]
+    pub app_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct KeyArgs {
+    #[serde(flatten)]
+    pub target: AppleTargetArgs,
+    #[serde(flatten)]
+    pub app: MacAppArgs,
+    /// Key to press: a single character (`g`, `,`, `1`) or one of return, enter,
+    /// escape, tab, space, delete, forwardDelete, up, down, left, right, home,
+    /// end, pageUp, pageDown.
+    pub key: String,
+    /// Modifier keys held while pressing `key`: command, shift, option,
+    /// control, function. For example `["command", "shift"]` with key `g` opens
+    /// the "Go to folder" field of an open or save panel.
+    #[serde(default)]
+    pub modifiers: Vec<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct DragArgs {
+    #[serde(flatten)]
+    pub target: AppleTargetArgs,
+    #[serde(flatten)]
+    pub app: MacAppArgs,
+    /// Drag start horizontal screen coordinate.
+    pub x1: f64,
+    /// Drag start vertical screen coordinate.
+    pub y1: f64,
+    /// Drag end horizontal screen coordinate. May lie outside the app's window.
+    pub x2: f64,
+    /// Drag end vertical screen coordinate.
+    pub y2: f64,
+    /// How long to hold the button down before moving, in milliseconds.
+    /// Defaults to 100.
+    #[serde(default)]
+    pub hold_ms: Option<u32>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ScrollArgs {
+    #[serde(flatten)]
+    pub target: AppleTargetArgs,
+    #[serde(flatten)]
+    pub app: MacAppArgs,
+    /// Horizontal screen coordinate to scroll at (the scroll goes to whatever
+    /// is under this point).
+    pub x: f64,
+    /// Vertical screen coordinate to scroll at.
+    pub y: f64,
+    /// Horizontal scroll-wheel delta. Defaults to 0.
+    #[serde(default)]
+    pub dx: Option<f64>,
+    /// Vertical scroll-wheel delta: negative scrolls the content up (reveals
+    /// what is below). In a WebKit view one unit moved the content about one
+    /// point; scrolling stops at the end of the content, so overshooting is safe.
+    #[serde(default)]
+    pub dy: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct WindowResizeArgs {
+    #[serde(flatten)]
+    pub target: AppleTargetArgs,
+    #[serde(flatten)]
+    pub app: MacAppArgs,
+    /// Target window width in points.
+    pub width: f64,
+    /// Target window height in points.
+    pub height: f64,
+    /// Move the window's top-left corner here first (screen points). A window
+    /// cannot grow past the screen edge, so move it when the size will not fit
+    /// where it is.
+    #[serde(default)]
+    pub x: Option<f64>,
+    /// See `x`; both must be given to move.
+    #[serde(default)]
+    pub y: Option<f64>,
+}
+
+/// The app a ControlKit call targets, resolved from a tool's `app_id`,
+/// `bundle_id` and `app_path` fields into the runner's `bundleId`/`path`
+/// parameters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ControlKitApp {
+    pub app_id: Option<String>,
+    pub app_path: Option<String>,
+}
+
+impl ControlKitApp {
+    /// Rejects an `app_id` and `bundle_id` that disagree; blank values count as
+    /// absent.
+    pub fn resolve(
+        tool_name: &str,
+        app_id: Option<String>,
+        bundle_id: Option<String>,
+        app_path: Option<String>,
+    ) -> Result<Self, rmcp::model::ErrorData> {
+        fn present(value: Option<String>) -> Option<String> {
+            value
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        }
+        let app_id = present(app_id);
+        let bundle_id = present(bundle_id);
+        if let (Some(app_id), Some(bundle_id)) = (&app_id, &bundle_id) {
+            if app_id != bundle_id {
+                return Err(rmcp::model::ErrorData::invalid_request(
+                    format!("{tool_name} received conflicting app_id and bundle_id values."),
+                    None,
+                ));
+            }
+        }
+        Ok(Self {
+            app_id: app_id.or(bundle_id),
+            app_path: present(app_path),
+        })
+    }
+
+    pub fn from_args(tool_name: &str, args: MacAppArgs) -> Result<Self, rmcp::model::ErrorData> {
+        Self::resolve(tool_name, args.app_id, args.bundle_id, args.app_path)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.app_id.is_none() && self.app_path.is_none()
+    }
+
+    /// Runner parameters naming the app, or an empty map when none was given.
+    pub fn params(&self) -> serde_json::Map<String, serde_json::Value> {
+        let mut params = serde_json::Map::new();
+        if let Some(app_id) = &self.app_id {
+            params.insert(
+                "bundleId".to_string(),
+                serde_json::Value::from(app_id.clone()),
+            );
+        }
+        if let Some(app_path) = &self.app_path {
+            params.insert(
+                "path".to_string(),
+                serde_json::Value::from(app_path.clone()),
+            );
+        }
+        params
+    }
+
+    /// Like `params`, but the tool cannot run without an app.
+    pub fn required_params(
+        &self,
+        tool_name: &str,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, rmcp::model::ErrorData> {
+        if self.is_empty() {
+            return Err(rmcp::model::ErrorData::invalid_request(
+                format!(
+                    "{tool_name} requires app_id (the app's bundle identifier) or app_path (its .app bundle)."
+                ),
+                None,
+            ));
+        }
+        Ok(self.params())
+    }
+
+    /// `params` plus extra fields, as one JSON object.
+    pub fn with(
+        mut params: serde_json::Map<String, serde_json::Value>,
+        extra: serde_json::Value,
+    ) -> serde_json::Value {
+        if let serde_json::Value::Object(extra) = extra {
+            params.extend(extra);
+        }
+        serde_json::Value::Object(params)
+    }
+
+    /// How a reply names the app.
+    pub fn describe(&self) -> String {
+        self.app_path
+            .clone()
+            .or_else(|| self.app_id.clone())
+            .unwrap_or_else(|| "the foreground app".to_string())
+    }
 }
 
 #[derive(Debug, Default)]
@@ -1031,7 +1318,11 @@ macro_rules! xcrs_mcp_tools {
         $orientation_get_name:literal,
         $orientation_set_name:literal,
         $posture_get_name:literal,
-        $posture_set_name:literal
+        $posture_set_name:literal,
+        $input_key_name:literal,
+        $input_drag_name:literal,
+        $input_scroll_name:literal,
+        $window_resize_name:literal
     ) => {
         #[::rmcp::tool_router(router = xcrs_tool_router, vis = "pub(crate)")]
         impl $server {
@@ -1472,7 +1763,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $screen_capture_name,
                 title = "Capture screenshot",
                 annotations(title = "Capture screenshot", read_only_hint = true, idempotent_hint = true),
-                description = "Purpose: capture a PNG screenshot of the resolved target's current screen. When to use vs siblings: use this for a pixel image; use ui_describe or ui_element_list instead when you need element coordinates or labels rather than pixels. Behavior: for an Apple simulator, captures through `simctl io screenshot`; a foldable simulator such as iPhone Duo has two displays (outer and inner), and only the one currently in use shows content, so by default every display is captured, each preceded by a text block naming it (for example `screen 1 outer 1398x2034`), and `display` (`outer`, `inner`, `all` or a screen ID) narrows that; for a paired physical Apple device, pass its CoreDevice identifier as `device` to capture through `devicectl` (this bypasses simulator/host/android_serial resolution entirely and is mutually exclusive with them); for an Android device, captures through `adb exec-out screencap`. Prerequisites: the target must be booted/connected and, for simulators, `simctl` must be able to reach it. Failure modes: returns an error if `device` is combined with any other target field, if `display` is given for a physical device or an Android device or names a display the simulator does not have, if the resolved target is an Apple ControlKit host (screenshot over ControlKit is not implemented; use `device` or select a simulator instead), or if the underlying capture command fails."
+                description = "Purpose: capture a PNG screenshot of the resolved target's current screen. When to use vs siblings: use this for a pixel image; use ui_describe or ui_element_list instead when you need element coordinates or labels rather than pixels. Behavior: for an Apple simulator, captures through `simctl io screenshot`; a foldable simulator such as iPhone Duo has two displays (outer and inner), and only the one currently in use shows content, so by default every display is captured, each preceded by a text block naming it (for example `screen 1 outer 1398x2034`), and `display` (`outer`, `inner`, `all` or a screen ID) narrows that; for a paired physical Apple device, pass its CoreDevice identifier as `device` to capture through `devicectl` (this bypasses simulator/host/android_serial resolution entirely and is mutually exclusive with them); for an Apple ControlKit host (a physical device, remote runner or local Mac), captures through the runner's `device.screenshot`: the main window of the app named by app_id or app_path (cropped to the window, at the display's pixel scale), or the whole main screen when neither is given; for an Android device, captures through `adb exec-out screencap`. Prerequisites: the target must be booted/connected and, for simulators, `simctl` must be able to reach it; a ControlKit host needs a runner that implements `device.screenshot`. Failure modes: returns an error if `device` is combined with any other target field, if `display` is given for anything but a simulator or names a display the simulator does not have, if a ControlKit runner is too old for `device.screenshot` or the named app has no window, or if the underlying capture command fails."
             )]
             async fn screen_capture(
                 &self,
@@ -1567,13 +1858,31 @@ macro_rules! xcrs_mcp_tools {
                                 ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
                             })?
                     }
-                    $crate::mcp::SelectedTarget::AppleHost { host, .. } => {
-                        return Err(::rmcp::model::ErrorData::invalid_request(
-                            format!(
-                                "screen_capture over a ControlKit host ({host}) is not supported; pass the physical device's CoreDevice identifier as `device`, or select an Apple simulator or Android device instead."
-                            ),
+                    $crate::mcp::SelectedTarget::AppleHost { host, controlkit_port } => {
+                        if args.display.is_some() {
+                            return Err(::rmcp::model::ErrorData::invalid_request(
+                                "display only applies to Apple simulators, not to a ControlKit host.",
+                                None,
+                            ));
+                        }
+                        let app = $crate::mcp::ControlKitApp::resolve(
+                            $screen_capture_name,
+                            args.app_id,
                             None,
-                        ));
+                            args.app_path,
+                        )?;
+                        let controlkit =
+                            $crate::ControlKit::with_host(host, controlkit_port.unwrap_or(12004));
+                        let result = controlkit
+                            .call("device.screenshot", ::serde_json::Value::Object(app.params()))
+                            .await
+                            .map_err(|error| {
+                                ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                            })?;
+                        let png = $crate::mcp::controlkit_screenshot_png(&result).map_err(|error| {
+                            ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                        })?;
+                        vec![::rmcp::model::ContentBlock::image(png, "image/png")]
                     }
                 };
                 Ok(::rmcp::model::CallToolResult::success(content))
@@ -1583,19 +1892,20 @@ macro_rules! xcrs_mcp_tools {
                 name = $app_launch_name,
                 title = "Launch app",
                 annotations(title = "Launch app", read_only_hint = false, destructive_hint = false, idempotent_hint = true),
-                description = "Purpose: launch an already-installed app by identifier on the resolved target. When to use vs siblings: use app_install_launch instead for a fresh iOS build that still needs installing; use this once the app is already on the device. Behavior: for an Apple simulator, launches through `simctl launch`; for an Apple ControlKit host, calls `device.apps.launch`; for Android, resolves (or prefers, if given) the launcher activity — trying the Android TV Leanback launcher category first, then the standard launcher category — and starts it. Prerequisites: app_id must already be installed on the resolved target. Failure modes: errors if no target can be resolved, if the app is not installed, or (Android) if no launchable activity is found for app_id."
+                description = "Purpose: launch an already-installed app by identifier on the resolved target. When to use vs siblings: use app_install_launch instead for a fresh iOS build that still needs installing; use this once the app is already on the device. Behavior: for an Apple simulator, launches through `simctl launch`; for an Apple ControlKit host, calls `device.apps.launch`, or `device.apps.activate` when activate is true (foregrounds an already-running app instead of relaunching it), and on macOS app_path picks the exact bundle when several copies are installed; for Android, resolves (or prefers, if given) the launcher activity — trying the Android TV Leanback launcher category first, then the standard launcher category — and starts it. Prerequisites: app_id must already be installed on the resolved target. Failure modes: errors if no target can be resolved, if the app is not installed, or (Android) if no launchable activity is found for app_id."
             )]
             async fn app_launch(
                 &self,
                 ::rmcp::handler::server::wrapper::Parameters(
                     args,
                 ): ::rmcp::handler::server::wrapper::Parameters<
-                    $crate::mcp::AppTargetArgs,
+                    $crate::mcp::AppLaunchArgs,
                 >,
             ) -> ::std::result::Result<
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                let $crate::mcp::AppLaunchArgs { target: args, activate } = args;
                 let target = Self::dispatch_target(
                     args.simulator_name,
                     args.simulator_udid,
@@ -1635,11 +1945,19 @@ macro_rules! xcrs_mcp_tools {
                     } => {
                         let controlkit =
                             $crate::ControlKit::with_host(host, controlkit_port.unwrap_or(12004));
+                        let app = $crate::mcp::ControlKitApp::resolve(
+                            $app_launch_name,
+                            Some(args.app_id.clone()),
+                            None,
+                            args.app_path.clone(),
+                        )?;
+                        let method = if activate {
+                            "device.apps.activate"
+                        } else {
+                            "device.apps.launch"
+                        };
                         controlkit
-                            .call(
-                                "device.apps.launch",
-                                ::serde_json::json!({ "bundleId": args.app_id }),
-                            )
+                            .call(method, ::serde_json::Value::Object(app.params()))
                             .await
                             .map_err(|error| {
                                 ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
@@ -1728,7 +2046,15 @@ macro_rules! xcrs_mcp_tools {
                         controlkit
                             .call(
                                 "device.apps.terminate",
-                                ::serde_json::json!({ "bundleId": args.app_id }),
+                                ::serde_json::Value::Object(
+                                    $crate::mcp::ControlKitApp::resolve(
+                                        $app_terminate_name,
+                                        Some(args.app_id.clone()),
+                                        None,
+                                        args.app_path.clone(),
+                                    )?
+                                    .params(),
+                                ),
                             )
                             .await
                             .map_err(|error| {
@@ -1863,9 +2189,12 @@ macro_rules! xcrs_mcp_tools {
                         $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Describe).await?,
                     ));
                 }
-                let app_id = Self::require_app_id($ui_describe_name, args.app_id, args.bundle_id)?;
+                let app = $crate::mcp::ControlKitApp::resolve(
+                    $ui_describe_name, args.app_id, args.bundle_id, args.app_path,
+                )?;
                 let (simulator, result) = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
+                        let app_id = Self::require_app_id($ui_describe_name, app.app_id.clone(), None)?;
                         let device = Self::android_device_for(serial.clone()).await?;
                         let ui = $crate::AndroidKit::new()
                             .call(device.serial.clone(), "device.dump.ui", ::serde_json::json!({ "appId": app_id }))
@@ -1875,9 +2204,12 @@ macro_rules! xcrs_mcp_tools {
                     }
                     _ => {
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
-                        let ui = controlkit.call("device.dump.ui", ::serde_json::json!({
-                            "format": "json", "bundleId": app_id,
-                        })).await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        let params = $crate::mcp::ControlKitApp::with(
+                            app.required_params($ui_describe_name)?,
+                            ::serde_json::json!({ "format": "json" }),
+                        );
+                        let ui = controlkit.call("device.dump.ui", params)
+                            .await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
                         (simulator, ui)
                     }
                 };
@@ -1915,9 +2247,12 @@ macro_rules! xcrs_mcp_tools {
                         $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Elements).await?,
                     ));
                 }
-                let app_id = Self::require_app_id($ui_element_list_name, args.app_id, args.bundle_id)?;
+                let app = $crate::mcp::ControlKitApp::resolve(
+                    $ui_element_list_name, args.app_id, args.bundle_id, args.app_path,
+                )?;
                 let (simulator, elements) = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
+                        let app_id = Self::require_app_id($ui_element_list_name, app.app_id.clone(), None)?;
                         let device = Self::android_device_for(serial.clone()).await?;
                         let ui = $crate::AndroidKit::new().call(
                             device.serial.clone(), "device.dump.ui", ::serde_json::json!({ "appId": app_id }),
@@ -1926,9 +2261,12 @@ macro_rules! xcrs_mcp_tools {
                     }
                     _ => {
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
-                        let ui = controlkit.call("device.dump.ui", ::serde_json::json!({
-                            "format": "json", "bundleId": app_id,
-                        })).await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
+                        let params = $crate::mcp::ControlKitApp::with(
+                            app.required_params($ui_element_list_name)?,
+                            ::serde_json::json!({ "format": "json" }),
+                        );
+                        let ui = controlkit.call("device.dump.ui", params)
+                            .await.map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
                         (simulator, $crate::extract_controlkit_elements(&ui))
                     }
                 };
@@ -1970,9 +2308,12 @@ macro_rules! xcrs_mcp_tools {
                         $crate::mcp::run_desktop(webdriver_url.as_deref(), $crate::mcp::DesktopCall::Tap(args.element.trim().to_string())).await?,
                     ));
                 }
-                let app_id = Self::require_app_id($ui_tap_name, args.target.app_id, args.target.bundle_id)?;
+                let app = $crate::mcp::ControlKitApp::resolve(
+                    $ui_tap_name, args.target.app_id, args.target.bundle_id, args.target.app_path,
+                )?;
                 let label = match &target {
                     $crate::mcp::SelectedTarget::Android { serial } => {
+                        let app_id = Self::require_app_id($ui_tap_name, app.app_id.clone(), None)?;
                         let device = Self::android_device_for(serial.clone()).await?;
                         $crate::AndroidKit::new().call(
                             device.serial.clone(), "device.ui.tap", ::serde_json::json!({ "appId": app_id, "element": element }),
@@ -1981,7 +2322,15 @@ macro_rules! xcrs_mcp_tools {
                     }
                     _ => {
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
-                        controlkit.call("device.ui.tap", ::serde_json::json!({ "bundleId": app_id, "element": element }))
+                        let mut extra = ::serde_json::json!({ "element": element });
+                        if let Some(element_type) = args.element_type.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+                            extra["type"] = ::serde_json::Value::from(element_type);
+                        }
+                        if let Some(index) = args.index {
+                            extra["index"] = ::serde_json::Value::from(index);
+                        }
+                        let params = $crate::mcp::ControlKitApp::with(app.required_params($ui_tap_name)?, extra);
+                        controlkit.call("device.ui.tap", params)
                             .await
                             .map_err(|error| ::rmcp::model::ErrorData::internal_error(error.to_string(), None))?;
                         Self::target_label(&target, &simulator)
@@ -2104,8 +2453,20 @@ macro_rules! xcrs_mcp_tools {
                     }
                     _ => {
                         let (simulator, controlkit) = Self::controlkit_for_target(&target)?;
+                        let app = $crate::mcp::ControlKitApp::resolve(
+                            $input_text_name,
+                            args.app_id.clone(),
+                            args.bundle_id.clone(),
+                            args.app_path.clone(),
+                        )?;
                         controlkit
-                            .call("device.io.text", ::serde_json::json!({ "text": args.text }))
+                            .call(
+                                "device.io.text",
+                                $crate::mcp::ControlKitApp::with(
+                                    app.params(),
+                                    ::serde_json::json!({ "text": args.text }),
+                                ),
+                            )
                             .await
                             .map_err(|error| {
                                 ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
@@ -2277,7 +2638,7 @@ macro_rules! xcrs_mcp_tools {
                 name = $input_click_name,
                 title = "Click (macOS)",
                 annotations(title = "Click (macOS)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
-                description = "Purpose: click the running macOS app at screen coordinates. When to use vs siblings: use input_tap for iOS/tvOS/watchOS and input_spatial_tap for visionOS instead. Behavior: calls the resolved target's ControlKit `device.io.click` method. Prerequisites: a reachable ControlKit endpoint on a macOS target. Failure modes: errors if no target can be resolved, or if the resolved target is Android (Apple-only tool)."
+                description = "Purpose: click the running macOS app at screen coordinates. When to use vs siblings: use input_tap for iOS/tvOS/watchOS and input_spatial_tap for visionOS instead; prefer ui_tap when the control has a unique label. Behavior: calls the resolved target's ControlKit `device.io.click` method on the app named by app_id or app_path; x/y are screen points, the space ui_describe reports rects in, so the centre of an element's rect clicks it. Prerequisites: a reachable ControlKit endpoint on a macOS target, and the app running. Failure modes: errors if no target can be resolved, if neither app_id nor app_path is given, if the app has no on-screen window, or if the resolved target is Android (Apple-only tool)."
             )]
             async fn input_click(
                 &self,
@@ -2298,10 +2659,19 @@ macro_rules! xcrs_mcp_tools {
                     args.controlkit_port,
                 )?;
                 let (_, controlkit) = Self::controlkit_for_target(&target)?;
+                let app = $crate::mcp::ControlKitApp::resolve(
+                    $input_click_name,
+                    args.app_id,
+                    args.bundle_id,
+                    args.app_path,
+                )?;
                 controlkit
                     .call(
                         "device.io.click",
-                        ::serde_json::json!({ "x": args.x, "y": args.y }),
+                        $crate::mcp::ControlKitApp::with(
+                            app.required_params($input_click_name)?,
+                            ::serde_json::json!({ "x": args.x, "y": args.y }),
+                        ),
                     )
                     .await
                     .map_err(|error| {
@@ -2312,6 +2682,211 @@ macro_rules! xcrs_mcp_tools {
                         "Clicked ({}, {}).",
                         args.x, args.y
                     )),
+                ]))
+            }
+
+
+            #[::rmcp::tool(
+                name = $input_key_name,
+                title = "Press key (macOS)",
+                annotations(title = "Press key (macOS)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
+                description = "Purpose: press one key, optionally with modifiers, in the running macOS app. When to use vs siblings: use input_text to type a string; use this for Return, Escape, Tab, arrows and shortcuts such as command+shift+g (Go to folder in an open or save panel). Behavior: calls the resolved target's ControlKit `device.io.key` on the app named by app_id or app_path. Prerequisites: a reachable ControlKit endpoint on a macOS target running a runner that implements `device.io.key`. Failure modes: errors if no target can be resolved, if the key or a modifier is not recognised, or if the resolved target is not macOS."
+            )]
+            async fn input_key(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::KeyArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let target = Self::dispatch_apple_target(
+                    $input_key_name,
+                    args.target.simulator_name,
+                    args.target.simulator_udid,
+                    args.target.host,
+                    args.target.controlkit_port,
+                )?;
+                let (_, controlkit) = Self::controlkit_for_target(&target)?;
+                let app = $crate::mcp::ControlKitApp::from_args($input_key_name, args.app)?;
+                let key = args.key.trim().to_string();
+                controlkit
+                    .call(
+                        "device.io.key",
+                        $crate::mcp::ControlKitApp::with(
+                            app.params(),
+                            ::serde_json::json!({ "key": key, "modifiers": args.modifiers }),
+                        ),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                let chord = args
+                    .modifiers
+                    .iter()
+                    .map(String::as_str)
+                    .chain(::std::iter::once(key.as_str()))
+                    .collect::<::std::vec::Vec<_>>()
+                    .join("+");
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!("Pressed {} in {}.", chord, app.describe())),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $input_drag_name,
+                title = "Drag (macOS)",
+                annotations(title = "Drag (macOS)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
+                description = "Purpose: press, drag and release the mouse in the running macOS app. When to use vs siblings: use input_click for a click, input_scroll to scroll, window_resize to size the window; use this for sliders, drag and drop, or a drag that ends outside the window. Behavior: calls the resolved target's ControlKit `device.io.drag` on the app named by app_id or app_path, from (x1, y1) to (x2, y2) in screen points. Prerequisites: a reachable ControlKit endpoint on a macOS target running a runner that implements `device.io.drag`; the start point must be on one of the app's windows. Failure modes: errors if no target can be resolved, if neither app_id nor app_path is given, if the app has no on-screen window, or if the resolved target is not macOS."
+            )]
+            async fn input_drag(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::DragArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let target = Self::dispatch_apple_target(
+                    $input_drag_name,
+                    args.target.simulator_name,
+                    args.target.simulator_udid,
+                    args.target.host,
+                    args.target.controlkit_port,
+                )?;
+                let (_, controlkit) = Self::controlkit_for_target(&target)?;
+                let app = $crate::mcp::ControlKitApp::from_args($input_drag_name, args.app)?;
+                let mut extra = ::serde_json::json!({
+                    "x1": args.x1, "y1": args.y1, "x2": args.x2, "y2": args.y2,
+                });
+                if let Some(hold_ms) = args.hold_ms {
+                    extra["holdMs"] = ::serde_json::Value::from(hold_ms);
+                }
+                controlkit
+                    .call(
+                        "device.io.drag",
+                        $crate::mcp::ControlKitApp::with(app.required_params($input_drag_name)?, extra),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Dragged ({}, {}) to ({}, {}) in {}.",
+                        args.x1, args.y1, args.x2, args.y2, app.describe()
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $input_scroll_name,
+                title = "Scroll (macOS)",
+                annotations(title = "Scroll (macOS)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
+                description = "Purpose: scroll with the scroll wheel at a point in the running macOS app. When to use vs siblings: use this to reveal content below or beside the visible area; input_swipe does not scroll on macOS. Behavior: calls the resolved target's ControlKit `device.io.scroll` on the app named by app_id or app_path, at (x, y) in screen points, by dx/dy (negative dy reveals content below). Prerequisites: a reachable ControlKit endpoint on a macOS target running a runner that implements `device.io.scroll`. Failure modes: errors if no target can be resolved, if neither app_id nor app_path is given, if neither dx nor dy is non-zero, or if the resolved target is not macOS."
+            )]
+            async fn input_scroll(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::ScrollArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let target = Self::dispatch_apple_target(
+                    $input_scroll_name,
+                    args.target.simulator_name,
+                    args.target.simulator_udid,
+                    args.target.host,
+                    args.target.controlkit_port,
+                )?;
+                let (_, controlkit) = Self::controlkit_for_target(&target)?;
+                let app = $crate::mcp::ControlKitApp::from_args($input_scroll_name, args.app)?;
+                let dx = args.dx.unwrap_or(0.0);
+                let dy = args.dy.unwrap_or(0.0);
+                if dx == 0.0 && dy == 0.0 {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        format!("{} needs a non-zero dx or dy.", $input_scroll_name),
+                        None,
+                    ));
+                }
+                controlkit
+                    .call(
+                        "device.io.scroll",
+                        $crate::mcp::ControlKitApp::with(
+                            app.required_params($input_scroll_name)?,
+                            ::serde_json::json!({ "x": args.x, "y": args.y, "dx": dx, "dy": dy }),
+                        ),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::text(format!(
+                        "Scrolled by ({}, {}) at ({}, {}) in {}.",
+                        dx, dy, args.x, args.y, app.describe()
+                    )),
+                ]))
+            }
+
+            #[::rmcp::tool(
+                name = $window_resize_name,
+                title = "Resize window (macOS)",
+                annotations(title = "Resize window (macOS)", read_only_hint = false, destructive_hint = false, idempotent_hint = false),
+                description = "Purpose: move and resize the main window of the running macOS app, for example to a fixed 16:9 size before taking store screenshots. When to use vs siblings: use screen_capture with app_id or app_path afterwards to capture just that window. Behavior: calls the resolved target's ControlKit `device.window.resize`, which drags the window's title bar to (x, y) when both are given and then its bottom-right corner to the requested size, and returns the frame the window actually ended up with plus `clamped: true` when the screen edge or the window's own limits stopped it. Prerequisites: a reachable ControlKit endpoint on a macOS target running a runner that implements `device.window.resize`; the window must not be full screen. Failure modes: errors if no target can be resolved, if neither app_id nor app_path is given, if the app has no on-screen window, or if the resolved target is not macOS."
+            )]
+            async fn window_resize(
+                &self,
+                ::rmcp::handler::server::wrapper::Parameters(
+                    args,
+                ): ::rmcp::handler::server::wrapper::Parameters<
+                    $crate::mcp::WindowResizeArgs,
+                >,
+            ) -> ::std::result::Result<
+                ::rmcp::model::CallToolResult,
+                ::rmcp::model::ErrorData,
+            > {
+                let target = Self::dispatch_apple_target(
+                    $window_resize_name,
+                    args.target.simulator_name,
+                    args.target.simulator_udid,
+                    args.target.host,
+                    args.target.controlkit_port,
+                )?;
+                let (_, controlkit) = Self::controlkit_for_target(&target)?;
+                let app = $crate::mcp::ControlKitApp::from_args($window_resize_name, args.app)?;
+                let mut extra = ::serde_json::json!({ "width": args.width, "height": args.height });
+                if let (Some(x), Some(y)) = (args.x, args.y) {
+                    extra["x"] = ::serde_json::Value::from(x);
+                    extra["y"] = ::serde_json::Value::from(y);
+                } else if args.x.is_some() || args.y.is_some() {
+                    return Err(::rmcp::model::ErrorData::invalid_request(
+                        format!("{} needs both x and y to move the window.", $window_resize_name),
+                        None,
+                    ));
+                }
+                let frame = controlkit
+                    .call(
+                        "device.window.resize",
+                        $crate::mcp::ControlKitApp::with(app.required_params($window_resize_name)?, extra),
+                    )
+                    .await
+                    .map_err(|error| {
+                        ::rmcp::model::ErrorData::internal_error(error.to_string(), None)
+                    })?;
+                Ok(::rmcp::model::CallToolResult::success(vec![
+                    ::rmcp::model::ContentBlock::json(&frame)?,
                 ]))
             }
 
@@ -2600,7 +3175,11 @@ xcrs_mcp_tools!(
     "orientation_get",
     "orientation_set",
     "posture_get",
-    "posture_set"
+    "posture_set",
+    "input_key",
+    "input_drag",
+    "input_scroll",
+    "window_resize"
 );
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]
@@ -2728,9 +3307,9 @@ mod tests {
         assert!(response.is_none());
     }
 
-    /// The 21 canonical tool names shared by the standalone and embedded
+    /// The 25 canonical tool names shared by the standalone and embedded
     /// automation servers.
-    const CANONICAL_TOOL_NAMES: [&str; 21] = [
+    const CANONICAL_TOOL_NAMES: [&str; 25] = [
         "device_list",
         "device_select",
         "device_capabilities",
@@ -2752,6 +3331,10 @@ mod tests {
         "orientation_set",
         "posture_get",
         "posture_set",
+        "input_key",
+        "input_drag",
+        "input_scroll",
+        "window_resize",
     ];
 
     /// Fully-qualified tool names this crate used before the canonical-tool
@@ -2790,7 +3373,7 @@ mod tests {
     /// types it does not own, so they intentionally advertise no
     /// `output_schema`. Only `device_select` returns structured content built
     /// entirely from types this module owns, so it is the only tool with one.
-    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 20] = [
+    const TOOLS_WITHOUT_OUTPUT_SCHEMA: [&str; 24] = [
         "device_list",
         "device_capabilities",
         "app_install_launch",
@@ -2811,10 +3394,14 @@ mod tests {
         "orientation_set",
         "posture_get",
         "posture_set",
+        "input_key",
+        "input_drag",
+        "input_scroll",
+        "window_resize",
     ];
 
     #[test]
-    fn tool_router_exposes_exactly_the_twentyone_canonical_tools() {
+    fn tool_router_exposes_exactly_the_twentyfive_canonical_tools() {
         let tools = XcrsMcpServer::xcrs_tool_router().list_all();
 
         assert_eq!(
@@ -2999,6 +3586,32 @@ mod tests {
             assert!(!required.contains(&serde_json::json!("bundle_id")));
             assert!(!required.contains(&serde_json::json!("app_id")));
         }
+    }
+
+    #[test]
+    fn activate_is_advertised_by_app_launch_but_not_app_terminate() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        let properties = |name: &str| {
+            tools
+                .iter()
+                .find(|tool| tool.name.as_ref() == name)
+                .unwrap_or_else(|| panic!("{name} should be registered"))
+                .input_schema["properties"]
+                .as_object()
+                .unwrap_or_else(|| panic!("{name} properties should be an object"))
+                .clone()
+        };
+
+        assert!(
+            properties("app_launch").contains_key("activate"),
+            "app_launch should advertise activate"
+        );
+        assert!(
+            !properties("app_terminate").contains_key("activate"),
+            "app_terminate ignores activate, so it must not advertise it"
+        );
+        // The shared target fields still reach app_terminate.
+        assert!(properties("app_terminate").contains_key("app_id"));
     }
 
     #[test]
@@ -3444,5 +4057,106 @@ mod tests {
             capabilities.get("androidkit").is_none(),
             "the androidkit object is added by the device_capabilities handler, not the baseline"
         );
+    }
+}
+
+#[cfg(test)]
+mod controlkit_app_tests {
+    use super::*;
+
+    #[test]
+    fn path_and_bundle_id_both_reach_the_runner() {
+        let app = ControlKitApp::resolve(
+            "ui_tap",
+            Some(" ai.example.App ".to_string()),
+            None,
+            Some("/tmp/Example.app".to_string()),
+        )
+        .expect("resolves");
+        let params = app.params();
+        assert_eq!(params["bundleId"], "ai.example.App");
+        assert_eq!(params["path"], "/tmp/Example.app");
+        assert_eq!(app.describe(), "/tmp/Example.app");
+    }
+
+    #[test]
+    fn bundle_id_alias_fills_in_for_app_id_and_conflicts_are_rejected() {
+        let app = ControlKitApp::resolve("input_text", None, Some("ai.example.App".into()), None)
+            .expect("alias resolves");
+        assert_eq!(app.app_id.as_deref(), Some("ai.example.App"));
+
+        let conflict = ControlKitApp::resolve(
+            "input_text",
+            Some("ai.example.One".into()),
+            Some("ai.example.Two".into()),
+            None,
+        );
+        assert!(conflict.is_err());
+    }
+
+    #[test]
+    fn blank_values_count_as_absent() {
+        let app =
+            ControlKitApp::resolve("input_click", Some("  ".into()), None, Some(String::new()))
+                .expect("resolves");
+        assert!(app.is_empty());
+        assert!(app.params().is_empty());
+        let error = app
+            .required_params("input_click")
+            .expect_err("needs an app");
+        assert!(error.message.contains("app_id"));
+        assert!(error.message.contains("app_path"));
+    }
+
+    #[test]
+    fn with_merges_extra_fields_after_the_app() {
+        let app = ControlKitApp::resolve("ui_tap", Some("ai.example.App".into()), None, None)
+            .expect("resolves");
+        let params = ControlKitApp::with(
+            app.params(),
+            serde_json::json!({ "element": "SEPARATE", "type": "Button" }),
+        );
+        assert_eq!(
+            params,
+            serde_json::json!({ "bundleId": "ai.example.App", "element": "SEPARATE", "type": "Button" })
+        );
+    }
+
+    #[test]
+    fn screenshot_png_must_be_a_png() {
+        let png = crate::encode_base64(b"\x89PNG\r\n\x1a\nrest-of-file");
+        let result = serde_json::json!({ "png": png, "width": 2560, "height": 1440 });
+        assert_eq!(controlkit_screenshot_png(&result).expect("valid"), png);
+
+        let not_png = serde_json::json!({ "png": crate::encode_base64(b"GIF89a") });
+        assert!(controlkit_screenshot_png(&not_png).is_err());
+        assert!(controlkit_screenshot_png(&serde_json::json!({ "png": "%%%" })).is_err());
+        assert!(controlkit_screenshot_png(&serde_json::json!({})).is_err());
+    }
+
+    #[test]
+    fn mac_only_tools_take_an_app_path() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        for name in [
+            "input_key",
+            "input_drag",
+            "input_scroll",
+            "window_resize",
+            "ui_tap",
+            "input_click",
+        ] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool.name == name)
+                .unwrap_or_else(|| panic!("{name} is registered"));
+            let properties = tool
+                .input_schema
+                .get("properties")
+                .expect("schema has properties");
+            assert!(
+                properties.get("app_path").is_some(),
+                "{name} should accept app_path"
+            );
+        }
     }
 }
