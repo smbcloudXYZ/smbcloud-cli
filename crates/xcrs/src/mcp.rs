@@ -799,9 +799,18 @@ pub struct AppTargetArgs {
     /// local or staged build elsewhere); a path names exactly one.
     #[serde(default)]
     pub app_path: Option<String>,
-    /// ControlKit hosts only, `app_launch` only: bring the app to the foreground
-    /// without relaunching it (`device.apps.activate`), launching it only if it
-    /// is not running. Use this for an app started outside the runner (Finder,
+}
+
+/// `app_launch`'s arguments: an app target plus the launch-only `activate`
+/// flag. `app_terminate` takes a bare `AppTargetArgs`, so `activate` stays out
+/// of its input schema instead of showing up there and being ignored.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct AppLaunchArgs {
+    #[serde(flatten)]
+    pub target: AppTargetArgs,
+    /// ControlKit hosts only: bring the app to the foreground without
+    /// relaunching it (`device.apps.activate`), launching it only if it is not
+    /// running. Use this for an app started outside the runner (Finder,
     /// `open`, a second copy): a plain launch of such an app can block for
     /// minutes and then fail.
     #[serde(default)]
@@ -886,7 +895,7 @@ pub struct TextArgs {
     /// is not the app under test.
     #[serde(default)]
     pub app_id: Option<String>,
-    /// Backward-compatible alias for `app_id`.
+    /// Alias for `app_id`.
     #[serde(default)]
     pub bundle_id: Option<String>,
     /// ControlKit macOS hosts only: path to the `.app` bundle to type into.
@@ -1074,7 +1083,7 @@ pub struct CoordinateArgs {
     /// (or `app_path`) the runner aims at its own host app.
     #[serde(default)]
     pub app_id: Option<String>,
-    /// Backward-compatible alias for `app_id`.
+    /// Alias for `app_id`.
     #[serde(default)]
     pub bundle_id: Option<String>,
     /// ControlKit macOS hosts only: path to the `.app` bundle to click in.
@@ -1088,7 +1097,7 @@ pub struct MacAppArgs {
     /// Bundle identifier of the app.
     #[serde(default)]
     pub app_id: Option<String>,
-    /// Backward-compatible alias for `app_id`.
+    /// Alias for `app_id`.
     #[serde(default)]
     pub bundle_id: Option<String>,
     /// Path to the exact `.app` bundle. Wins over `app_id` when both are given;
@@ -1890,12 +1899,13 @@ macro_rules! xcrs_mcp_tools {
                 ::rmcp::handler::server::wrapper::Parameters(
                     args,
                 ): ::rmcp::handler::server::wrapper::Parameters<
-                    $crate::mcp::AppTargetArgs,
+                    $crate::mcp::AppLaunchArgs,
                 >,
             ) -> ::std::result::Result<
                 ::rmcp::model::CallToolResult,
                 ::rmcp::model::ErrorData,
             > {
+                let $crate::mcp::AppLaunchArgs { target: args, activate } = args;
                 let target = Self::dispatch_target(
                     args.simulator_name,
                     args.simulator_udid,
@@ -1941,7 +1951,7 @@ macro_rules! xcrs_mcp_tools {
                             None,
                             args.app_path.clone(),
                         )?;
-                        let method = if args.activate {
+                        let method = if activate {
                             "device.apps.activate"
                         } else {
                             "device.apps.launch"
@@ -3576,6 +3586,32 @@ mod tests {
             assert!(!required.contains(&serde_json::json!("bundle_id")));
             assert!(!required.contains(&serde_json::json!("app_id")));
         }
+    }
+
+    #[test]
+    fn activate_is_advertised_by_app_launch_but_not_app_terminate() {
+        let tools = XcrsMcpServer::xcrs_tool_router().list_all();
+        let properties = |name: &str| {
+            tools
+                .iter()
+                .find(|tool| tool.name.as_ref() == name)
+                .unwrap_or_else(|| panic!("{name} should be registered"))
+                .input_schema["properties"]
+                .as_object()
+                .unwrap_or_else(|| panic!("{name} properties should be an object"))
+                .clone()
+        };
+
+        assert!(
+            properties("app_launch").contains_key("activate"),
+            "app_launch should advertise activate"
+        );
+        assert!(
+            !properties("app_terminate").contains_key("activate"),
+            "app_terminate ignores activate, so it must not advertise it"
+        );
+        // The shared target fields still reach app_terminate.
+        assert!(properties("app_terminate").contains_key("app_id"));
     }
 
     #[test]
