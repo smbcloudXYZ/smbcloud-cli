@@ -1,5 +1,7 @@
 # GresIQ
 
+> **Status:** this crate is a placeholder. The connection bootstrap below is the design target and is not implemented yet. For the working REST client, use [`smbcloud-gresiq-sdk`](https://crates.io/crates/smbcloud-gresiq-sdk).
+
 GresIQ is smbCloud's managed PostgreSQL bootstrap crate for small and medium businesses. It is designed around the product shape teams expect from Neon, Prisma Postgres, and similar services:
 
 - branch-aware environments
@@ -41,7 +43,7 @@ SMBCLOUD_ENVIRONMENT=development
 ## Example
 
 ```rust
-use gresiq::GresiqConfig;
+use smbcloud_gresiq::GresiqConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -61,7 +63,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Run the crate binary directly to validate a managed endpoint:
 
 ```bash
-cargo run -p gresiq
+cargo run -p smbcloud-gresiq
 ```
 
 The binary prints:

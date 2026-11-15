@@ -1,21 +1,16 @@
 [package]
 name = "smbcloud-gresiq"
-description = "GresIQ is a serverless PostgreSQL client on the smbCloud platform."
+description = "GresIQ is serverless PostgreSQL on smbCloud. This crate is a placeholder while the Rust client takes shape; use smbcloud-gresiq-sdk today."
 version = "1.2.1"
 edition = "2024"
 readme = "README.md"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+homepage = "https://smbcloud.xyz"
 documentation = "https://smbcloud.xyz/posts"
-keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
-categories = [
-    "command-line-utilities",
-    "command-line-interface",
-    "cryptography::cryptocurrencies",
-    "development-tools",
-    "wasm",
-]
+keywords = ["smbcloud", "gresiq", "postgres", "serverless", "database"]
+categories = ["database", "development-tools", "api-bindings"]
 
 [lib]
 path = "src/gresiq.rs"
