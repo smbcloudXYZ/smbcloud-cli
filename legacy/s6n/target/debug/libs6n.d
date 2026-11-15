@@ -1,1 +1,0 @@
-/Users/setoelkahfi/Repositories/smbcloud-cli/legacy/s6n/target/debug/libs6n.rlib: /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/s6n/target/package/s6n-0.4.0/README.md /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/s6n/target/package/s6n-0.4.0/src/lib.rs

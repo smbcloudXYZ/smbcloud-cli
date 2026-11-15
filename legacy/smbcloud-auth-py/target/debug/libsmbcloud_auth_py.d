@@ -1,1 +1,0 @@
-/Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbcloud-auth-py/target/debug/libsmbcloud_auth_py.rlib: /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbcloud-auth-py/target/package/smbcloud-auth-py-0.4.0/README.md /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbcloud-auth-py/target/package/smbcloud-auth-py-0.4.0/src/lib.rs

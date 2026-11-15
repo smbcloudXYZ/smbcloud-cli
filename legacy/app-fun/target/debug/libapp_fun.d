@@ -1,1 +1,0 @@
-/Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-fun/target/debug/libapp_fun.rlib: /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-fun/target/package/app-fun-0.4.0/README.md /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-fun/target/package/app-fun-0.4.0/src/lib.rs
