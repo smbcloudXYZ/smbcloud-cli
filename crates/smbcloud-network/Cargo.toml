@@ -10,7 +10,7 @@ repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
 homepage = "https://smbcloud.xyz"
 documentation = "https://smbcloud.xyz/posts"
 keywords = ["smbcloud", "http", "api-client", "environment", "cloud"]
-categories = ["development-tools", "api-bindings", "network-programming"]
+categories = ["development-tools", "api-bindings", "network-programming", "wasm"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
