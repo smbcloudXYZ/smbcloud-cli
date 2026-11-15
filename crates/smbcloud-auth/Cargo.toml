@@ -3,18 +3,13 @@ name = "smbcloud-auth"
 version = "1.2.1"
 edition = "2024"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
-description = "Cross-platform Auth SDK for the smbCloud platform."
+description = "smbCloud Auth for Rust: signup, login, logout, OAuth and account management against the smbCloud Auth service."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+homepage = "https://smbcloud.xyz"
 documentation = "https://smbcloud.xyz/posts"
-keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
-categories = [
-    "command-line-utilities",
-    "command-line-interface",
-    "cryptography::cryptocurrencies",
-    "development-tools",
-    "wasm",
-]
+keywords = ["smbcloud", "auth", "authentication", "oauth", "login"]
+categories = ["authentication", "api-bindings", "web-programming"]
 readme = "README.md"
 
 [dependencies]

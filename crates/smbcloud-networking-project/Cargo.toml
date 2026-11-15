@@ -3,18 +3,13 @@ name = "smbcloud-networking-project"
 version = "1.2.1"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
-description = "Command line tool for deploying NextJS app on the smbCloud platform."
+description = "smbCloud project and deployment API client: create, read, update and delete projects, apps and deploy configs."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+homepage = "https://smbcloud.xyz"
 documentation = "https://smbcloud.xyz/posts"
-keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
-categories = [
-    "command-line-utilities",
-    "command-line-interface",
-    "cryptography::cryptocurrencies",
-    "development-tools",
-    "wasm",
-]
+keywords = ["smbcloud", "deploy", "project", "api-client", "cloud"]
+categories = ["development-tools", "api-bindings", "web-programming::http-client"]
 readme = "README.md"
 
 [dependencies]
