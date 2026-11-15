@@ -1,0 +1,1 @@
+/Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbpndk-networking/target/debug/libsmbpndk_networking.rlib: /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbpndk-networking/target/package/smbpndk-networking-0.4.0/README.md /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbpndk-networking/target/package/smbpndk-networking-0.4.0/src/lib.rs

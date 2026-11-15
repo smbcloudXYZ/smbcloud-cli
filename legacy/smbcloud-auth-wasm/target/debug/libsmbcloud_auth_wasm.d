@@ -1,0 +1,1 @@
+/Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbcloud-auth-wasm/target/debug/libsmbcloud_auth_wasm.rlib: /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbcloud-auth-wasm/target/package/smbcloud-auth-wasm-0.4.0/README.md /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/smbcloud-auth-wasm/target/package/smbcloud-auth-wasm-0.4.0/src/lib.rs

@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/cli", "crates/smbcloud-*", "crates/xcrs"]
+exclude = ["legacy"]
 
 [workspace.dependencies]
 anyhow = "1.0.58"

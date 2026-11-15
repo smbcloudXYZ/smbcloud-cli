@@ -1,0 +1,1 @@
+/Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-pkt/target/debug/libapp_pkt.rlib: /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-pkt/target/package/app-pkt-0.4.0/README.md /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-pkt/target/package/app-pkt-0.4.0/src/lib.rs

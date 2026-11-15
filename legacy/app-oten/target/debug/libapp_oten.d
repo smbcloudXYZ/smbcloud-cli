@@ -1,0 +1,1 @@
+/Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-oten/target/debug/libapp_oten.rlib: /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-oten/target/package/app-oten-0.4.0/README.md /Users/setoelkahfi/Repositories/smbcloud-cli/legacy/app-oten/target/package/app-oten-0.4.0/src/lib.rs
