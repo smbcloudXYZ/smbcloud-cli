@@ -1,5 +1,6 @@
 /target
 /legacy/*/target/
+/legacy/*/Cargo.lock
 *.log
 
 # Editor
