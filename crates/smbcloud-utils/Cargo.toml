@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-utils"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "Shared helpers for smbCloud crates: smbCloud config file handling and input validation."
