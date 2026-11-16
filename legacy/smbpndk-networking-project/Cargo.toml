@@ -1,0 +1,13 @@
+[package]
+name = "smbpndk-networking-project"
+version = "0.4.0"
+edition = "2021"
+authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
+description = "Renamed to smbcloud-networking-project. The smbCloud project and deployment API client by smbCloud. Enterprise power at startup velocity."
+license = "Apache-2.0"
+homepage = "https://smbcloud.xyz"
+repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+documentation = "https://docs.rs/smbcloud-networking-project"
+readme = "README.md"
+keywords = ["smbcloud", "deploy", "project", "cloud", "smbpndk"]
+categories = ["development-tools", "api-bindings"]

@@ -160,30 +160,25 @@ jobs:
             exit 1
           fi
 
-          # nuget.org validates a package before it reaches the flat container,
-          # so a version pushed minutes ago is not queryable yet. Poll instead
-          # of failing the release on that race.
-          for attempt in $(seq 1 60); do
-            nuget_versions="$(curl -fsSL "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/index.json")"
-            if echo "${nuget_versions}" | jq -e --arg v "${RELEASE_VERSION}" '.versions | index($v)' >/dev/null; then
-              echo "SmbCloud.Cli ${RELEASE_VERSION} is indexed."
-              break
-            fi
-            if [ "${attempt}" -eq 60 ]; then
-              echo "SmbCloud.Cli ${RELEASE_VERSION} is still not indexed on nuget.org after 30 minutes." >&2
+          # NuGet is optional. nuget.org validation can take over an hour, and
+          # npm alone is enough for a registry release. Check once: if the
+          # version is indexed, verify its marker; if not, drop the nuget entry
+          # so the registry doesn't fail fetching a package it can't see yet.
+          nuget_versions="$(curl -fsSL "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/index.json" || true)"
+          if echo "${nuget_versions}" | jq -e --arg v "${RELEASE_VERSION}" '.versions | index($v)' >/dev/null 2>&1; then
+            echo "SmbCloud.Cli ${RELEASE_VERSION} is indexed."
+            curl -fsSL -o package.nupkg \
+              "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/${RELEASE_VERSION}/smbcloud.cli.${RELEASE_VERSION}.nupkg"
+            if ! unzip -p package.nupkg README.md | grep -q "mcp-name: ${server_name}"; then
+              echo "SmbCloud.Cli ${RELEASE_VERSION} README is missing the 'mcp-name: ${server_name}' marker." >&2
               exit 1
             fi
-            echo "Waiting for nuget.org to index ${RELEASE_VERSION} (attempt ${attempt}/60)..."
-            sleep 30
-          done
-
-          curl -fsSL -o package.nupkg \
-            "https://api.nuget.org/v3-flatcontainer/smbcloud.cli/${RELEASE_VERSION}/smbcloud.cli.${RELEASE_VERSION}.nupkg"
-          if ! unzip -p package.nupkg README.md | grep -q "mcp-name: ${server_name}"; then
-            echo "SmbCloud.Cli ${RELEASE_VERSION} README is missing the 'mcp-name: ${server_name}' marker." >&2
-            exit 1
+            rm package.nupkg
+          else
+            echo "::warning::SmbCloud.Cli ${RELEASE_VERSION} is not indexed on nuget.org yet. This registry version will list npm only."
+            jq '.packages |= map(select(.registryType != "nuget"))' packaging/mcp/server.json > packaging/mcp/server.tmp
+            mv packaging/mcp/server.tmp packaging/mcp/server.json
           fi
-          rm package.nupkg
 
           xcrs_server_name="$(jq -r '.name' packaging/mcp/server-xcrs.json)"
           xcrs_version="$(jq -r '.version' packaging/mcp/server-xcrs.json)"

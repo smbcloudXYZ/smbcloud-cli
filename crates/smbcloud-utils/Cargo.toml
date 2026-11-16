@@ -1,20 +1,15 @@
 [package]
 name = "smbcloud-utils"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
-description = "Command line tool for deploying NextJS app on the smbCloud platform."
+description = "Shared helpers for smbCloud crates: smbCloud config file handling and input validation."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+homepage = "https://smbcloud.xyz"
 documentation = "https://smbcloud.xyz/posts"
-keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
-categories = [
-    "command-line-utilities",
-    "command-line-interface",
-    "cryptography::cryptocurrencies",
-    "development-tools",
-    "wasm",
-]
+keywords = ["smbcloud", "utils", "config", "cli", "cloud"]
+categories = ["development-tools", "command-line-utilities"]
 readme = "README.md"
 
 [dependencies]

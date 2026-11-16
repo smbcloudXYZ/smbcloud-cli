@@ -392,11 +392,13 @@ them by server.
 | `device_capabilities` | Report the selected target's supported automation operations. |
 | `app_install_launch` | Boot, install, and launch an iOS simulator app bundle. |
 | `app_launch` / `app_terminate` | Start or stop an installed app on the selected target. |
-| `screen_capture` | Capture the selected target as a PNG image. |
+| `screen_capture` | Capture the selected target as a PNG image (on a ControlKit host, optionally just one app's window). |
 | `url_open` | Open an HTTP(S) URL or custom scheme where the target supports it. |
 | `ui_describe` / `ui_element_list` / `ui_tap` | Inspect or activate accessible elements through ControlKit (Apple) or AndroidKit (Android). |
 | `input_tap` / `input_text` / `input_swipe` / `input_button` | Drive shared touch, text, gesture, and button actions. |
 | `input_click` | Click a macOS target with pointer coordinates. |
+| `input_key` / `input_drag` / `input_scroll` | Press keys and shortcuts, drag, and scroll in a macOS app. |
+| `window_resize` | Move and resize a macOS app's main window, e.g. to a 16:9 size for store screenshots. |
 | `input_spatial_tap` | Perform a visionOS spatial tap. |
 | `orientation_get` / `orientation_set` | Read or update orientation where supported. |
 

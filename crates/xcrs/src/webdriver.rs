@@ -377,7 +377,8 @@ pub fn desktop_capabilities() -> Value {
         ],
         "unsupported": [
             "url_open", "input_tap", "input_swipe", "input_button", "input_click",
-            "input_spatial_tap", "orientation_get", "orientation_set", "posture_get", "posture_set"
+            "input_spatial_tap", "orientation_get", "orientation_set", "posture_get", "posture_set",
+            "input_key", "input_drag", "input_scroll", "window_resize"
         ],
         "notes": "ui_describe returns the page source. app_launch and app_install_launch take the application binary path and start a WebDriver session, which launches the app. The app cannot be attached to once running."
     })

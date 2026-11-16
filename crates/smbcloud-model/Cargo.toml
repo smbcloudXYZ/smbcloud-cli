@@ -1,20 +1,15 @@
 [package]
 name = "smbcloud-model"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
-description = "Command line tool for deploying NextJS app on the smbCloud platform."
+description = "Shared data models for the smbCloud CLI and SDKs: projects, deployments, accounts and error types."
 license = "Apache-2.0"
 repository = "https://github.com/smbcloudXYZ/smbcloud-cli"
+homepage = "https://smbcloud.xyz"
 documentation = "https://smbcloud.xyz/posts"
-keywords = ["cli", "cloud", "web2", "web3", "smbcloud"]
-categories = [
-    "command-line-utilities",
-    "command-line-interface",
-    "cryptography::cryptocurrencies",
-    "development-tools",
-    "wasm",
-]
+keywords = ["smbcloud", "models", "serde", "api", "cloud"]
+categories = ["development-tools", "api-bindings", "data-structures"]
 readme = "README.md"
 
 [lib]

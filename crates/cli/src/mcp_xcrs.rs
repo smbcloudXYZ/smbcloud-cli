@@ -48,7 +48,11 @@ xcrs::xcrs_mcp_tools!(
     "orientation_get",
     "orientation_set",
     "posture_get",
-    "posture_set"
+    "posture_set",
+    "input_key",
+    "input_drag",
+    "input_scroll",
+    "window_resize"
 );
 
 #[rmcp::tool_handler(router = Self::xcrs_tool_router())]
@@ -91,7 +95,7 @@ pub async fn serve() -> Result<()> {
 mod tests {
     use super::*;
 
-    const CANONICAL_TOOL_NAMES: [&str; 21] = [
+    const CANONICAL_TOOL_NAMES: [&str; 25] = [
         "device_list",
         "device_select",
         "device_capabilities",
@@ -113,10 +117,14 @@ mod tests {
         "orientation_set",
         "posture_get",
         "posture_set",
+        "input_key",
+        "input_drag",
+        "input_scroll",
+        "window_resize",
     ];
 
     #[test]
-    fn automation_router_exposes_exactly_the_canonical_twentyone_tools() {
+    fn automation_router_exposes_exactly_the_canonical_twentyfive_tools() {
         let tools = AutomationMcpServer::xcrs_tool_router().list_all();
         let mut names: Vec<&str> = tools.iter().map(|tool| tool.name.as_ref()).collect();
         names.sort_unstable();
