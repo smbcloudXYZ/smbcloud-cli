@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "smbcloud": {
+      "type": "http",
+      "url": "https://api.smbcloud.xyz/v1/mcp"
+    }
+  }
+}

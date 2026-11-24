@@ -20,6 +20,7 @@ const emailGemCargoTomlPath = resolve(repoRoot, "sdk/gems/email/ext/email/Cargo.
 const emailGemLockPath = resolve(repoRoot, "sdk/gems/email/Gemfile.lock");
 const mcpServerJsonPath = resolve(repoRoot, "packaging/mcp/server.json");
 const xcrsMcpServerJsonPath = resolve(repoRoot, "packaging/mcp/server-xcrs.json");
+const claudePluginJsonPath = resolve(repoRoot, "packaging/claude/smbcloud/.claude-plugin/plugin.json");
 
 function readText(path) {
   return readFileSync(path, "utf8");
@@ -304,6 +305,17 @@ if (
   })
 ) {
   updatedPaths.push(mcpServerJsonPath);
+}
+
+if (
+  updateFile(claudePluginJsonPath, (content) => {
+    const parsed = JSON.parse(content);
+    parsed.version = releaseVersion;
+
+    return `${JSON.stringify(parsed, null, 2)}\n`;
+  })
+) {
+  updatedPaths.push(claudePluginJsonPath);
 }
 
 if (

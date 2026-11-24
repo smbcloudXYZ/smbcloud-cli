@@ -48,6 +48,8 @@ When bumping workspace crate versions for a release, also update the version con
 
 When bumping workspace crate versions for a release, always update `sdk/npm/smbcloud-auth/package.json` in the same commit.
 
+The Claude plugin manifest `packaging/claude/smbcloud/.claude-plugin/plugin.json` carries the release version too. `scripts/sync-release-version.mjs` updates it and `scripts/check-release-versions.mjs` checks it. The plugin directory tracks `main` and only publishes an update when that `version` goes up, so there is no release workflow for it. See `docs/claude-plugin.md`.
+
 The npm wrapper package is generated, but its checked-in files still need to match the release version before tagging:
 
 - rerender `packaging/npm/smbcloud-cli/package.json` with `node ../scripts/render-main-package.cjs ./package.json <version>`
