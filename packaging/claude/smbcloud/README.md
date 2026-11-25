@@ -1,6 +1,6 @@
 # smbCloud for Claude
 
-This plugin connects Claude to your [smbCloud](https://smbcloud.xyz) account. It lets Claude read the mail in your smbCloud Mail inboxes, search it, send messages from an inbox you own, and run a web search, all from the conversation.
+This plugin connects Claude to your [smbCloud](https://smbcloud.xyz) account. The first part of the account it covers is smbCloud Mail: Claude can read the mail in your inboxes, search it, send messages from an inbox you own, and run a web search, all from the conversation.
 
 ## What you can ask
 

@@ -128,11 +128,45 @@ check(
   read("sdk/gems/email/Gemfile.lock").match(/smbcloud-email \(([^)]+)\)/)?.[1],
 );
 
+// The Claude and OpenAI plugins are one smbCloud plugin listed in two
+// directories, so they must agree on identity and on the hosted server.
+const claudePlugin = JSON.parse(read("packaging/claude/smbcloud/.claude-plugin/plugin.json"));
+const openaiPlugin = JSON.parse(read("packaging/openai/smbcloud/plugin.json"));
+const claudeServers = JSON.parse(read("packaging/claude/smbcloud/.mcp.json")).mcpServers ?? {};
+const openaiServers = JSON.parse(read("packaging/openai/smbcloud/mcp.json")).mcpServers ?? {};
+const pluginMismatches = [];
+const expectPlugin = (label, claudeValue, openaiValue, expected) => {
+  if (claudeValue !== expected || openaiValue !== expected) {
+    pluginMismatches.push(`${label}: Claude ${claudeValue ?? "missing"}, OpenAI ${openaiValue ?? "missing"} (expected ${expected})`);
+  }
+};
+expectPlugin("name", claudePlugin.name, openaiPlugin.name, "smbcloud");
+expectPlugin(
+  "display name",
+  claudePlugin.displayName,
+  openaiPlugin.extensions?.["com.openai"]?.interface?.displayName,
+  "smbCloud",
+);
+expectPlugin("MCP server URL", claudeServers.smbcloud?.url, openaiServers.smbcloud?.url, "https://api.smbcloud.xyz/v1/mcp");
+if (Object.keys(claudeServers).length !== 1 || Object.keys(openaiServers).length !== 1) {
+  pluginMismatches.push("each plugin must bundle exactly one MCP server, smbcloud");
+}
+
+if (pluginMismatches.length > 0) {
+  console.error("The Claude and OpenAI plugins disagree:");
+  for (const mismatch of pluginMismatches) {
+    console.error(`- ${mismatch}`);
+  }
+}
+
 if (mismatches.length > 0) {
   console.error(`Release version mismatch detected for ${expectedVersion}:`);
   for (const mismatch of mismatches) {
     console.error(`- ${mismatch}`);
   }
+}
+
+if (mismatches.length > 0 || pluginMismatches.length > 0) {
   process.exit(1);
 }
 

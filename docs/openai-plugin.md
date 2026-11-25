@@ -1,13 +1,33 @@
 # OpenAI plugin (ChatGPT and Codex)
 
 smbCloud ships a plugin for OpenAI's plugin directory, which ChatGPT and Codex
-share. It is listed as **smbCloud Mail** in the Communication category and
-bundles the hosted MCP server at `https://api.smbcloud.xyz/v1/mcp`: the user's
-smbCloud Mail inboxes plus web search, with OAuth sign-in.
+share. It is listed as **smbCloud** in the Productivity category and bundles
+the hosted MCP server at `https://api.smbcloud.xyz/v1/mcp`, with OAuth sign-in.
+Today the server covers the user's smbCloud Mail inboxes plus web search.
 
-It is a separate package from the [Claude plugin](./claude-plugin.md) because
-OpenAI uses its own manifest fields and takes an upload instead of following a
-branch.
+It is the same plugin as the [Claude plugin](./claude-plugin.md), packaged a
+second time because OpenAI uses its own manifest fields and takes an upload
+instead of following a branch.
+
+## One plugin, two directories
+
+The Claude and OpenAI packages are one smbCloud plugin, not a Mail plugin. They
+share:
+
+- the name `smbcloud`, which is permanent in both directories
+- the display name `smbCloud`
+- one bundled MCP server, `smbcloud`, at `https://api.smbcloud.xyz/v1/mcp`. OpenAI
+  cannot change the server URL through an update.
+- the release version
+
+`scripts/check-release-versions.mjs` fails when the two disagree on any of them.
+
+The plugin grows on the server, not in the package. New smbCloud tools (projects,
+deployments, tenants, Auth) are added to the hosted server, and both directories
+pick them up without a new upload. OpenAI holds a new tool back until it has
+approved it. When the set of capabilities changes, update the descriptions and
+test cases in both manifests in the same release, so neither listing promises
+something the server doesn't do, or leaves out something it does.
 
 ## Layout
 
@@ -64,9 +84,9 @@ instruction to add another MCP server.
   with PKCE `S256`, and a registration endpoint. ChatGPT registers itself through
   dynamic client registration.
 - Domain verification: `https://api.smbcloud.xyz/.well-known/openai-apps-challenge`
-  returns the token from the portal as plain text. The API serves the value of
-  `OPENAI_APPS_CHALLENGE`, so the token is set in the API's environment, not
-  committed.
+  returns the token from the portal as plain text. The API reads it from its own
+  configuration, so it is added there (in the API repository) once the portal has
+  issued it.
 
 ## Submitting
 
@@ -75,8 +95,8 @@ with Apps Management Write, after the organization's identity is verified:
 
 1. Upload the ZIP and fix any Metadata & Skills findings.
 2. Connect the MCP server: URL `https://api.smbcloud.xyz/v1/mcp`, authentication
-   OAuth. The portal shows a domain challenge token. Set `OPENAI_APPS_CHALLENGE`
-   on the API server, then Verify Domain. Connect, sign in on the smbCloud consent
+   OAuth. The portal shows a domain challenge token. Add it to the API's
+   configuration, deploy, then Verify Domain. Connect, sign in on the smbCloud consent
    page, and wait for the tool scan.
 3. Review details: reviewer credentials for an smbCloud account that has a
    mailbox with sample mail and no MFA, the demo video URL, the test cases

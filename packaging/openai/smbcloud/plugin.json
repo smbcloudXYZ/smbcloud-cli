@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "smbcloud",
   "version": "1.2.4",
-  "description": "Read, search and send email from your smbCloud Mail inboxes, and search the web, from a conversation.",
+  "description": "Work with your smbCloud account from a conversation. Today that means reading, searching and sending email from your smbCloud Mail inboxes, and searching the web.",
   "author": {
     "name": "smbCloud",
     "url": "https://smbcloud.xyz"
@@ -11,19 +11,20 @@
   "repository": "https://github.com/smbcloudXYZ/smbcloud-cli",
   "license": "Apache-2.0",
   "keywords": [
+    "smbcloud",
+    "cloud",
     "email",
     "mail",
-    "inbox",
-    "smbcloud"
+    "inbox"
   ],
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "smbCloud Mail",
-        "shortDescription": "Read and send your email",
-        "longDescription": "smbCloud Mail connects ChatGPT to the inboxes in your smbCloud account. Ask about the mail you received, find a message by subject, sender or text, read it in full, look back at what you sent, and send email from an inbox you own. A web search tool can look things up while you work through your mail.\n\nYou sign in with your smbCloud account and approve access on an smbCloud page. The plugin can reach only the inboxes that belong to that account. Sending is never automatic: ChatGPT asks before it sends anything, and the message goes out from your own address.\n\nTool calls go to the smbCloud API. Web search queries are passed to a third-party search provider named in the smbCloud privacy policy.",
+        "displayName": "smbCloud",
+        "shortDescription": "Your smbCloud account, in chat",
+        "longDescription": "smbCloud connects ChatGPT to your smbCloud account. The first part of the account it reaches is smbCloud Mail: ask about the mail you received, find a message by subject, sender or text, read it in full, look back at what you sent, and send email from an inbox you own. A web search tool can look things up while you work through your mail.\n\nYou sign in with your smbCloud account and approve access on an smbCloud page. The plugin can reach only the inboxes that belong to that account. Sending is never automatic: ChatGPT asks before it sends anything, and the message goes out from your own address.\n\nTool calls go to the smbCloud API. Web search queries are passed to a third-party search provider named in the smbCloud privacy policy.",
         "developerName": "smbCloud",
-        "category": "Communication",
+        "category": "Productivity",
         "capabilities": [
           "Read",
           "Write"
@@ -80,8 +81,8 @@
               "prompt": "What is the capital of Sweden?"
             },
             {
-              "description": "Calendar request the plugin cannot handle",
-              "prompt": "Schedule a meeting with the team next Tuesday at 10."
+              "description": "Request about an account at another provider",
+              "prompt": "Show me the latest invoices in my Stripe dashboard."
             },
             {
               "description": "Request about another person's inbox",
@@ -92,7 +93,7 @@
         "commerce": false
       },
       "publication": {
-        "release_notes": "First release: read, search and send email from your smbCloud Mail inboxes, plus web search."
+        "release_notes": "First release of smbCloud: read, search and send email from your smbCloud Mail inboxes, plus web search."
       }
     }
   }
