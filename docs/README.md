@@ -19,6 +19,7 @@
 - [MCP server](./mcp.md): setup and the full tool reference.
 - [MCP Registry](./mcp-registry.md): how the registry listings are published.
 - [Claude plugin](./claude-plugin.md): the plugin for Claude's plugin directory.
+- [OpenAI plugin](./openai-plugin.md): the plugin for the ChatGPT and Codex plugin directory.
 - [ControlKit runners](./controlkit.md): mobile and TV automation.
 - [AndroidKit](./androidkit.md)
 

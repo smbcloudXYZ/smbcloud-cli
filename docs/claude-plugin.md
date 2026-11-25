@@ -2,11 +2,13 @@
 
 smbCloud ships a plugin for Claude's plugin directory. It adds the hosted
 smbCloud MCP server to Claude (claude.ai chat, Cowork, and Claude Code) so a
-user can read and send mail from their smbCloud Mail inboxes and run web
-searches in a conversation.
+user can work with their smbCloud account in a conversation. Today that means
+reading and sending mail from their smbCloud Mail inboxes and running web
+searches. The same plugin is listed in OpenAI's directory; see
+[One plugin, two directories](./openai-plugin.md#one-plugin-two-directories).
 
 The plugin is separate from `smb --mcp`. The hosted server exposes the mail and
-web search tools and signs users in with OAuth. The full tool set (projects,
+web search tools for now and signs users in with OAuth. The full tool set (projects,
 deployments, tenants, Auth apps) stays in the local `smb --mcp` server, which
 needs the CLI installed and only works in Claude Code. See [MCP Server](./mcp.md).
 

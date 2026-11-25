@@ -34,3 +34,6 @@
 
 # MCP Registry DNS/HTTP auth keypair — never commit the private half
 /mcp-registry-key.pem
+
+# Built plugin packages (scripts/package-openai-plugin.sh)
+/dist/
