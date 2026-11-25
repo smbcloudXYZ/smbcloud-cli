@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-auth"
-version = "1.2.3"
+version = "1.2.4"
 edition = "2024"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "smbCloud Auth for Rust: signup, login, logout, OAuth and account management against the smbCloud Auth service."
