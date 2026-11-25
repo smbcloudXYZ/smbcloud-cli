@@ -7,7 +7,7 @@ This plugin connects Claude to your [smbCloud](https://smbcloud.xyz) account. It
 - "What came in overnight on my support inbox?"
 - "Find the email from the accountant about the March invoice and summarize it."
 - "Reply to the last message in my sales inbox saying we can meet on Thursday."
-- "Search the web for the SES sending limits and tell me what applies to a new account."
+- "Search the web for the current DMARC recommendations and check them against my domain's setup."
 
 ## Tools
 
@@ -32,19 +32,11 @@ The first time you use the plugin, Claude opens a smbCloud page in your browser.
 
 ## What data is sent where
 
-Everything goes to `https://api.smbcloud.xyz/v1/mcp`, the smbCloud API. That includes the arguments Claude passes to a tool (an inbox, a search query, the text of a message you ask it to send) and the results it gets back (message contents and metadata). The plugin sends nothing to any other service and stores nothing on your machine. It has no scripts, executables, or hooks.
+The plugin talks only to `https://api.smbcloud.xyz/v1/mcp`, the smbCloud API. Claude sends it the arguments for each tool (an inbox, a search query, the text of a message you ask it to send) and gets back the results (message contents and metadata). The plugin stores nothing on your machine and has no scripts, executables, or hooks.
+
+`web_search` runs on a third-party search provider: smbCloud passes it the search query and the number of results requested, and nothing else. The [privacy policy](https://smbcloud.xyz/privacy-policy) names the provider and says what smbCloud keeps.
 
 `send_message` sends email on your behalf, and the recipient sees it come from your inbox. Check what Claude proposes before you approve it.
-
-## More tools for Claude Code
-
-The hosted server covers mail and web search. If you use Claude Code and want projects, deployments, tenants, and Auth apps as well, install the smbCloud CLI and run it as a local MCP server instead:
-
-```sh
-claude mcp add smbcloud-cli -- smb --mcp
-```
-
-See the [MCP server guide](https://github.com/smbcloudXYZ/smbcloud-cli/blob/main/docs/mcp.md) for installation and the full tool list.
 
 ## Privacy
 

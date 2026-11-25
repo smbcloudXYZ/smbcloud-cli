@@ -7,7 +7,7 @@
     "name": "smbCloud",
     "url": "https://smbcloud.xyz"
   },
-  "homepage": "https://docs.smbcloud.xyz/developer/cli",
+  "homepage": "https://smbcloud.xyz",
   "repository": "https://github.com/smbcloudXYZ/smbcloud-cli",
   "license": "Apache-2.0",
   "keywords": [
