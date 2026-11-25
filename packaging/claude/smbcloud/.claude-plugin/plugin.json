@@ -1,13 +1,13 @@
 {
   "name": "smbcloud",
   "displayName": "smbCloud",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Read and send email from your smbCloud Mail inboxes and search the web, from a conversation with Claude. Signs in with your smbCloud account.",
   "author": {
     "name": "smbCloud",
     "url": "https://smbcloud.xyz"
   },
-  "homepage": "https://docs.smbcloud.xyz/developer/cli",
+  "homepage": "https://smbcloud.xyz",
   "repository": "https://github.com/smbcloudXYZ/smbcloud-cli",
   "license": "Apache-2.0",
   "keywords": [

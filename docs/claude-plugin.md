@@ -68,6 +68,13 @@ These rules caused real validation findings or are easy to break later:
 
 - The name cannot be a reserved word (`claude`, `anthropic`, `official`, `plugin`,
   `mcp`, `test`) and cannot imply the plugin is official.
+- Nothing in the plugin may tell Claude or the user to add an MCP server the plugin
+  does not declare, or a second connector "for more features". This includes
+  pointing at the local `smb --mcp` server from the plugin README. The first
+  submission was refused for exactly that (`DP_TAG_BOUNCE`) after validation and the
+  security scan had passed. Only a Verified organization's plugin may ship a local
+  server. The repository docs outside `packaging/claude/` can still describe
+  `smb --mcp`.
 - The README needs at least 40 words outside code blocks and a statement of what
   data the plugin sends.
 - `plugin.json` needs a license (or a `LICENSE` file), a privacy policy URL for
