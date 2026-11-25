@@ -351,7 +351,7 @@ jobs:
     name: SDK — ${{ matrix.gem }} gem (${{ matrix.platform }})
     needs: changes
     if: needs.changes.outputs.gems == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -435,7 +435,7 @@ jobs:
         platform: [x86_64-linux, aarch64-linux, arm64-darwin]
         include:
           - platform: x86_64-linux
-            runner: ubuntu-latest
+            runner: ubuntu-24.04
           - platform: aarch64-linux
             runner: ubuntu-24.04-arm
           - platform: arm64-darwin
@@ -474,7 +474,7 @@ jobs:
     name: SDK — ${{ matrix.gem }} source gem
     needs: changes
     if: needs.changes.outputs.gems == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:

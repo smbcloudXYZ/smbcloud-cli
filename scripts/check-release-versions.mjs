@@ -106,6 +106,11 @@ for (const path of ["packaging/mcp/server.json", "packaging/mcp/server-xcrs.json
 }
 
 check(
+  "packaging/claude/smbcloud/.claude-plugin/plugin.json",
+  JSON.parse(read("packaging/claude/smbcloud/.claude-plugin/plugin.json")).version,
+);
+
+check(
   "packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj",
   read("packaging/nuget/smbcloud-cli/SmbCloud.Cli.csproj").match(/<PackageVersion>([^<]+)<\/PackageVersion>/)?.[1],
 );

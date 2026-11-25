@@ -1,6 +1,6 @@
 [package]
 name = "smbcloud-networking-project"
-version = "1.2.2"
+version = "1.2.3"
 edition = "2021"
 authors = ["Seto Elkahfi <seto@smbcloud.xyz>"]
 description = "smbCloud project and deployment API client: create, read, update and delete projects, apps and deploy configs."

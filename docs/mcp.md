@@ -81,6 +81,13 @@ Or add it directly to your project's `.mcp.json`:
 }
 ```
 
+### Claude plugin
+
+Claude's plugin directory lists a plugin that connects to the hosted server at
+`https://api.smbcloud.xyz/v1/mcp` and signs you in with your smbCloud account. It
+covers Mail and web search only. For projects, deployments, tenants and Auth
+apps, use `smb --mcp` as above. See [Claude plugin](./claude-plugin.md).
+
 ### Cursor
 
 Add the same shape to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json`
