@@ -50,6 +50,8 @@ When bumping workspace crate versions for a release, always update `sdk/npm/smbc
 
 The Claude plugin manifest `packaging/claude/smbcloud/.claude-plugin/plugin.json` carries the release version too. `scripts/sync-release-version.mjs` updates it and `scripts/check-release-versions.mjs` checks it. The plugin directory tracks `main` and only publishes an update when that `version` goes up, so there is no release workflow for it. See `docs/claude-plugin.md`.
 
+The OpenAI plugin manifest `packaging/openai/smbcloud/plugin.json` is synced the same way. OpenAI takes a ZIP upload rather than following a branch, so after a release that changes the plugin, build it with `scripts/package-openai-plugin.sh` and upload it at platform.openai.com/plugins. Hosted MCP server changes need no upload. See `docs/openai-plugin.md`.
+
 The npm wrapper package is generated, but its checked-in files still need to match the release version before tagging:
 
 - rerender `packaging/npm/smbcloud-cli/package.json` with `node ../scripts/render-main-package.cjs ./package.json <version>`

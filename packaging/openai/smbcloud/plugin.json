@@ -1,0 +1,99 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "smbcloud",
+  "version": "1.2.4",
+  "description": "Read, search and send email from your smbCloud Mail inboxes, and search the web, from a conversation.",
+  "author": {
+    "name": "smbCloud",
+    "url": "https://smbcloud.xyz"
+  },
+  "homepage": "https://smbcloud.xyz",
+  "repository": "https://github.com/smbcloudXYZ/smbcloud-cli",
+  "license": "Apache-2.0",
+  "keywords": [
+    "email",
+    "mail",
+    "inbox",
+    "smbcloud"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "smbCloud Mail",
+        "shortDescription": "Read and send your email",
+        "longDescription": "smbCloud Mail connects ChatGPT to the inboxes in your smbCloud account. Ask about the mail you received, find a message by subject, sender or text, read it in full, look back at what you sent, and send email from an inbox you own. A web search tool can look things up while you work through your mail.\n\nYou sign in with your smbCloud account and approve access on an smbCloud page. The plugin can reach only the inboxes that belong to that account. Sending is never automatic: ChatGPT asks before it sends anything, and the message goes out from your own address.\n\nTool calls go to the smbCloud API. Web search queries are passed to a third-party search provider named in the smbCloud privacy policy.",
+        "developerName": "smbCloud",
+        "category": "Communication",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://smbcloud.xyz",
+        "supportURL": "https://github.com/smbcloudXYZ/smbcloud-cli/issues",
+        "privacyPolicyURL": "https://smbcloud.xyz/privacy-policy",
+        "termsOfServiceURL": "https://smbcloud.xyz/term-of-use",
+        "defaultPrompt": [
+          "What came in on my inbox today?",
+          "Find the latest email about my invoice and summarize it",
+          "Draft a reply to my last message and show it to me before sending"
+        ],
+        "composerIcon": "./assets/logo.png",
+        "logo": "./assets/logo.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Identify the signed-in account",
+              "prompt": "Which smbCloud account am I signed in with, and how many mailboxes do I have?",
+              "tools_triggered": "whoami",
+              "expected_behavior": "Calls whoami and reports the account email, the number of mailboxes and the mail plan."
+            },
+            {
+              "description": "List mailboxes",
+              "prompt": "List my smbCloud mailboxes.",
+              "tools_triggered": "list_mailboxes",
+              "expected_behavior": "Calls list_mailboxes and lists each mailbox address."
+            },
+            {
+              "description": "Read the newest message",
+              "prompt": "Show my latest emails and open the newest one.",
+              "tools_triggered": "list_messages, get_message",
+              "expected_behavior": "Lists recent messages newest first, then reads the newest one and summarizes its subject, sender and body."
+            },
+            {
+              "description": "Search mail",
+              "prompt": "Find emails that mention invoice and tell me who sent them.",
+              "tools_triggered": "search_messages",
+              "expected_behavior": "Searches the mailbox for invoice and lists matching messages with their senders."
+            },
+            {
+              "description": "Send a reply after confirmation",
+              "prompt": "Reply to the most recent email saying thanks, I will get back to you tomorrow.",
+              "tools_triggered": "list_messages, send_message",
+              "expected_behavior": "Finds the most recent message, shows the drafted reply and the recipient, and sends it with send_message only after the user confirms."
+            }
+          ],
+          "negative": [
+            {
+              "description": "General knowledge question with no mail context",
+              "prompt": "What is the capital of Sweden?"
+            },
+            {
+              "description": "Calendar request the plugin cannot handle",
+              "prompt": "Schedule a meeting with the team next Tuesday at 10."
+            },
+            {
+              "description": "Request about another person's inbox",
+              "prompt": "Read the emails in my coworker's personal Gmail account."
+            }
+          ]
+        },
+        "commerce": false
+      },
+      "publication": {
+        "release_notes": "First release: read, search and send email from your smbCloud Mail inboxes, plus web search."
+      }
+    }
+  }
+}

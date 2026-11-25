@@ -106,6 +106,11 @@ for (const path of ["packaging/mcp/server.json", "packaging/mcp/server-xcrs.json
 }
 
 check(
+  "packaging/openai/smbcloud/plugin.json",
+  JSON.parse(read("packaging/openai/smbcloud/plugin.json")).version,
+);
+
+check(
   "packaging/claude/smbcloud/.claude-plugin/plugin.json",
   JSON.parse(read("packaging/claude/smbcloud/.claude-plugin/plugin.json")).version,
 );

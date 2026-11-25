@@ -33,12 +33,12 @@ More ways, including .NET, pip, shell, PowerShell and pre-built binaries, are in
 
 - **In the terminal.** `smb login && smb init && smb deploy` takes you from a fresh login to a first deploy. See [interfaces](docs/interfaces.md).
 - **In scripts and CI.** `smb --ci` turns off prompts, so a missing answer fails fast instead of hanging. See [CI mode](docs/ci.md).
-- **With AI agents.** `smb --mcp` serves the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, and it is listed in the MCP Registry as `io.github.smbcloudXYZ/smbcloud-cli`. See [MCP](docs/mcp.md). The hosted server for Mail is also a [Claude plugin](docs/claude-plugin.md).
+- **With AI agents.** `smb --mcp` serves the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, and it is listed in the MCP Registry as `io.github.smbcloudXYZ/smbcloud-cli`. See [MCP](docs/mcp.md). The hosted server for Mail is also a [Claude plugin](docs/claude-plugin.md) and an [OpenAI plugin](docs/openai-plugin.md) for ChatGPT and Codex.
 - **For mobile and TV automation.** `smb --mcp --scope automation` exposes Xcode, ControlKit, CoreDevice and adb tools. See [ControlKit](docs/controlkit.md).
 
 ## Docs
 
-[Install](docs/install.md), [interfaces](docs/interfaces.md), [CI](docs/ci.md), [MCP](docs/mcp.md), [MCP Registry](docs/mcp-registry.md), [Claude plugin](docs/claude-plugin.md), [ControlKit](docs/controlkit.md), [AndroidKit](docs/androidkit.md), [development](docs/development.md). The index is [docs/README.md](docs/README.md).
+[Install](docs/install.md), [interfaces](docs/interfaces.md), [CI](docs/ci.md), [MCP](docs/mcp.md), [MCP Registry](docs/mcp-registry.md), [Claude plugin](docs/claude-plugin.md), [OpenAI plugin](docs/openai-plugin.md), [ControlKit](docs/controlkit.md), [AndroidKit](docs/androidkit.md), [development](docs/development.md). The index is [docs/README.md](docs/README.md).
 
 ## Contributing
 

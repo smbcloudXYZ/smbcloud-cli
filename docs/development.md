@@ -35,6 +35,11 @@ The Claude plugin (`packaging/claude/smbcloud`) is the one channel with no workf
 publishes a new version when the release commit reaches `main`. See
 [Claude plugin](./claude-plugin.md).
 
+The OpenAI plugin (`packaging/openai/smbcloud`) has no workflow either. Its version is synced
+with the rest, but OpenAI only sees a new version when someone builds the ZIP with
+`scripts/package-openai-plugin.sh` and uploads it in the portal. See
+[OpenAI plugin](./openai-plugin.md).
+
 A local publish (`cargo workspaces publish --publish-as-is`) exists only as a
 fallback for when CI is unavailable; it is not the normal path. See the
 `smbcloud-cli-release` skill for per-channel details, version-sync rules, and
