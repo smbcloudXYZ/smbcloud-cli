@@ -30,6 +30,11 @@ publishes the workspace crates to crates.io and fans out to the npm, PyPI, NuGet
 and Ruby-gem distribution workflows. **You do not publish by hand** — the tag push
 is the trigger.
 
+The Claude plugin (`packaging/claude/smbcloud`) is the one channel with no workflow. Its
+`plugin.json` version is synced with the others, and Claude's plugin directory
+publishes a new version when the release commit reaches `main`. See
+[Claude plugin](./claude-plugin.md).
+
 A local publish (`cargo workspaces publish --publish-as-is`) exists only as a
 fallback for when CI is unavailable; it is not the normal path. See the
 `smbcloud-cli-release` skill for per-channel details, version-sync rules, and
