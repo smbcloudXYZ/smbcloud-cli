@@ -15,6 +15,17 @@ pub(crate) fn build_frontend_apps_url(env: Environment, client: (&SmbClient, &st
     url_builder.build()
 }
 
+pub(crate) fn build_frontend_apps_by_project_url(
+    env: Environment,
+    client: (&SmbClient, &str),
+    project_id: i32,
+) -> String {
+    let mut url_builder = smb_base_url_builder(env, client);
+    url_builder.add_route("v1/frontend_apps");
+    url_builder.add_param("project_id", &project_id.to_string());
+    url_builder.build()
+}
+
 pub(crate) fn build_frontend_app_url(
     env: Environment,
     client: (&SmbClient, &str),
@@ -120,4 +131,24 @@ pub(crate) fn build_project_deployment(
     url_builder.add_route("deployment");
     url_builder.add_route(id.as_str());
     url_builder.build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_project_filter_joins_the_existing_query_string() {
+        let url = build_frontend_apps_by_project_url(
+            Environment::Production,
+            (&SmbClient::Cli, "secret"),
+            1412,
+        );
+        assert_eq!(url.matches('?').count(), 1, "{url}");
+        assert!(url.contains("project_id=1412"), "{url}");
+        assert!(
+            url.contains("client_secret=secret&") || url.ends_with("client_secret=secret"),
+            "{url}"
+        );
+    }
 }
