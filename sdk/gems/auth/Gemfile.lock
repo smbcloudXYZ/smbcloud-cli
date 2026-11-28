@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    smbcloud-auth (1.2.4)
+    smbcloud-auth (1.2.5)
       json
       rb_sys (~> 0.9, >= 0.9.130)
 

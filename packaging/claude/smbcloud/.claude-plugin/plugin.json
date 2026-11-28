@@ -1,7 +1,7 @@
 {
   "name": "smbcloud",
   "displayName": "smbCloud",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Work with your smbCloud account from a conversation with Claude. Today that means reading and sending email from your smbCloud Mail inboxes and searching the web. Signs in with your smbCloud account.",
   "author": {
     "name": "smbCloud",
