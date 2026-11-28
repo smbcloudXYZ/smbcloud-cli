@@ -1,7 +1,7 @@
 {
   "name": "smbcloud",
   "displayName": "smbCloud",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Read and send email from your smbCloud Mail inboxes and search the web, from a conversation with Claude. Signs in with your smbCloud account.",
   "author": {
     "name": "smbCloud",

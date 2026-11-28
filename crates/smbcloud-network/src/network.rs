@@ -97,9 +97,61 @@ pub fn log_send_error(e: &reqwest::Error) {
     debug!("Request failed to send ({kind}): {e:?}");
 }
 
+/// An error body that isn't `{"error_code", "message"}`: a Rails `{"message": …}`, a Rails
+/// validation hash (`{"name": ["can't be blank"]}`), or HTML from a crash. Keeps whatever
+/// explains the failure instead of reporting "Parse error.".
+pub fn error_from_unexpected_body(status: StatusCode, body: &str) -> ErrorResponse {
+    let error_code = match status.as_u16() {
+        401 | 403 => ErrorCode::Unauthorized,
+        400 | 422 => ErrorCode::InvalidParams,
+        _ => ErrorCode::Unknown,
+    };
+    let from_json = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| json_error_message(&v));
+    let message = from_json.unwrap_or_else(|| match status.canonical_reason() {
+        Some(reason) => format!("The server answered {} {reason}.", status.as_u16()),
+        None => format!("The server answered {}.", status.as_u16()),
+    });
+    ErrorResponse::Error {
+        error_code,
+        message,
+    }
+}
+
+fn json_error_message(v: &serde_json::Value) -> Option<String> {
+    let obj = v.as_object()?;
+    for key in ["message", "error", "error_description"] {
+        if let Some(text) = obj.get(key).and_then(serde_json::Value::as_str)
+            && !text.trim().is_empty()
+        {
+            return Some(text.trim().to_string());
+        }
+    }
+    // A validation hash: field => [messages]. Report each field's first message.
+    let errors = obj.get("errors").and_then(|e| e.as_object()).unwrap_or(obj);
+    let parts: Vec<String> = errors
+        .iter()
+        .filter_map(|(field, msgs)| {
+            let first = match msgs {
+                serde_json::Value::Array(list) => list.first()?.as_str()?.to_string(),
+                serde_json::Value::String(s) => s.clone(),
+                _ => return None,
+            };
+            Some(if field == "base" {
+                first
+            } else {
+                format!("{} {first}", field.replace('_', " "))
+            })
+        })
+        .collect();
+    (!parts.is_empty()).then(|| parts.join("; "))
+}
+
 pub async fn parse_error_response<T: DeserializeOwned>(
     response: Response,
 ) -> Result<T, ErrorResponse> {
+    let status = response.status();
     let error_response_body = match response.text().await {
         Ok(body) => body,
         Err(e) => {
@@ -121,11 +173,8 @@ pub async fn parse_error_response<T: DeserializeOwned>(
     let error_response = match serde_json::from_str(&error_response_body) {
         Ok(error_response) => error_response,
         Err(e) => {
-            error!("Failed to parse error response: {:?}", e);
-            return Err(ErrorResponse::Error {
-                error_code: ErrorCode::ParseError,
-                message: ErrorCode::ParseError.message(None).to_string(),
-            });
+            debug!("Error body is not an ErrorResponse: {:?}", e);
+            return Err(error_from_unexpected_body(status, &error_response_body));
         }
     };
     // The parsing itself is succeed.
@@ -363,6 +412,53 @@ mod tests {
             other => panic!("expected NetworkError, got {other:?}"),
         }
         assert!(started.elapsed() < Duration::from_secs(5));
+    }
+
+    fn message(e: ErrorResponse) -> (String, String) {
+        let ErrorResponse::Error {
+            error_code,
+            message,
+        } = e;
+        (format!("{error_code:?}"), message)
+    }
+
+    #[test]
+    fn an_unexpected_error_body_keeps_its_explanation() {
+        let cases = [
+            (
+                401,
+                r#"{"message":"Unauthorized"}"#,
+                "Unauthorized",
+                "Unauthorized",
+            ),
+            (
+                422,
+                r#"{"name":["can't be blank"],"project_id":["is invalid"]}"#,
+                "InvalidParams",
+                "name can't be blank; project id is invalid",
+            ),
+            (
+                422,
+                r#"{"errors":{"base":["Project is archived"]}}"#,
+                "InvalidParams",
+                "Project is archived",
+            ),
+            (404, r#"{"error":"Not found"}"#, "Unknown", "Not found"),
+            (
+                500,
+                "<!doctype html><h1>We're sorry</h1>",
+                "Unknown",
+                "The server answered 500 Internal Server Error.",
+            ),
+        ];
+        for (status, body, code, text) in cases {
+            let status = StatusCode::from_u16(status).unwrap();
+            assert_eq!(
+                message(error_from_unexpected_body(status, body)),
+                (code.to_string(), text.to_string()),
+                "{body}"
+            );
+        }
     }
 
     #[test]

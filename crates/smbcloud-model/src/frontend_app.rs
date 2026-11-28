@@ -253,11 +253,17 @@ pub struct FrontendAppCreate {
     pub runner: Runner,
     #[serde(default)]
     pub deployment_method: DeploymentMethod,
+    // Unset fields are left out rather than sent as null: a null overrides the server's column
+    // default (`source_path` is NOT NULL with a default of ".").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Repo this app deploys from, when the workspace tracks one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deploy_repo_id: Option<i64>,
     /// Repo-relative app path for monorepo targets, e.g. "apps/web".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_path: Option<String>,
 }
 
@@ -299,6 +305,31 @@ mod tests {
         assert_eq!(value["deployment_method"], json!(0));
         assert_eq!(value["deploy_repo_id"], json!(7));
         assert_eq!(value["source_path"], json!("apps/web"));
+        assert!(
+            value.get("description").is_none(),
+            "unset fields are left out"
+        );
+    }
+
+    #[test]
+    fn an_app_outside_a_monorepo_sends_no_source_path() {
+        let create = FrontendAppCreate {
+            name: "lintang-server".to_owned(),
+            project_id: 1412,
+            app_type: AppType::Web,
+            runner: Runner::Rust,
+            deployment_method: DeploymentMethod::Git,
+            repository: None,
+            description: None,
+            deploy_repo_id: None,
+            source_path: None,
+        };
+        let value = serde_json::to_value(&create).unwrap();
+        // A null would override the server's default of "." and fail its NOT NULL column.
+        for key in ["source_path", "repository", "description", "deploy_repo_id"] {
+            assert!(value.get(key).is_none(), "{key} must be omitted: {value}");
+        }
+        assert_eq!(value["runner"], json!(4));
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use {
-    crate::url_builder::{build_frontend_app_url, build_frontend_apps_url},
+    crate::url_builder::{build_frontend_app_url, build_frontend_apps_by_project_url},
     reqwest::Client,
     smbcloud_model::{error_codes::ErrorResponse, frontend_app::FrontendApp},
     smbcloud_network::{environment::Environment, network::request},
@@ -12,11 +12,9 @@ pub async fn get_frontend_apps_by_project(
     access_token: String,
     project_id: i32,
 ) -> Result<Vec<FrontendApp>, ErrorResponse> {
-    let url = format!(
-        "{}?project_id={}",
-        build_frontend_apps_url(env, client),
-        project_id
-    );
+    // The base URL already carries the client credentials as query parameters, so the
+    // project filter must be added to the same query string, not after a second `?`.
+    let url = build_frontend_apps_by_project_url(env, client, project_id);
     let builder = Client::new()
         .get(url)
         .header("Authorization", access_token)
