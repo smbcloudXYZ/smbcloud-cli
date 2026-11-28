@@ -2,7 +2,7 @@
   "name": "smbcloud",
   "displayName": "smbCloud",
   "version": "1.2.5",
-  "description": "Work with your smbCloud account from a conversation with Claude. Today that means reading and sending email from your smbCloud Mail inboxes and searching the web. Signs in with your smbCloud account.",
+  "description": "Read and send email from your smbCloud Mail inboxes and search the web, from a conversation with Claude. Signs in with your smbCloud account.",
   "author": {
     "name": "smbCloud",
     "url": "https://smbcloud.xyz"
@@ -11,11 +11,10 @@
   "repository": "https://github.com/smbcloudXYZ/smbcloud-cli",
   "license": "Apache-2.0",
   "keywords": [
-    "smbcloud",
-    "cloud",
     "email",
     "mail",
-    "inbox"
+    "inbox",
+    "smbcloud"
   ],
   "privacyPolicyUrl": "https://smbcloud.xyz/privacy-policy",
   "icon": "./.claude-plugin/icon.png"
